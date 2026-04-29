@@ -1,0 +1,317 @@
+// school-signage/prisma/schema.prisma
+// Full multi-tenant school digital signage schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// Auth & Users
+// ─────────────────────────────────────────────
+
+enum Role {
+  SUPER_ADMIN
+  SCHOOL_ADMIN
+  EDITOR
+  VIEWER
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         Role     @default(VIEWER)
+  schoolId     String?
+  school       School?  @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sessions     Session[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@map("sessions")
+}
+
+// ─────────────────────────────────────────────
+// Schools (Multi-tenant)
+// ─────────────────────────────────────────────
+
+model School {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  logoUrl   String?
+  locale    String   @default("he")
+  timezone  String   @default("Asia/Jerusalem")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users         User[]
+  screens       Screen[]
+  announcements Announcement[]
+  mediaFiles    MediaFile[]
+  galleries     Gallery[]
+  theme         SchoolTheme?
+
+  @@map("schools")
+}
+
+model SchoolTheme {
+  id              String  @id @default(cuid())
+  schoolId        String  @unique
+  school          School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  primaryColor    String  @default("#1a73e8")
+  secondaryColor  String  @default("#ffffff")
+  backgroundColor String  @default("#0f0f1a")
+  fontFamily      String  @default("Heebo")
+  logoUrl         String?
+  borderRadius    Int     @default(8)
+
+  @@map("school_themes")
+}
+
+// ─────────────────────────────────────────────
+// Screens
+// ─────────────────────────────────────────────
+
+enum Orientation {
+  LANDSCAPE
+  PORTRAIT
+}
+
+model Screen {
+  id          String      @id @default(cuid())
+  schoolId    String
+  school      School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  name        String
+  slug        String      @unique
+  orientation Orientation @default(LANDSCAPE)
+  width       Int         @default(1920)
+  height      Int         @default(1080)
+  active      Boolean     @default(true)
+  refreshSecs Int         @default(30)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  layout          ScreenLayout?
+  sections        ScreenSection[]
+  announcements   AnnouncementScreen[]
+
+  @@map("screens")
+}
+
+model ScreenLayout {
+  id              String  @id @default(cuid())
+  screenId        String  @unique
+  screen          Screen  @relation(fields: [screenId], references: [id], onDelete: Cascade)
+
+  // Header
+  headerEnabled   Boolean @default(true)
+  headerShowLogo  Boolean @default(true)
+  headerShowTitle Boolean @default(true)
+  headerShowClock Boolean @default(true)
+  headerShowDate  Boolean @default(true)
+  headerShowHebDate Boolean @default(true)
+  headerShowWeather Boolean @default(false)
+  headerScrollText String?
+
+  // Main sections count (1, 2, or 3)
+  mainSections    Int     @default(1)
+
+  // Footer
+  footerEnabled   Boolean @default(true)
+  footerTicker    String?
+  footerShowSchoolName Boolean @default(true)
+  footerShowClock Boolean @default(false)
+
+  // Theme overrides
+  bgColor         String?
+  bgImageUrl      String?
+
+  @@map("screen_layouts")
+}
+
+// ─────────────────────────────────────────────
+// Screen Sections & Content
+// ─────────────────────────────────────────────
+
+enum ContentType {
+  TEXT
+  IMAGE_GALLERY
+  VIDEO
+  CLOCK
+  DATE
+  WEATHER
+  RSS_FEED
+  TIMETABLE
+  EVENTS
+  BIRTHDAYS
+  ANNOUNCEMENT
+  EMPTY
+}
+
+model ScreenSection {
+  id        String  @id @default(cuid())
+  screenId  String
+  screen    Screen  @relation(fields: [screenId], references: [id], onDelete: Cascade)
+  position  Int     // 0, 1, or 2
+  widthPct  Int     @default(100) // percentage width
+
+  contentItems ContentItem[]
+
+  @@unique([screenId, position])
+  @@map("screen_sections")
+}
+
+model ContentItem {
+  id              String      @id @default(cuid())
+  sectionId       String
+  section         ScreenSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  contentType     ContentType @default(TEXT)
+  priority        Int         @default(0)
+  active          Boolean     @default(true)
+
+  // Scheduling
+  startDate       DateTime?
+  endDate         DateTime?
+  startTime       String?     // "08:00"
+  endTime         String?     // "16:00"
+  daysOfWeek      Int[]       // 0=Sun..6=Sat
+
+  // Content payload (type-specific)
+  textContent     String?
+  textColor       String?
+  bgColor         String?
+  fontSize        Int?
+
+  galleryId       String?
+  gallery         Gallery?    @relation(fields: [galleryId], references: [id])
+  slideDuration   Int         @default(5)
+  transitionStyle String      @default("fade")
+
+  videoUrl        String?
+  videoLoop       Boolean     @default(true)
+  videoMuted      Boolean     @default(true)
+
+  rssUrl          String?
+  rssMaxItems     Int         @default(5)
+
+  weatherCity     String?
+  weatherUnits    String      @default("metric")
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@map("content_items")
+}
+
+// ─────────────────────────────────────────────
+// Announcements
+// ─────────────────────────────────────────────
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  EMERGENCY
+}
+
+model Announcement {
+  id          String   @id @default(cuid())
+  schoolId    String
+  school      School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  title       String
+  body        String
+  priority    Priority @default(LOW)
+  bgColor     String   @default("#1a1a2e")
+  textColor   String   @default("#ffffff")
+  icon        String?
+  active      Boolean  @default(true)
+
+  // Scheduling
+  startAt     DateTime
+  endAt       DateTime
+  startTime   String?
+  endTime     String?
+  daysOfWeek  Int[]
+
+  // Emergency = overrides full screen
+  isEmergency Boolean  @default(false)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  screens     AnnouncementScreen[]
+
+  @@map("announcements")
+}
+
+// Many-to-many: Announcement ↔ Screen + section
+model AnnouncementScreen {
+  announcementId String
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  screenId       String
+  screen         Screen       @relation(fields: [screenId], references: [id], onDelete: Cascade)
+  sectionPosition Int?        // null = show in all sections
+
+  @@id([announcementId, screenId])
+  @@map("announcement_screens")
+}
+
+// ─────────────────────────────────────────────
+// Media
+// ─────────────────────────────────────────────
+
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
+model MediaFile {
+  id          String    @id @default(cuid())
+  schoolId    String
+  school      School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  galleryId   String?
+  gallery     Gallery?  @relation(fields: [galleryId], references: [id], onDelete: SetNull)
+  filename    String
+  originalName String
+  mimeType    String
+  size        Int       // bytes
+  mediaType   MediaType
+  url         String
+  caption     String?
+  hidden      Boolean   @default(false)
+  uploadedAt  DateTime  @default(now())
+
+  @@map("media_files")
+}
+
+model Gallery {
+  id        String      @id @default(cuid())
+  schoolId  String
+  school    School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  name      String
+  createdAt DateTime    @default(now())
+
+  files         MediaFile[]
+  contentItems  ContentItem[]
+
+  @@map("galleries")
+}

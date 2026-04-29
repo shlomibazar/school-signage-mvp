@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Base ───────────────────────────────────────────── */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+/* ── TV / kiosk display ─────────────────────────────── */
+.tv-display {
+  cursor: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ── Scrolling ticker ───────────────────────────────── */
+/* RTL: text enters from left, exits to the right       */
+@keyframes ticker-rtl {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+/* LTR fallback */
+@keyframes ticker-ltr {
+  0%   { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+
+.ticker-wrap {
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.ticker-text {
+  display: inline-block;
+  white-space: nowrap;
+  animation: ticker-rtl 30s linear infinite;
+}
+
+[dir='ltr'] .ticker-text {
+  animation-name: ticker-ltr;
+}
+
+/* ── Fade transitions for content ───────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.fade-in {
+  animation: fadeIn 0.6s ease-in-out;
+}
+
+/* ── Emergency pulse ────────────────────────────────── */
+@keyframes emergency-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.85; }
+}
+
+.emergency-pulse {
+  animation: emergency-pulse 1.5s ease-in-out infinite;
+}
+
+/* ── Scrollbar (admin) ──────────────────────────────── */
+::-webkit-scrollbar       { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
