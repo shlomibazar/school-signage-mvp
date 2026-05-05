@@ -4,8 +4,6 @@ import bcrypt from 'bcryptjs'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { signToken, setAuthCookie } from '@/lib/auth'
-import { Role } from '@/types'
-
 
 const LoginSchema = z.object({
   email:    z.string().email(),
@@ -29,7 +27,6 @@ function checkRateLimit(ip: string): boolean {
   return true
 }
 
-//this is the post when we have db
 export async function POST(req: NextRequest) {
   // Rate limit by IP
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
@@ -39,9 +36,6 @@ export async function POST(req: NextRequest) {
       { status: 429 },
     )
   }
-  
-// For demo purposes, we use a hardcoded user. Replace with real DB lookup in production.
-  
 
   try {
     const body = await req.json()
@@ -66,7 +60,7 @@ export async function POST(req: NextRequest) {
       sub:      user.id,
       email:    user.email,
       name:     user.name,
-      role: user.role as Role,
+      role:     user.role,
       schoolId: user.schoolId,
     })
 
@@ -84,37 +78,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'שגיאת שרת' }, { status: 500 })
   }
 }
-
-
-/* this without db for demo purposes only, to be removed later 
-export async function POST(req: NextRequest) {
-  const body = await req.json()
-
-  // דמו משתמש קשיח
-  if (
-    body.email === 'admin@schoolscreen.app' &&
-    body.password === 'admin123'
-  ) {
-    const token = await signToken({
-      sub: 'demo-user',
-      email: body.email,
-      name: 'Admin',
-      role: 'SUPER_ADMIN',
-      schoolId: 'demo-school',
-    })
-
-    const response = NextResponse.json({
-      ok: true,
-      user: { name: 'Admin', role: 'SUPER_ADMIN' },
-    })
-
-    setAuthCookie(response, token)
-    return response
-  }
-
-  return NextResponse.json(
-    { error: 'אימייל או סיסמה שגויים' },
-    { status: 401 }
-  )
-}
-*/

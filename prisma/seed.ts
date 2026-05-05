@@ -17,19 +17,19 @@ async function main() {
   console.log('🌱 Seeding database...')
 
   // ── Super admin: login = 1 / password = 1 ──────────────
-const hash = await bcrypt.hash('Admin123!', 12)
+  const hash = await bcrypt.hash('1', 12)
 
-const superAdmin = await db.user.upsert({
-  where:  { email: 'admin@schoolscreen.app' },
-  update: { passwordHash: hash },
-  create: {
-    email:        'admin@schoolscreen.app',
-    name:         'מנהל ראשי',
-    passwordHash: hash,
-    role:         'SUPER_ADMIN',
-  },
-})
-  console.log(`✅ Super admin — email: "admin@schoolscreen.app"  password: "Admin123!"`)
+  const superAdmin = await db.user.upsert({
+    where:  { email: '1' },
+    update: { passwordHash: hash },
+    create: {
+      email:        '1',
+      name:         'מנהל ראשי',
+      passwordHash: hash,
+      role:         'SUPER_ADMIN',
+    },
+  })
+  console.log(`✅ Super admin — email: "1"  password: "1"`)
 
   // ── Demo school ─────────────────────────────────────────
   const school = await db.school.upsert({
