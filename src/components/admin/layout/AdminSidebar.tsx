@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Monitor, PenSquare, Megaphone,
-  ImageIcon, Users, Settings, HelpCircle, Menu, X, PanelRightClose, PanelRightOpen,
+  ImageIcon, Users, Settings, LockKeyhole, HelpCircle, Menu, X, PanelRightClose, PanelRightOpen,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { AuthUser } from '@/types'
@@ -27,6 +27,7 @@ const NAV: NavItem[] = [
   { href: '/admin/media',         label: 'ספריית מדיה',   icon: ImageIcon },
   { href: '/admin/users',         label: 'משתמשים',        icon: Users,        section: 'ניהול', roles: ['SCHOOL_ADMIN', 'SUPER_ADMIN'] },
   { href: '/admin/settings',      label: 'הגדרות',         icon: Settings,     roles: ['SCHOOL_ADMIN', 'SUPER_ADMIN'] },
+  { href: '/admin/change-password', label: 'שינוי סיסמה', icon: LockKeyhole },
 ]
 
 export default function AdminSidebar({ user }: { user: AuthUser }) {
