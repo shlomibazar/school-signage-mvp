@@ -14,3 +14,9 @@ Thumbs.db
 
 prisma/dev.db
 prisma/dev.db-journal
+# Temporary development files
+typescript-errors.txt
+tsconfig.tsbuildinfo
+update_schema.py
+
+/public/uploads/

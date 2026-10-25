@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { distributeWidths, toISOStringOrNull } from '@/lib/utils'
 import ScreenLayoutEditor from '@/components/admin/editor/ScreenLayoutEditor'
+import ScreenSelector from '@/components/admin/editor/ScreenSelector'
 import type { Screen, ScreenLayout, ScreenSection, ContentItem } from '@/types'
 
 interface Props {
@@ -53,27 +54,41 @@ export default async function EditorPage({ searchParams }: Props) {
     id:                  raw.layout.id,
     screenId:            raw.layout.screenId,
     headerEnabled:       raw.layout.headerEnabled,
+    headerHeight:        raw.layout.headerHeight,
+    headerTitleFontSize: raw.layout.headerTitleFontSize,
+    headerTitleFontWeight: raw.layout.headerTitleFontWeight,
+    headerDateType:      raw.layout.headerDateType as ScreenLayout["headerDateType"],
     headerShowLogo:      raw.layout.headerShowLogo,
     headerShowTitle:     raw.layout.headerShowTitle,
     headerShowClock:     raw.layout.headerShowClock,
     headerShowDate:      raw.layout.headerShowDate,
+    headerShowParasha:   raw.layout.headerShowParasha,
     headerShowHebDate:   raw.layout.headerShowHebDate,
     headerShowWeather:   raw.layout.headerShowWeather,
     headerScrollText:    raw.layout.headerScrollText ?? null,
     mainSections:        raw.layout.mainSections,
     footerEnabled:       raw.layout.footerEnabled,
+    footerHeight:        raw.layout.footerHeight,
+    footerShowBirthdays: raw.layout.footerShowBirthdays,
     footerTicker:        raw.layout.footerTicker    ?? null,
+    footerFeedMode: raw.layout.footerFeedMode as ScreenLayout["footerFeedMode"],
+    footerRssUrl: raw.layout.footerRssUrl ?? null,
+    footerRssMaxItems: raw.layout.footerRssMaxItems,
+    footerRssRefreshMinutes: raw.layout.footerRssRefreshMinutes,
+    footerTickerSpeed: raw.layout.footerTickerSpeed as ScreenLayout["footerTickerSpeed"],
     footerShowSchoolName:raw.layout.footerShowSchoolName,
     footerShowClock:     raw.layout.footerShowClock,
     bgColor:             raw.layout.bgColor         ?? null,
     bgImageUrl:          raw.layout.bgImageUrl      ?? null,
   } : {
     id: '', screenId: raw.id,
-    headerEnabled: true,  headerShowLogo: true, headerShowTitle: true,
-    headerShowClock: true, headerShowDate: true, headerShowHebDate: true,
+    headerEnabled: true, headerHeight: 80, headerTitleFontSize:26, headerTitleFontWeight:700, headerDateType: "BOTH", headerShowLogo: true, headerShowTitle: true,
+    headerShowClock: true, headerShowDate: true, headerShowParasha: false, headerShowHebDate: true,
     headerShowWeather: false, headerScrollText: null,
     mainSections: 1,
-    footerEnabled: true, footerTicker: null,
+    footerEnabled: true, footerHeight: 48, footerShowBirthdays: false, footerTicker: null,
+    footerFeedMode: "manual", footerRssUrl: null, footerRssMaxItems: 8,
+    footerRssRefreshMinutes: 15, footerTickerSpeed: "normal",
     footerShowSchoolName: true, footerShowClock: false,
     bgColor: null, bgImageUrl: null,
   }
@@ -113,6 +128,7 @@ export default async function EditorPage({ searchParams }: Props) {
         rssMaxItems:    ci.rssMaxItems,
         weatherCity:    ci.weatherCity ?? null,
         weatherUnits:   ci.weatherUnits,
+        settings:       (ci.settings ?? null) as ContentItem["settings"],
       })),
     }
   })
@@ -129,9 +145,15 @@ export default async function EditorPage({ searchParams }: Props) {
     refreshSecs: raw.refreshSecs,
   }
 
+  const availableScreens = await db.screen.findMany({
+    where: schoolId && user.role !== 'SUPER_ADMIN' ? { schoolId } : {},
+    select: { id: true, name: true }, orderBy: { createdAt: 'asc' },
+  })
+
   return (
-    <div className="h-full">
-      <ScreenLayoutEditor screen={screen} layout={layout} sections={sections} />
+    <div className="min-w-0">
+      <ScreenLayoutEditor schoolId={raw.schoolId} initialLogoUrl={(await db.school.findUnique({where:{id:raw.schoolId},select:{logoUrl:true}}))?.logoUrl ?? null} initialWeatherCity={(await db.school.findUnique({where:{id:raw.schoolId},select:{weatherCity:true}}))?.weatherCity ?? null} key={screen.id} screen={screen} layout={layout} sections={sections}
+        screenSelector={<ScreenSelector currentId={screen.id} screens={availableScreens} />} />
     </div>
   )
 }

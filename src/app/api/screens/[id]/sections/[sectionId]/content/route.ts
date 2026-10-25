@@ -1,18 +1,16 @@
 // src/app/api/screens/[id]/sections/[sectionId]/content/route.ts
-// GET  – fetch the single content item for this section
-// POST – create (or replace) the content item for this section
 
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { toISOStringOrNull } from '@/lib/utils'
+import { Prisma } from '@prisma/client'
 
 function apiError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status })
 }
 
-// Validate the section belongs to the screen and the screen belongs to the school
 async function resolveSection(
   screenId: string,
   sectionId: string,
@@ -35,13 +33,12 @@ const ContentSchema = z.object({
     'BIRTHDAYS', 'ANNOUNCEMENT', 'EMPTY',
   ]),
   active:          z.boolean().default(true),
-  // Scheduling
   startDate:       z.string().nullable().optional(),
   endDate:         z.string().nullable().optional(),
   startTime:       z.string().nullable().optional(),
   endTime:         z.string().nullable().optional(),
   daysOfWeek:      z.array(z.number().int().min(0).max(6)).default([]),
-  // Text
+  // Text / shared display
   textContent:     z.string().nullable().optional(),
   textColor:       z.string().nullable().optional(),
   bgColor:         z.string().nullable().optional(),
@@ -60,6 +57,8 @@ const ContentSchema = z.object({
   // Weather
   weatherCity:     z.string().nullable().optional(),
   weatherUnits:    z.string().default('metric'),
+  // Flexible per-type settings JSON
+  settings:        z.record(z.unknown()).nullable().optional(),
 })
 
 // ── GET ──────────────────────────────────────────────────
@@ -68,7 +67,7 @@ export async function GET(
   { params }: { params: { id: string; sectionId: string } },
 ) {
   try {
-    const user = await requireRole('VIEWER')
+    const user    = await requireRole('VIEWER')
     const section = await resolveSection(
       params.id, params.sectionId,
       user.schoolId, user.role === 'SUPER_ADMIN',
@@ -76,7 +75,7 @@ export async function GET(
     if (!section) return apiError('Section not found', 404)
 
     const item = await db.contentItem.findFirst({
-      where: { sectionId: params.sectionId },
+      where:   { sectionId: params.sectionId },
       orderBy: { createdAt: 'asc' },
       include: { gallery: { include: { files: { where: { hidden: false } } } } },
     })
@@ -100,13 +99,13 @@ export async function GET(
   }
 }
 
-// ── POST (create / replace) ───────────────────────────────
+// ── POST (replace) ────────────────────────────────────────
 export async function POST(
   req: NextRequest,
   { params }: { params: { id: string; sectionId: string } },
 ) {
   try {
-    const user = await requireRole('EDITOR')
+    const user    = await requireRole('EDITOR')
     const section = await resolveSection(
       params.id, params.sectionId,
       user.schoolId, user.role === 'SUPER_ADMIN',
@@ -116,7 +115,7 @@ export async function POST(
     const body   = await req.json()
     const parsed = ContentSchema.parse(body)
 
-    // One item per section: delete existing first
+    // One item per section — delete existing first
     await db.contentItem.deleteMany({ where: { sectionId: params.sectionId } })
 
     const item = await db.contentItem.create({
@@ -144,6 +143,9 @@ export async function POST(
         rssMaxItems:     parsed.rssMaxItems,
         weatherCity:     parsed.weatherCity  ?? null,
         weatherUnits:    parsed.weatherUnits,
+        settings: parsed.settings
+          ? (parsed.settings as Prisma.InputJsonValue)
+          : Prisma.DbNull,
       },
     })
 

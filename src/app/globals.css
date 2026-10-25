@@ -2,28 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Base ───────────────────────────────────────────── */
-html {
-  -webkit-text-size-adjust: 100%;
+
+* { box-sizing: border-box; }
+
+html, body {
+  direction: rtl;
+  font-family: 'Heebo', sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* ── TV / kiosk display ─────────────────────────────── */
-.tv-display {
-  cursor: none;
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-/* ── Scrolling ticker ───────────────────────────────── */
-/* RTL: text enters from left, exits to the right       */
+/* Ticker animation */
 @keyframes ticker-rtl {
   0%   { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
-}
-/* LTR fallback */
-@keyframes ticker-ltr {
-  0%   { transform: translateX(100%); }
-  100% { transform: translateX(-100%); }
 }
 
 .ticker-wrap {
@@ -33,36 +24,770 @@ html {
 
 .ticker-text {
   display: inline-block;
-  white-space: nowrap;
-  animation: ticker-rtl 30s linear infinite;
+  animation: ticker-rtl 35s linear infinite;
+  padding-right: 100%;
 }
 
-[dir='ltr'] .ticker-text {
-  animation-name: ticker-ltr;
+/* TV display */
+.tv-display {
+  overflow: hidden;
+  user-select: none;
+  cursor: none;
 }
 
-/* ── Fade transitions for content ───────────────────── */
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-
-.fade-in {
-  animation: fadeIn 0.6s ease-in-out;
-}
-
-/* ── Emergency pulse ────────────────────────────────── */
+/* Emergency pulse */
 @keyframes emergency-pulse {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.85; }
 }
-
 .emergency-pulse {
   animation: emergency-pulse 1.5s ease-in-out infinite;
 }
 
-/* ── Scrollbar (admin) ──────────────────────────────── */
-::-webkit-scrollbar       { width: 4px; height: 4px; }
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 4px; }
+
+/* SchoolScreen Display 2.0 — presentation-ready, layout-agnostic skin.
+   Only the public TV display is affected; the admin editor stays intact. */
+.tv-display-premium {
+  isolation: isolate;
+  background-color: #0b1b34;
+}
+.tv-display-premium .tv-content-grid {
+  gap: clamp(6px, 0.65vw, 16px);
+  padding: clamp(6px, 0.65vw, 16px);
+  min-width: 0;
+}
+.tv-display-premium .tv-content-panel {
+  position: relative;
+  border-radius: clamp(9px, 0.9vw, 22px);
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(14, 32, 56, 0.72);
+  box-shadow: 0 12px 32px rgba(0,0,0,0.18), inset 0 1px rgba(255,255,255,0.06);
+  contain: paint;
+}
+.tv-display-premium .tv-content-panel > * { min-width: 0; max-width: 100%; }
+.tv-premium-header {
+  box-shadow: 0 6px 22px rgba(0,0,0,0.16);
+  z-index: 2;
+}
+.tv-premium-header::after {
+  content: ''; position: absolute; inset-inline: 0; bottom: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(107,196,242,0.8), transparent);
+  pointer-events: none;
+}
+.tv-premium-header .tv-school-title { letter-spacing: -0.025em; }
+.tv-premium-footer { z-index: 2; box-shadow: 0 -5px 20px rgba(0,0,0,0.14); }
+@media (prefers-reduced-motion: reduce) {
+  .tv-display-premium * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+
+/* SchoolScreen Display 3.0 – visual skin; does not alter saved layouts. */
+.tv-display-premium { --tv-ink: #edf5ff; color: var(--tv-ink); }
+.tv-display-premium .tv-content-grid { gap: clamp(6px,.7vw,16px); padding: clamp(6px,.7vw,16px); }
+.tv-display-premium .tv-content-panel { flex-shrink: 1; border-radius: clamp(10px,1vw,22px); background: linear-gradient(145deg,#172c48,#0f2037); border: 1px solid rgba(173,211,248,.20); box-shadow: 0 12px 35px rgba(0,0,0,.20),inset 0 1px rgba(255,255,255,.07); }
+.tv-display-premium .tv-content-panel > * { width:100%; height:100%; }
+.tv-display-premium .tv-text-content { background-image: radial-gradient(ellipse at 15% 0%,rgba(64,127,189,.15),transparent 60%); padding: clamp(12px,2.4vw,48px); }
+.tv-display-premium .tv-text-body { max-width:100%; overflow-wrap:anywhere; text-wrap:balance; font-size:clamp(18px,2.7vw,58px); line-height:1.35; font-weight:650; letter-spacing:-.025em; }
+.tv-display-premium .tv-text-body p + p { margin-top:.6em; }
+.tv-display-premium .tv-gallery { background: #0b1627; }
+.tv-display-premium .tv-gallery img { object-fit:contain; }
+.tv-display-premium .tv-gallery::after { content:''; position:absolute; inset:0; background:linear-gradient(to top,rgba(7,15,27,.30),transparent 24%); pointer-events:none; }
+.tv-display-premium .tv-gallery > div { z-index:1; }
+.tv-display-premium .tv-birthday { position:relative; isolation:isolate; overflow:hidden; background:linear-gradient(135deg,#45236f 0%,#822c78 52%,#ba4978 100%); }
+.tv-display-premium .tv-birthday::before { content:''; position:absolute; width:75%; aspect-ratio:1; border-radius:50%; top:-35%; right:-35%; background:rgba(255,255,255,.09); z-index:-1; }
+.tv-display-premium .tv-birthday::after { content:''; position:absolute; width:65%; aspect-ratio:1; border-radius:50%; bottom:-38%; left:-30%; border:3px solid rgba(255,255,255,.12); z-index:-1; }
+.tv-display-premium .tv-birthday-icon { filter:drop-shadow(0 8px 16px rgba(0,0,0,.2)); }
+.tv-display-premium .tv-birthday > div:nth-child(2) { letter-spacing:-.04em; text-shadow:0 4px 20px rgba(30,10,50,.2); }
+.tv-display-premium .tv-announcement { background-image:linear-gradient(145deg,rgba(255,255,255,.10),transparent 65%)!important; }
+.tv-display-premium .tv-event { background:radial-gradient(ellipse at top,#244f70,#142943 75%); }
+.tv-display-premium .tv-info-list { background:linear-gradient(150deg,#1c3756,#13263f); gap:clamp(5px,.6vw,14px); }
+.tv-display-premium .tv-info-list > div { max-width:100%; }
+.tv-display-premium .tv-info-list > div:not(:first-child) { border-bottom:1px solid rgba(255,255,255,.10); padding-bottom:clamp(5px,.6vw,12px); }
+.tv-display-premium .tv-premium-header,.tv-display-premium .tv-premium-footer { backdrop-filter:blur(10px); }
+/* Allow mouse interaction during local development. */
+@media (pointer:fine) { .tv-display-premium { cursor:default; } }
+
+/* Screen theme – uses the existing saved ScreenLayout.bgColor. */
+.tv-display-premium .tv-content-panel {
+  background: linear-gradient(145deg,
+    color-mix(in srgb, var(--tv-base, #0a0f1e) 76%, #325a7e),
+    color-mix(in srgb, var(--tv-base, #0a0f1e) 90%, black));
+}
+.tv-display-premium .tv-gallery img { object-fit: unset; }
+.tv-display-premium .tv-gallery img.object-cover { object-fit: cover; }
+.tv-display-premium .tv-gallery img.object-contain { object-fit: contain; }
+
+/* Per-screen themes */
+.tv-display-premium { color:var(--tv-ink,#edf5ff); }
+.tv-display-premium .tv-content-panel {background:var(--tv-panel,#172c48);border-color:var(--tv-border,#45617e);border-radius:var(--tv-radius,18px);}
+.tv-display-premium .tv-premium-header::after {background:linear-gradient(90deg,transparent,var(--tv-accent,#55d7ef),transparent);}
+.tv-display-premium .tv-info-list {background:var(--tv-panel,#172c48);color:var(--tv-ink,#edf5ff);}
+
+.tv-display-premium[data-screen-theme="light"] .tv-premium-footer .text-white\/30,
+.tv-display-premium[data-screen-theme="light"] .tv-premium-footer .text-white\/60 {color:#536780;}
+.tv-display-premium[data-screen-theme="light"] .tv-content-panel {box-shadow:0 8px 25px rgba(31,57,90,.08);}
+.tv-display-premium[data-screen-theme="light"] .tv-premium-header,
+.tv-display-premium[data-screen-theme="light"] .tv-premium-footer {color:#16263c;}
+
+
+/* Theme consistency patch: all panels and content use the same per-screen palette.
+   Appended after legacy blue styles to override their hardcoded values. */
+.tv-display-premium .tv-content-panel {
+  background:var(--tv-panel,#172c48);
+  border-color:var(--tv-border,#45617e);
+  border-radius:var(--tv-radius,18px);
+  color:var(--tv-ink,#edf5ff);
+}
+.tv-display-premium .tv-timetable {
+  background:var(--tv-panel,#172c48);
+  color:var(--tv-ink,#edf5ff);
+}
+.tv-display-premium .tv-timetable-heading {
+  background:var(--tv-header,#183452);
+  border-color:var(--tv-border,#45617e);
+}
+.tv-display-premium .tv-timetable-card {
+  background:color-mix(in srgb,var(--tv-panel,#172c48) 90%,var(--tv-ink,#edf5ff) 10%);
+  color:var(--tv-ink,#edf5ff);
+}
+.tv-display-premium .tv-gallery {background:var(--tv-panel,#172c48);}
+.tv-display-premium .tv-birthday,
+.tv-display-premium .tv-event,
+.tv-display-premium .tv-info-list {background:var(--tv-panel,#172c48);color:var(--tv-ink,#edf5ff);}
+.tv-display-premium .tv-info-list > div {color:var(--tv-ink,#edf5ff);}
+.tv-display-premium .tv-premium-header,
+.tv-display-premium .tv-premium-footer {color:var(--tv-ink,#edf5ff);}
+.tv-display-premium .tv-premium-footer .text-white\/30,
+.tv-display-premium .tv-premium-footer .text-white\/60 {color:var(--tv-ink,#edf5ff);opacity:.55;}
+.tv-display-premium .tv-text-content:not([style*="background:"]) {color:var(--tv-ink,#edf5ff);}
+
+/* Polished theme-aware screen header, footer and ticker. */
+.tv-display-premium .tv-chrome-header{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr) minmax(0,1fr);align-items:center;gap:clamp(8px,1.2vw,24px);padding-inline:clamp(12px,1.6vw,32px);position:relative;box-shadow:0 3px 12px rgba(0,0,0,.10)}
+.tv-header-school{display:flex;align-items:center;gap:12px;min-width:0;justify-self:start;max-width:100%}
+.tv-header-logo{object-fit:contain;flex-shrink:0;border-radius:6px}
+.tv-header-message{min-width:0;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;opacity:.92}
+.tv-header-meta{display:flex;align-items:center;justify-self:end;gap:clamp(10px,1.4vw,26px);min-width:0}
+.tv-header-dates{display:flex;flex-direction:column;gap:2px;line-height:1.2;white-space:nowrap;text-align:end}
+.tv-header-dates span+span{opacity:.72}
+.tv-header-clock,.tv-footer-clock{font-variant-numeric:tabular-nums;letter-spacing:-.04em;white-space:nowrap;font-weight:600}
+.tv-muted{opacity:.65}
+.tv-display-premium .tv-chrome-footer{display:flex;align-items:center;gap:clamp(10px,1.1vw,20px);padding-inline:clamp(12px,1.6vw,32px);overflow:hidden}
+.tv-footer-school{flex-shrink:0;max-width:26%;white-space:nowrap}
+.tv-footer-divider{width:1px;height:45%;background:var(--tv-border,#45617e);flex-shrink:0}
+.tv-footer-ticker{flex:1;min-width:0;overflow:hidden;white-space:nowrap;mask-image:linear-gradient(to left,transparent,black 4%,black 96%,transparent)}
+.tv-footer-track{display:flex;width:max-content;gap:clamp(32px,4vw,90px);align-items:center;animation:tv-marquee 32s linear infinite;will-change:transform}
+.tv-footer-copy{display:block;white-space:nowrap;flex-shrink:0}
+.tv-footer-clock{flex-shrink:0}
+@keyframes tv-marquee{from{transform:translateX(0)}to{transform:translateX(50%)}}
+@media(prefers-reduced-motion:reduce){.tv-footer-track{animation:none}}
+@media(max-width:900px){.tv-display-premium .tv-chrome-header{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.tv-header-message{display:none}.tv-header-dates{display:none}}
+.tv-display-premium .tv-timetable-heading,.tv-display-premium .tv-timetable-card{color:var(--tv-ink,#edf5ff)}
+
+
+/* v2 TV chrome — deliberately stronger visual hierarchy than previous polish. */
+.tv-display-premium .tv-header-v2 {
+  display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr) minmax(140px,.75fr);
+  gap:clamp(10px,1.4vw,26px);align-items:center;padding:0 clamp(16px,2vw,42px);
+  position:relative;isolation:isolate;box-shadow:0 6px 24px rgba(0,0,0,.14);
+}
+.tv-display-premium .tv-header-v2::after {
+  content:"";position:absolute;bottom:0;right:2%;left:2%;height:2px;
+  background:linear-gradient(90deg,transparent,var(--tv-accent,#55d7ef),transparent);
+  opacity:.7;pointer-events:none;
+}
+.tv-v2-brand{display:flex;align-items:center;gap:clamp(8px,1vw,18px);min-width:0;justify-self:start;max-width:100%;}
+.tv-v2-logo{width:clamp(35px,3.6vw,65px);height:clamp(35px,3.6vw,65px);object-fit:contain;flex-shrink:0;}
+.tv-v2-brand-text{display:flex;flex-direction:column;min-width:0;gap:2px;}
+.tv-v2-school-name{font-size:clamp(20px,1.6vw,31px);font-weight:800;line-height:1.16;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.025em;}
+.tv-v2-screen-name{font-size:clamp(12px,.9vw,16px);opacity:.68;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tv-v2-center{min-width:0;display:flex;align-items:center;justify-content:center;}
+.tv-v2-message{max-width:100%;font-size:clamp(15px,1.22vw,23px);font-weight:650;text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding:.38em 1.3em;border-radius:999px;
+  background:color-mix(in srgb,var(--tv-ink,#edf5ff) 7%,transparent);border:1px solid color-mix(in srgb,var(--tv-ink,#edf5ff) 12%,transparent);}
+.tv-v2-time-group{justify-self:end;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;min-width:115px;max-height:100%;}
+.tv-v2-clock{font-size:clamp(30px,3vw,58px);font-weight:750;line-height:1;letter-spacing:-.065em;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--tv-accent,#55d7ef);}
+.tv-v2-dates{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;font-size:clamp(10px,.72vw,14px);line-height:1.2;opacity:.83;text-align:center;margin-top:3px;}
+.tv-v2-dates span{white-space:nowrap;}
+.tv-header-compact .tv-v2-school-name{font-size:clamp(17px,1.3vw,23px);}
+.tv-header-compact .tv-v2-clock{font-size:clamp(25px,2.3vw,39px);}
+.tv-header-compact .tv-v2-dates{font-size:10px;margin-top:0;}
+.tv-header-compact .tv-v2-message{padding:.2em .7em;font-size:clamp(13px,1vw,18px);}
+.tv-display-premium .tv-footer-v2{display:flex;align-items:center;gap:clamp(14px,1.6vw,28px);padding:0 clamp(16px,2vw,42px);overflow:hidden;font-size:clamp(14px,1vw,19px);}
+.tv-v2-footer-brand{flex:0 1 auto;max-width:27%;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:800;display:flex;align-items:center;gap:10px;}
+.tv-v2-footer-mark{display:inline-block;flex-shrink:0;width:7px;height:7px;border-radius:50%;background:var(--tv-accent,#55d7ef);box-shadow:0 0 0 4px color-mix(in srgb,var(--tv-accent,#55d7ef) 18%,transparent);}
+.tv-v2-ticker{flex:1;min-width:0;overflow:hidden;display:flex;justify-content:center;align-items:center;white-space:nowrap;opacity:.93;mask-image:linear-gradient(90deg,transparent,black 3%,black 97%,transparent);}
+.tv-v2-ticker-text{display:inline-block;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;}
+.tv-v2-ticker-moving{justify-content:flex-start;}
+.tv-v2-ticker-moving .tv-v2-ticker-text{max-width:none;overflow:visible;animation:tv-v2-scroll 26s linear infinite;}
+@keyframes tv-v2-scroll{from{transform:translateX(-105%)}to{transform:translateX(110%)}}
+.tv-v2-footer-clock{flex-shrink:0;font-variant-numeric:tabular-nums;font-weight:750;letter-spacing:-.04em;color:var(--tv-accent,#55d7ef);}
+@media(prefers-reduced-motion:reduce){.tv-v2-ticker-moving .tv-v2-ticker-text{animation:none;max-width:100%;overflow:hidden;text-overflow:ellipsis;}}
+@media(max-width:850px){.tv-display-premium .tv-header-v2{grid-template-columns:minmax(0,1fr) minmax(100px,.6fr)}.tv-v2-center{display:none}.tv-v2-dates{display:none}.tv-v2-school-name{font-size:18px}.tv-v2-clock{font-size:32px}}
+
+/* V3 visual polish: keep footer marker completely inside the safe area. */
+.tv-display-premium .tv-footer-v2 {
+  box-sizing:border-box;
+  padding-inline:clamp(26px,2.6vw,52px) !important;
+  gap:clamp(16px,2vw,34px);
+  min-width:0;
+  border-top-color:var(--tv-border,#45617e);
+}
+.tv-display-premium .tv-v2-footer-brand {
+  flex:0 0 auto;
+  max-width:min(30%,390px);
+  overflow:visible;
+  padding-inline:5px 2px;
+  gap:13px;
+  line-height:1.3;
+}
+.tv-v2-footer-school-name {
+  display:block;
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.tv-display-premium .tv-v2-footer-mark {
+  width:9px;height:9px;
+  margin-inline:4px 2px;
+  flex:none;
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--tv-accent,#55d7ef) 20%,transparent);
+}
+.tv-display-premium .tv-v2-ticker {
+  flex:1 1 0;
+  min-width:0;
+  mask-image:linear-gradient(to right,transparent,black 2%,black 98%,transparent);
+}
+.tv-display-premium .tv-v2-ticker-text {font-weight:600;letter-spacing:.005em;}
+.tv-display-premium .tv-header-v2 {
+  box-sizing:border-box;
+  padding-inline:clamp(24px,2.5vw,50px);
+  overflow:hidden;
+}
+.tv-display-premium .tv-v2-brand {padding-block:3px;}
+.tv-display-premium .tv-v2-message {
+  border-color:color-mix(in srgb,var(--tv-accent,#55d7ef) 24%,transparent);
+  background:color-mix(in srgb,var(--tv-accent,#55d7ef) 6%,transparent);
+  padding-inline:clamp(18px,1.8vw,34px);
+}
+.tv-display-premium .tv-v2-clock {text-shadow:0 2px 14px color-mix(in srgb,var(--tv-accent,#55d7ef) 13%,transparent);}
+.tv-display-premium .tv-v2-dates {color:var(--tv-ink,#edf5ff);opacity:.82;}
+/* Page indicators inherit the chosen screen accent instead of cyan. */
+.tv-display-premium .tv-timetable footer span.rounded-full[style*="width: 20px"] {
+  background:var(--tv-accent,#55d7ef) !important;
+}
+.tv-display-premium .tv-timetable footer span.rounded-full[style*="width: 6px"] {
+  background:var(--tv-border,#64748b) !important;
+}
+.tv-display-premium .tv-timetable-card {border-radius:12px;}
+.tv-display-premium .tv-content-panel {overflow:hidden;}
+@media(max-width:850px){
+  .tv-display-premium .tv-footer-v2{padding-inline:18px !important;gap:12px;}
+  .tv-display-premium .tv-v2-footer-brand{max-width:40%;}
+  .tv-display-premium .tv-header-v2{padding-inline:18px;}
+}
+
+/* V4: larger centered headline; preserves three-column alignment and theme colors. */
+.tv-display-premium .tv-header-v2 {
+  grid-template-columns:minmax(0,1fr) minmax(0,1.6fr) minmax(150px,1fr);
+}
+.tv-display-premium .tv-v2-message {
+  font-size:clamp(23px,1.8vw,35px);
+  font-weight:800;
+  line-height:1.12;
+  letter-spacing:-.02em;
+  padding:.40em 1.25em;
+  box-shadow:0 2px 16px color-mix(in srgb,var(--tv-accent,#55d7ef) 10%,transparent);
+}
+.tv-display-premium .tv-v2-dates {
+  font-size:clamp(12px,.88vw,17px);
+  font-weight:600;
+  opacity:.92;
+}
+/* V4: seamless ticker with two identical copies; never stops for short messages. */
+.tv-display-premium .tv-v4-ticker-moving {
+  justify-content:flex-start;
+  overflow:hidden;
+  direction:ltr;
+  mask-image:linear-gradient(to right,transparent,black 3%,black 97%,transparent);
+}
+.tv-display-premium .tv-v4-ticker-track {
+  display:flex;
+  flex:none;
+  width:max-content;
+  align-items:center;
+  animation:tv-v4-marquee 24s linear infinite;
+  will-change:transform;
+}
+.tv-display-premium .tv-v4-ticker-copy {
+  flex:none;
+  display:block;
+  direction:rtl;
+  white-space:nowrap;
+  padding-inline:clamp(40px,5vw,110px);
+  font-weight:650;
+  font-size:clamp(15px,1.12vw,21px);
+}
+@keyframes tv-v4-marquee { from {transform:translateX(0)} to {transform:translateX(-50%)} }
+@media (prefers-reduced-motion:reduce) {
+  .tv-display-premium .tv-v4-ticker-track {animation:none;}
+}
+@media(max-width:850px){
+  .tv-display-premium .tv-header-v2{grid-template-columns:minmax(0,1fr) minmax(100px,.6fr)}
+  .tv-display-premium .tv-v2-message{font-size:20px}
+}
+
+/* V5: one message per cycle, enters from the right edge and fully exits left. */
+.tv-display-premium .tv-v4-ticker-moving {
+  position:relative; display:block; overflow:hidden; direction:ltr;
+  mask-image:linear-gradient(to right,transparent,black 2%,black 98%,transparent);
+}
+.tv-display-premium .tv-v5-ticker-message {
+  position:absolute; left:100%; top:50%;
+  display:block; width:max-content; max-width:none;
+  white-space:nowrap; direction:rtl; text-align:right;
+  font-size:clamp(15px,1.12vw,21px); font-weight:650;
+  line-height:1.3;
+  animation:tv-v5-marquee 19s linear infinite;
+  will-change:left,transform;
+}
+@keyframes tv-v5-marquee {
+  from {left:100%;transform:translate(0,-50%)}
+  to {left:0;transform:translate(-100%,-50%)}
+}
+@media(prefers-reduced-motion:reduce){
+  .tv-display-premium .tv-v5-ticker-message{animation:none;left:50%;transform:translate(-50%,-50%)}
+}
+
+/* V5.1: start with the message visible at the right edge.
+   Avoid initial empty period caused by left:100%. */
+.tv-display-premium .tv-v4-ticker-moving {
+  position:relative; display:block; overflow:hidden; min-height:1.5em;
+}
+.tv-display-premium .tv-v5-ticker-message {
+  left:auto !important; right:0; top:50%;
+  transform:translateY(-50%);
+  animation:tv-v51-ticker 17s linear infinite !important;
+}
+@keyframes tv-v51-ticker {
+  0% {right:0;transform:translateY(-50%)}
+  100% {right:100%;transform:translate(-100%,-50%)}
+}
+@media(prefers-reduced-motion:reduce){
+ .tv-display-premium .tv-v5-ticker-message{animation:none !important;right:0;transform:translateY(-50%)}
+}
+
+/* V13: ticker speed set by inline duration; override legacy fixed animation. */
+.tv-display-premium .tv-v5-ticker-message { animation-name:tv-v51-ticker !important; animation-duration:inherit; }
+.tv-display-premium .tv-v4-ticker-moving .tv-v5-ticker-message { animation-duration:var(--footer-ticker-duration,20s) !important; }
+
+/* V13.2: measured-distance scrolling, consistent pixel speed across feed lengths. */
+@keyframes tv-rss-vertical-scroll {
+  from { transform:translateY(var(--rss-vertical-start, 100vh)); }
+  to { transform:translateY(calc(-1 * var(--rss-vertical-distance))); }
+}
+.tv-rss-vertical-track { position:absolute; top:100%; left:0; right:0; width:100%; animation:tv-rss-up linear infinite; will-change:transform; }
+@keyframes tv-rss-up { from { transform:translateY(0); } to { transform:translateY(calc(-1 * var(--rss-vertical-distance))); } }
+.tv-display-premium .tv-rss-footer-slow .tv-v5-ticker-message {
+  animation-duration:var(--footer-ticker-duration,90s) !important;
+}
+
+/* V13.3: footer ticker must travel right-to-left in RTL displays.
+   Override legacy V5.1 keyframes that moved the text to the right. */
+@keyframes tv-footer-right-to-left {
+  0%   { left:100%; right:auto; transform:translateY(-50%); }
+  100% { left:0; right:auto; transform:translate(-100%,-50%); }
+}
+.tv-display-premium .tv-rss-footer-slow .tv-v5-ticker-message {
+  left:100% !important;
+  right:auto !important;
+  animation-name:tv-footer-right-to-left !important;
+  animation-duration:var(--footer-ticker-duration,90s) !important;
+  animation-timing-function:linear !important;
+  animation-iteration-count:infinite !important;
+}
+@media (prefers-reduced-motion:reduce) {
+  .tv-display-premium .tv-rss-footer-slow .tv-v5-ticker-message {
+    animation:none !important;
+    left:auto !important;
+    right:0 !important;
+    transform:translateY(-50%);
+  }
+}
+
+/* V13.4: Hebrew RSS headlines enter from LEFT and travel RIGHT.
+   Preserve RTL glyph order while reversing only the motion. */
+@keyframes tv-footer-left-to-right {
+  0%   { left:0; right:auto; transform:translate(-100%,-50%); }
+  100% { left:100%; right:auto; transform:translate(0,-50%); }
+}
+.tv-display-premium .tv-rss-footer-slow .tv-v5-ticker-message {
+  direction:rtl !important;
+  text-align:right !important;
+  left:0 !important;
+  right:auto !important;
+  animation-name:tv-footer-left-to-right !important;
+  animation-duration:var(--footer-ticker-duration,90s) !important;
+  animation-timing-function:linear !important;
+  animation-iteration-count:infinite !important;
+}
+
+/* V14.2 — palette consistency. Keep footer ticker motion rules untouched. */
+.tv-display-premium.tv-screen-stage {
+  background-color: var(--tv-base, #0a0f1e);
+  color: var(--tv-ink, #edf5ff);
+}
+.tv-display-premium .tv-premium-header,
+.tv-display-premium .tv-premium-footer {
+  background-color: var(--tv-header, #183452) !important;
+  color: var(--tv-ink, #edf5ff) !important;
+  border-color: var(--tv-border, #45617e) !important;
+}
+.tv-display-premium .tv-content-panel,
+.tv-display-premium .tv-info-list,
+.tv-display-premium .tv-timetable,
+.tv-display-premium .tv-gallery,
+.tv-display-premium .tv-event,
+.tv-display-premium .tv-birthday {
+  background-color: var(--tv-panel, #172c48);
+  background-image: none;
+  color: var(--tv-ink, #edf5ff);
+  border-color: var(--tv-border, #45617e);
+}
+.tv-display-premium .tv-section-heading,
+.tv-display-premium .tv-timetable-heading {
+  background-color: var(--tv-header, #183452);
+  color: var(--tv-ink, #edf5ff);
+  border-color: var(--tv-border, #45617e);
+}
+.tv-display-premium .tv-info-list > div:not(:first-child) {
+  border-bottom-color: var(--tv-border, #45617e);
+}
+.tv-display-premium .tv-v2-clock,
+.tv-display-premium .tv-v2-footer-clock { color: var(--tv-accent, #55d7ef); }
+/* Keep explicit user-selected announcement backgrounds and text colors intact. */
+
+/* V15: footer palette independent of header; theme previews use the same color. */
+.tv-display-premium .tv-premium-footer,
+.tv-display-premium .tv-footer-v2 {
+  background-color: var(--tv-footer, var(--tv-header, #183452)) !important;
+  color: var(--tv-ink, #edf5ff) !important;
+  border-color: var(--tv-border, #45617e) !important;
+}
+
+/* V15.1: independent contrast-safe text colors for each theme surface. */
+.tv-display-premium .tv-premium-header,
+.tv-display-premium .tv-header-v2 { color:var(--tv-header-ink,#fff) !important; }
+.tv-display-premium .tv-v2-school-name,
+.tv-display-premium .tv-v2-screen-name,
+.tv-display-premium .tv-v2-dates,
+.tv-display-premium .tv-v2-message,
+.tv-display-premium .tv-v2-clock { color:var(--tv-header-ink,#fff) !important; }
+.tv-display-premium .tv-premium-footer,
+.tv-display-premium .tv-footer-v2,
+.tv-display-premium .tv-v2-footer-brand,
+.tv-display-premium .tv-v2-ticker,
+.tv-display-premium .tv-v5-ticker-message,
+.tv-display-premium .tv-v2-footer-clock { color:var(--tv-footer-ink,#fff) !important; }
+.tv-display-premium .tv-content-panel,
+.tv-display-premium .tv-info-list,
+.tv-display-premium .tv-info-list > div,
+.tv-display-premium .tv-timetable,
+.tv-display-premium .tv-timetable-card,
+.tv-display-premium .tv-gallery,
+.tv-display-premium .tv-birthday,
+.tv-display-premium .tv-event,
+.tv-display-premium .tv-rss-vertical-track { color:var(--tv-panel-ink,#fff) !important; }
+.tv-display-premium .tv-section-heading,
+.tv-display-premium .tv-timetable-heading { color:var(--tv-header-ink,#fff) !important; }
+.tv-display-premium .tv-rss-vertical-track > div { border-bottom-color:color-mix(in srgb,var(--tv-panel-ink,#fff) 18%,transparent) !important; }
+.tv-display-premium .tv-rss-vertical-track > div > span { color:var(--tv-panel-ink,#fff) !important; opacity:.65; }
+/* Tailwind's white text utilities should inherit theme text inside standard content panels. */
+.tv-display-premium .tv-content-panel .text-white:not(.tv-gallery *) { color:var(--tv-panel-ink,#fff); }
+
+/* V15.2: readable stacked dates and compact weather in header and preview */
+.tv-display-premium .tv-v2-dates { display:flex !important; flex-direction:column !important; align-items:center; flex-wrap:nowrap !important; gap:2px !important; }
+.tv-display-premium .tv-v2-dates span { display:block; white-space:nowrap; }
+.tv-preview-date-stack { display:flex; flex-direction:column; align-items:flex-start; gap:2px; white-space:nowrap; }
+.tv-header-weather { display:flex; align-items:center; justify-content:center; gap:7px; font-size:clamp(13px,1.1vw,19px); line-height:1.15; color:var(--tv-header-ink,inherit); white-space:nowrap; }
+.tv-header-weather small { font-size:.7em; opacity:.85; }
+.tv-header-weather strong { font-weight:750; }
+@media(max-width:850px){.tv-display-premium .tv-v2-dates{display:flex !important;font-size:10px;}}
+
+/* V15.4: unified RTL header: brand on right, time cluster on left. */
+.tv-display-premium .tv-v2-time-group { align-items:center !important; justify-self:end !important; }
+.tv-display-premium .tv-v2-clock-weather { direction:ltr !important; align-items:center !important; gap:clamp(16px,1.6vw,32px) !important; }
+.tv-display-premium .tv-v2-clock-dates { align-items:center !important; text-align:center !important; }
+.tv-display-premium .tv-v2-clock { text-align:center !important; }
+.tv-display-premium .tv-v2-dates { align-items:center !important; text-align:center !important; width:100%; }
+.tv-display-premium .tv-v2-dates span { text-align:center !important; width:100%; }
+.tv-display-premium .tv-header-weather, .tv-preview-clock-weather .tv-header-weather { font-size:clamp(21px,2vw,32px) !important; gap:9px !important; align-self:center !important; }
+.tv-display-premium .tv-header-weather > span, .tv-preview-clock-weather .tv-header-weather > span { font-size:1.15em; line-height:1; }
+.tv-preview-clock-weather { direction:ltr !important; gap:28px !important; }
+.tv-preview-clock-dates { align-items:center !important; text-align:center !important; }
+.tv-preview-date-stack { align-items:center !important; text-align:center !important; width:100%; }
+.tv-preview-date-stack span { display:block; text-align:center; width:100%; }
+
+@keyframes galleryV16Fade { from { opacity: .15; } to { opacity: 1; } }
+
+/* V16.3: Keep gallery heading fully inside the right edge in both preview and public screen. */
+.tv-display-premium .tv-gallery > .tv-section-heading {
+  box-sizing:border-box;
+  width:100%;
+  min-width:0;
+  padding-inline:clamp(16px,1.6vw,32px) !important;
+  overflow:hidden;
+  flex-shrink:0;
+}
+.tv-display-premium .tv-gallery > .tv-section-heading .tv-section-heading-label {
+  display:block;
+  min-width:0;
+  max-width:100%;
+  margin:0;
+  text-align:right;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+/* The weather must sit immediately to the right of the clock, not above it. */
+.tv-display-premium .tv-v2-time-group { min-width:0; }
+.tv-display-premium .tv-v2-clock-weather {
+  display:flex !important;
+  flex-direction:row !important;
+  justify-content:flex-start !important;
+  direction:ltr !important;
+  min-width:0;
+}
+.tv-display-premium .tv-v2-clock-dates { display:flex;flex-direction:column;align-items:center;flex-shrink:0; }
+.tv-display-premium .tv-v2-clock-weather > .tv-header-weather { flex-shrink:0; }
+.tv-preview-clock-weather { display:flex !important; flex-direction:row !important; align-items:center !important; direction:ltr !important; }
+.tv-preview-clock-weather > .tv-header-weather { flex-shrink:0; }
+
+/* SchoolScreen 2.0: optional broadcast layouts; classic screens are untouched. */
+.tv-display-premium[data-display-template="information"],
+.tv-display-premium[data-display-template="visual"] {
+  background: var(--tv-base,#101d33);
+}
+.tv-display-premium[data-display-template="information"] .tv-content-grid,
+.tv-display-premium[data-display-template="visual"] .tv-content-grid {
+  gap: clamp(12px,1.1vw,24px) !important;
+  padding: clamp(14px,1.2vw,28px) !important;
+}
+.tv-display-premium[data-display-template="information"] .tv-content-panel,
+.tv-display-premium[data-display-template="visual"] .tv-content-panel {
+  border-radius: clamp(18px,1.6vw,32px) !important;
+  box-shadow: 0 16px 42px rgba(0,0,0,.14);
+}
+.tv-display-premium[data-display-template="visual"] .tv-content-panel:first-child {
+  border-width: 0 !important;
+  box-shadow: 0 24px 58px rgba(0,0,0,.22);
+}
+.tv-display-premium[data-display-template="information"] .tv-content-panel:first-child {
+  border-inline-start: 5px solid var(--tv-accent,#55d7ef) !important;
+}
+
+
+/* SchoolScreen 2.0.2 — Broadcast skins. Never applied to Classic. */
+.tv-display-premium:is([data-display-template="visual"],[data-display-template="information"]) {
+  --broadcast-gap:clamp(12px,1.15vw,24px);
+  background:var(--tv-base) !important;
+}
+.tv-display-premium:is([data-display-template="visual"],[data-display-template="information"]) .tv-content-grid {
+  gap:var(--broadcast-gap) !important;
+  padding:var(--broadcast-gap) !important;
+  align-items:stretch;
+}
+.tv-display-premium:is([data-display-template="visual"],[data-display-template="information"]) .tv-content-panel {
+  min-width:0;
+  border:0 !important;
+  border-radius:clamp(16px,1.4vw,26px) !important;
+  overflow:hidden !important;
+  background:var(--tv-panel) !important;
+  box-shadow:0 12px 36px rgba(0,0,0,.12) !important;
+}
+.tv-display-premium:is([data-display-template="visual"],[data-display-template="information"]) .tv-content-panel:first-child {
+  box-shadow:0 18px 46px rgba(0,0,0,.19) !important;
+  border:0 !important;
+}
+/* Broadcast chrome: compact and integrated, regardless of legacy height settings. */
+.tv-display-premium:is([data-display-template="visual"],[data-display-template="information"]) .tv-premium-header {
+  height:clamp(68px,7vh,100px) !important;
+  min-height:clamp(68px,7vh,100px) !important;
+  border-bottom:0 !important;
+  padding-inline:clamp(20px,2.4vw,54px) !important;
+  box-shadow:none !important;
+}
+.tv-display-premium:is([data-display-template="visual"],[data-display-template="information"]) .tv-v2-clock {font-size:clamp(30px,3vw,50px) !important;line-height:1 !important}
+.tv-display-premium:is([data-display-template="visual"],[data-display-template="information"]) .tv-v2-school-name {font-size:clamp(20px,1.8vw,32px) !important}
+.tv-display-premium:is([data-display-template="visual"],[data-display-template="information"]) .tv-v2-message {
+  font-size:var(--header-title-font-size, 26px) !important;
+  border-radius:999px;
+  padding:7px 16px;
+  background:color-mix(in srgb,var(--tv-header-ink) 9%,transparent);
+}
+.tv-display-premium:is([data-display-template="visual"],[data-display-template="information"]) .tv-premium-footer {
+  height:clamp(32px,4.2vh,54px) !important;
+  min-height:clamp(32px,4.2vh,54px) !important;
+  border-top:0 !important;
+  padding-inline:clamp(16px,2vw,42px) !important;
+}
+.tv-display-premium:is([data-display-template="visual"],[data-display-template="information"]) .tv-v2-footer-brand {font-size:clamp(12px,1vw,18px) !important}
+/* Content: remove heavy legacy purple bars; retain legible labels. */
+.tv-display-premium:is([data-display-template="visual"],[data-display-template="information"]) .tv-section-heading,
+.tv-display-premium:is([data-display-template="visual"],[data-display-template="information"]) .tv-timetable-heading,
+.tv-display-premium:is([data-display-template="visual"],[data-display-template="information"]) .tv-gallery > .tv-section-heading {
+  background:var(--tv-panel) !important;
+  color:var(--tv-panel-ink) !important;
+  border:0 !important;
+  border-bottom:1px solid color-mix(in srgb,var(--tv-panel-ink) 13%,transparent) !important;
+  border-radius:0 !important;
+  min-height:clamp(40px,4.2vh,58px) !important;
+  padding:clamp(8px,.9vw,16px) clamp(15px,1.5vw,26px) !important;
+  font-size:clamp(19px,1.5vw,28px) !important;
+  box-shadow:none !important;
+}
+.tv-display-premium:is([data-display-template="visual"],[data-display-template="information"]) .tv-section-heading-label {color:var(--tv-panel-ink) !important}
+/* Gallery-led design: gallery itself remains edge-to-edge and cinematic. */
+.tv-display-premium[data-display-template="visual"] .tv-content-panel:first-child .tv-gallery > .tv-section-heading {display:none !important}
+.tv-display-premium[data-display-template="visual"] .tv-content-panel:first-child .tv-gallery {border-radius:inherit}
+/* Information-led design: dense information with a clear accent, never a thick frame. */
+.tv-display-premium[data-display-template="information"] .tv-content-panel:first-child .tv-section-heading,
+.tv-display-premium[data-display-template="information"] .tv-content-panel:first-child .tv-timetable-heading {
+  border-inline-start:4px solid var(--tv-accent) !important;
+}
+/* Editor preview is drawn at 1920px then scaled down; mirror broadcast chrome. */
+.tv-display-premium.tv-broadcast-preview .tv-content-panel > .tv-preview-panel-title {
+  background:var(--tv-panel) !important;
+  color:var(--tv-panel-ink) !important;
+  border-bottom:1px solid color-mix(in srgb,var(--tv-panel-ink) 13%,transparent) !important;
+  padding:15px 24px !important;
+  font-size:26px !important;
+}
+.tv-display-premium.tv-broadcast-preview[data-display-template="visual"] .tv-content-panel:first-child > .tv-preview-panel-title {display:none !important}
+.tv-display-premium.tv-broadcast-preview .tv-preview-broadcast-header {
+  height:94px !important;
+  padding-inline:45px !important;
+  border:0 !important;
+}
+.tv-display-premium.tv-broadcast-preview .tv-preview-broadcast-footer {
+  height:44px !important;
+  padding-inline:38px !important;
+  border:0 !important;
+}
+.tv-display-premium.tv-broadcast-preview .tv-preview-broadcast-main {
+  height:calc(100% - var(--broadcast-preview-header, 0px) - var(--broadcast-preview-footer, 0px)) !important;
+  gap:20px !important;
+  padding:20px !important;
+}
+
+/* SchoolScreen 2.0.3 — Unified surface. Only opt-in for new templates. */
+.tv-display-premium[data-surface-style="unified"] {
+  --tv-panel:var(--tv-base);
+  --tv-header:var(--tv-base);
+  --tv-footer:var(--tv-base);
+  --tv-panel-ink:var(--tv-unified-ink, var(--tv-ink));
+}
+.tv-display-premium[data-surface-style="unified"] .tv-premium-header,
+.tv-display-premium[data-surface-style="unified"] .tv-premium-footer,
+.tv-display-premium[data-surface-style="unified"] .tv-preview-broadcast-header,
+.tv-display-premium[data-surface-style="unified"] .tv-preview-broadcast-footer {
+  background:var(--tv-base) !important;
+  border-color:transparent !important;
+  box-shadow:none !important;
+  color:var(--tv-unified-ink, var(--tv-ink)) !important;
+}
+.tv-display-premium[data-surface-style="unified"] .tv-content-panel {
+  background:transparent !important;
+  border:0 !important;
+  box-shadow:none !important;
+  border-radius:0 !important;
+}
+.tv-display-premium[data-surface-style="unified"] .tv-content-panel:first-child {box-shadow:none !important}
+.tv-display-premium[data-surface-style="unified"] .tv-section-heading,
+.tv-display-premium[data-surface-style="unified"] .tv-timetable-heading,
+.tv-display-premium[data-surface-style="unified"] .tv-preview-panel-title {
+  background:transparent !important;
+  border:0 !important;
+  color:var(--tv-unified-ink, var(--tv-ink)) !important;
+}
+.tv-display-premium[data-surface-style="unified"] .tv-gallery {
+  background:transparent !important;
+}
+.tv-display-premium[data-surface-style="unified"] .tv-v2-clock,
+.tv-display-premium[data-surface-style="unified"] .tv-v2-school-name,
+.tv-display-premium[data-surface-style="unified"] .tv-v2-footer-brand {
+  color:var(--tv-unified-ink, var(--tv-ink)) !important;
+}
+
+/* SchoolScreen 2.0.4: complete unified typography and contrast (new templates only). */
+.tv-display-premium[data-surface-style="unified"] {
+  --tv-ink:var(--tv-unified-ink);
+  --tv-panel-ink:var(--tv-unified-ink);
+  --tv-header-ink:var(--tv-unified-ink);
+  --tv-footer-ink:var(--tv-unified-ink);
+  color:var(--tv-unified-ink) !important;
+}
+.tv-display-premium[data-surface-style="unified"] :is(
+  .tv-premium-header,.tv-premium-footer,.tv-v2-brand,.tv-v2-school-name,.tv-v2-screen-name,
+  .tv-v2-clock,.tv-v2-dates,.tv-v2-message,.tv-v2-footer-school-name,.tv-v2-footer-clock,
+  .tv-v2-ticker,.tv-header-weather,.tv-preview-broadcast-header,.tv-preview-broadcast-footer,
+  .tv-preview-clock-weather,.tv-preview-date-stack,.tv-preview-panel-title,
+  .tv-section-heading,.tv-section-heading-label,.tv-section-heading-aside,.tv-timetable-heading
+) {color:var(--tv-unified-ink) !important;}
+.tv-display-premium[data-surface-style="unified"] :is(
+  .tv-v2-screen-name,.tv-v2-dates,.tv-v2-footer-brand,.tv-v2-ticker,
+  .tv-section-heading-aside,.tv-preview-date-stack
+) {opacity:.88;}
+.tv-display-premium[data-surface-style="unified"] :is(
+  .tv-timetable,.tv-info-list,.tv-birthday,.tv-event
+) {background:transparent !important;color:var(--tv-unified-ink) !important;}
+.tv-display-premium[data-surface-style="unified"] .tv-timetable-card {
+  background:var(--tv-unified-card) !important;
+  color:var(--tv-unified-ink) !important;
+  border-color:var(--tv-unified-stroke) !important;
+  box-shadow:none !important;
+}
+.tv-display-premium[data-surface-style="unified"] .tv-timetable-card :is(.text-white,.text-gray-100,.text-gray-200,.text-gray-300,.text-gray-700,.text-gray-800,.text-gray-900) {color:var(--tv-unified-ink) !important;}
+.tv-display-premium[data-surface-style="unified"] .tv-timetable-card :is(.text-gray-400,.text-gray-500,.text-gray-600) {color:var(--tv-unified-muted) !important;}
+.tv-display-premium[data-surface-style="unified"] .tv-preview-broadcast-header,
+.tv-display-premium[data-surface-style="unified"] .tv-preview-broadcast-footer,
+.tv-display-premium[data-surface-style="unified"] .tv-preview-broadcast-main .tv-content-panel > div {
+  color:var(--tv-unified-ink) !important;
+}
+.tv-display-premium[data-surface-style="unified"] .tv-v2-message {
+  border-color:var(--tv-unified-stroke) !important;
+  background:var(--tv-unified-card) !important;
+}
+.tv-display-premium[data-surface-style="unified"] .tv-gallery > .tv-section-heading {background:transparent !important;}
+
+/* Layout choices now describe geometry, not content type. */
+.tv-display-premium[data-display-template="visual"] .tv-content-panel:first-child .tv-gallery > .tv-section-heading {display:flex !important;}
+.tv-display-premium[data-display-template="visual"] .tv-content-panel:first-child,
+.tv-display-premium[data-display-template="information"] .tv-content-panel:first-child {box-shadow:0 12px 36px rgba(0,0,0,.12) !important;}
+
+/* Use the font selected for the screen throughout the display tree. */
+.tv-screen-stage, .tv-screen-stage * { font-family: inherit; }
+
+/* V11: consistent typography, inheriting the selected screen font. */
+.tv-screen-stage, .tv-screen-stage :where(button,input,textarea,select) { font-family: inherit; }
+.tv-display-premium .tv-v2-message {
+  font-weight: 700; line-height: 1.15; max-height: calc(100% - 8px);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  padding-block: min(.18em, 6px);
+}
+.tv-display-premium .tv-v2-school-name { font-weight: 700; }
+.tv-display-premium .tv-section-heading { font-family: inherit; font-weight: 700; }
+
+/* v23: shared compact header dates; Hebrew date and weekly parasha on one row. */
+.tv-display-premium .tv-v2-clock-dates .tv-v2-clock {font-size:var(--clock-font-size,inherit) !important;}
+.tv-display-premium .tv-v2-clock-dates .tv-header-date-rows {font-size:var(--date-font-size,inherit) !important;display:flex !important;flex-direction:column !important;flex-wrap:nowrap !important;gap:1px !important;}
+.tv-display-premium .tv-header-date-rows .tv-hebrew-parasha-row,
+.tv-preview-date-stack .tv-hebrew-parasha-row {display:flex !important;flex-direction:row !important;align-items:center !important;justify-content:center !important;gap:5px !important;width:auto !important;white-space:nowrap !important;}
+.tv-display-premium .tv-header-date-rows .tv-hebrew-parasha-row span,
+.tv-preview-date-stack .tv-hebrew-parasha-row span {width:auto !important;display:inline !important;white-space:nowrap !important;}
+.tv-display-premium .tv-v2-clock-dates {max-height:100%;overflow:hidden;}
+.tv-preview-date-stack.tv-header-date-rows {display:flex;flex-direction:column;align-items:center;gap:1px;}
+@media(max-width:850px){.tv-display-premium .tv-v2-dates.tv-header-date-rows{display:flex !important;}}

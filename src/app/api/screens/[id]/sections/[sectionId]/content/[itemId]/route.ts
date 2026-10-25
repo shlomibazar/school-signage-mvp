@@ -1,6 +1,4 @@
 // src/app/api/screens/[id]/sections/[sectionId]/content/[itemId]/route.ts
-// PUT    – update a content item
-// DELETE – remove a content item (section becomes empty)
 
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -52,6 +50,7 @@ const UpdateSchema = z.object({
   rssMaxItems:     z.number().int().min(1).max(20).optional(),
   weatherCity:     z.string().nullable().optional(),
   weatherUnits:    z.string().optional(),
+  settings:        z.record(z.unknown()).nullable().optional(),
 })
 
 // ── PUT ───────────────────────────────────────────────────
@@ -71,30 +70,32 @@ export async function PUT(
     const body   = await req.json()
     const parsed = UpdateSchema.parse(body)
 
+    const data: Record<string, unknown> = {}
+    if (parsed.active          !== undefined) data.active          = parsed.active
+    if (parsed.startDate       !== undefined) data.startDate       = parsed.startDate ? new Date(parsed.startDate) : null
+    if (parsed.endDate         !== undefined) data.endDate         = parsed.endDate   ? new Date(parsed.endDate)   : null
+    if (parsed.startTime       !== undefined) data.startTime       = parsed.startTime
+    if (parsed.endTime         !== undefined) data.endTime         = parsed.endTime
+    if (parsed.daysOfWeek      !== undefined) data.daysOfWeek      = parsed.daysOfWeek
+    if (parsed.textContent     !== undefined) data.textContent     = parsed.textContent
+    if (parsed.textColor       !== undefined) data.textColor       = parsed.textColor
+    if (parsed.bgColor         !== undefined) data.bgColor         = parsed.bgColor
+    if (parsed.fontSize        !== undefined) data.fontSize        = parsed.fontSize
+    if (parsed.galleryId       !== undefined) data.galleryId       = parsed.galleryId
+    if (parsed.slideDuration   !== undefined) data.slideDuration   = parsed.slideDuration
+    if (parsed.transitionStyle !== undefined) data.transitionStyle = parsed.transitionStyle
+    if (parsed.videoUrl        !== undefined) data.videoUrl        = parsed.videoUrl
+    if (parsed.videoLoop       !== undefined) data.videoLoop       = parsed.videoLoop
+    if (parsed.videoMuted      !== undefined) data.videoMuted      = parsed.videoMuted
+    if (parsed.rssUrl          !== undefined) data.rssUrl          = parsed.rssUrl
+    if (parsed.rssMaxItems     !== undefined) data.rssMaxItems     = parsed.rssMaxItems
+    if (parsed.weatherCity     !== undefined) data.weatherCity     = parsed.weatherCity
+    if (parsed.weatherUnits    !== undefined) data.weatherUnits    = parsed.weatherUnits
+    if (parsed.settings        !== undefined) data.settings        = parsed.settings
+
     const item = await db.contentItem.update({
       where: { id: params.itemId },
-      data: {
-        ...(parsed.active          !== undefined ? { active: parsed.active }               : {}),
-        ...(parsed.startDate       !== undefined ? { startDate: parsed.startDate ? new Date(parsed.startDate) : null } : {}),
-        ...(parsed.endDate         !== undefined ? { endDate:   parsed.endDate   ? new Date(parsed.endDate)   : null } : {}),
-        ...(parsed.startTime       !== undefined ? { startTime: parsed.startTime }         : {}),
-        ...(parsed.endTime         !== undefined ? { endTime:   parsed.endTime }           : {}),
-        ...(parsed.daysOfWeek      !== undefined ? { daysOfWeek: parsed.daysOfWeek }       : {}),
-        ...(parsed.textContent     !== undefined ? { textContent: parsed.textContent }     : {}),
-        ...(parsed.textColor       !== undefined ? { textColor:   parsed.textColor }       : {}),
-        ...(parsed.bgColor         !== undefined ? { bgColor:     parsed.bgColor }         : {}),
-        ...(parsed.fontSize        !== undefined ? { fontSize:    parsed.fontSize }        : {}),
-        ...(parsed.galleryId       !== undefined ? { galleryId:   parsed.galleryId }       : {}),
-        ...(parsed.slideDuration   !== undefined ? { slideDuration: parsed.slideDuration } : {}),
-        ...(parsed.transitionStyle !== undefined ? { transitionStyle: parsed.transitionStyle } : {}),
-        ...(parsed.videoUrl        !== undefined ? { videoUrl:    parsed.videoUrl }        : {}),
-        ...(parsed.videoLoop       !== undefined ? { videoLoop:   parsed.videoLoop }       : {}),
-        ...(parsed.videoMuted      !== undefined ? { videoMuted:  parsed.videoMuted }      : {}),
-        ...(parsed.rssUrl          !== undefined ? { rssUrl:      parsed.rssUrl }          : {}),
-        ...(parsed.rssMaxItems     !== undefined ? { rssMaxItems: parsed.rssMaxItems }     : {}),
-        ...(parsed.weatherCity     !== undefined ? { weatherCity: parsed.weatherCity }     : {}),
-        ...(parsed.weatherUnits    !== undefined ? { weatherUnits: parsed.weatherUnits }   : {}),
-      },
+      data,
     })
 
     return NextResponse.json({

@@ -1,98 +1,56 @@
-// src/lib/auth.ts
-// JWT-based auth using jose (Edge-compatible)
-
-import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
-import { NextRequest, NextResponse } from 'next/server'
-import type { JWTPayload, AuthUser, Role } from '@/types'
+import { SignJWT, jwtVerify } from 'jose'
+import type { AuthUser, JWTPayload } from '@/types'
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET ?? 'change-me-in-production-please-use-long-random-secret'
-)
-const COOKIE_NAME = 'signage_session'
-const TOKEN_EXPIRES = '7d'
+const SECRET = new TextEncoder().encode(process.env.JWT_SECRET ?? 'schoolscreen-dev-secret-change-in-prod')
+const COOKIE = 'ss_token'
 
-// ─── Token ───────────────────────────────────────────────
-
-export async function signToken(payload: Omit<JWTPayload, 'iat' | 'exp'>): Promise<string> {
-  return new SignJWT({ ...payload })
+export async function signJWT(payload: Omit<JWTPayload, 'iat' | 'exp'>): Promise<string> {
+  return new SignJWT(payload as any)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime(TOKEN_EXPIRES)
-    .sign(JWT_SECRET)
+    .setExpirationTime('7d')
+    .sign(SECRET)
 }
 
-export async function verifyToken(token: string): Promise<JWTPayload | null> {
+export async function verifyJWT(token: string): Promise<JWTPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET)
+    const { payload } = await jwtVerify(token, SECRET)
     return payload as unknown as JWTPayload
-  } catch {
-    return null
-  }
+  } catch { return null }
 }
 
-// ─── Cookie helpers ───────────────────────────────────────
+export async function getSession(): Promise<AuthUser | null> {
+  try {
+    const token = cookies().get(COOKIE)?.value
+    if (!token) return null
+    const payload = await verifyJWT(token)
+    if (!payload) return null
+    return { id: payload.sub, email: payload.email, name: payload.name, role: payload.role, schoolId: payload.schoolId }
+  } catch { return null }
+}
 
-export function setAuthCookie(response: NextResponse, token: string): void {
-  response.cookies.set(COOKIE_NAME, token, {
+// Alias — used by some pages
+export const getCurrentUser = getSession
+
+export async function requireRole(minRole: 'VIEWER' | 'EDITOR' | 'SCHOOL_ADMIN' | 'SUPER_ADMIN'): Promise<AuthUser> {
+  const user = await getSession()
+  if (!user) throw new Error('Unauthorized')
+  const levels = { VIEWER: 0, EDITOR: 1, SCHOOL_ADMIN: 2, SUPER_ADMIN: 3 }
+  if (levels[user.role] < levels[minRole]) throw new Error('Forbidden')
+  return user
+}
+
+export function setAuthCookie(token: string) {
+  cookies().set(COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 7, // 7 days
+    maxAge: 60 * 60 * 24 * 7,
     path: '/',
   })
 }
 
-export function clearAuthCookie(response: NextResponse): void {
-  response.cookies.delete(COOKIE_NAME)
+export function clearAuthCookie() {
+  cookies().set(COOKIE, '', { maxAge: 0, path: '/' })
 }
-
-// ─── Get current user ────────────────────────────────────
-
-export async function getCurrentUser(): Promise<AuthUser | null> {
-  const cookieStore = cookies()
-  const token = cookieStore.get(COOKIE_NAME)?.value
-  if (!token) return null
-  const payload = await verifyToken(token)
-  if (!payload) return null
-  return {
-    id: payload.sub,
-    email: payload.email,
-    name: payload.name,
-    role: payload.role,
-    schoolId: payload.schoolId,
-  }
-}
-
-export async function requireUser(): Promise<AuthUser> {
-  const user = await getCurrentUser()
-  if (!user) throw new Error('Unauthorized')
-  return user
-}
-
-export async function requireRole(role: Role): Promise<AuthUser> {
-  const user = await requireUser()
-  const hierarchy: Role[] = ['VIEWER', 'EDITOR', 'SCHOOL_ADMIN', 'SUPER_ADMIN']
-  if (hierarchy.indexOf(user.role) < hierarchy.indexOf(role)) {
-    throw new Error('Forbidden')
-  }
-  return user
-}
-
-// ─── Middleware helper ────────────────────────────────────
-
-export async function getTokenFromRequest(req: NextRequest): Promise<JWTPayload | null> {
-  const token = req.cookies.get(COOKIE_NAME)?.value
-  if (!token) return null
-  return verifyToken(token)
-}
-
-// ─── Role guards ─────────────────────────────────────────
-
-export const canEdit = (role: Role) =>
-  ['EDITOR', 'SCHOOL_ADMIN', 'SUPER_ADMIN'].includes(role)
-
-export const canAdmin = (role: Role) =>
-  ['SCHOOL_ADMIN', 'SUPER_ADMIN'].includes(role)
-
-export const isSuperAdmin = (role: Role) => role === 'SUPER_ADMIN'

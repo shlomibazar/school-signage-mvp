@@ -1,5 +1,6 @@
 // src/app/admin/announcements/page.tsx
 import Link from 'next/link'
+import AnnouncementDeleteButton from '@/components/admin/AnnouncementDeleteButton'
 import { Plus, Megaphone } from 'lucide-react'
 import { getCurrentUser } from '@/lib/auth'
 import { db } from '@/lib/db'
@@ -18,7 +19,7 @@ export default async function AnnouncementsPage() {
   const announcements = await db.announcement.findMany({
     where:   schoolId ? { schoolId } : {},
     orderBy: [{ priority: 'desc' }, { startAt: 'desc' }],
-    include: { screens: { include: { screen: { select: { name: true } } } } },
+
   })
 
   const now = new Date()
@@ -53,7 +54,7 @@ export default async function AnnouncementsPage() {
         {announcements.map(a => {
           const style    = PRIORITY_STYLE[a.priority] ?? PRIORITY_STYLE.LOW
           const isActive = a.active && new Date(a.startAt) <= now && new Date(a.endAt) >= now
-          const screenNames = a.screens.map(s => s.screen.name).join(', ')
+
 
           return (
             <div key={a.id} className="bg-white border border-gray-100 rounded-xl flex overflow-hidden hover:border-gray-200 transition-colors">
@@ -75,7 +76,7 @@ export default async function AnnouncementsPage() {
                         {new Date(a.startAt).toLocaleDateString('he-IL')} –{' '}
                         {new Date(a.endAt).toLocaleDateString('he-IL')}
                       </span>
-                      {screenNames && <span>📺 {screenNames}</span>}
+
                     </div>
                   </div>
 
@@ -92,6 +93,7 @@ export default async function AnnouncementsPage() {
                     >
                       ערוך
                     </Link>
+                    <AnnouncementDeleteButton id={a.id} title={a.title}/>
                   </div>
                 </div>
               </div>

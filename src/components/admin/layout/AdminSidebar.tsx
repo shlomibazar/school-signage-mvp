@@ -1,12 +1,12 @@
 'use client'
 // src/components/admin/layout/AdminSidebar.tsx
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Monitor, PenSquare, Megaphone,
-  ImageIcon, Users, Settings, HelpCircle, Menu, X,
+  ImageIcon, Users, Settings, HelpCircle, Menu, X, PanelRightClose, PanelRightOpen,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { AuthUser } from '@/types'
@@ -32,6 +32,16 @@ const NAV: NavItem[] = [
 export default function AdminSidebar({ user }: { user: AuthUser }) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
+  useEffect(() => {
+    try { setCollapsed(localStorage.getItem('schoolscreen-sidebar-collapsed') === 'true') } catch {}
+  }, [])
+  const toggleCollapsed = () => {
+    setCollapsed(value => {
+      try { localStorage.setItem('schoolscreen-sidebar-collapsed', String(!value)) } catch {}
+      return !value
+    })
+  }
 
   let lastSection: string | undefined
 
@@ -48,7 +58,7 @@ export default function AdminSidebar({ user }: { user: AuthUser }) {
 
         return (
           <div key={item.href}>
-            {showSection && (
+            {showSection && !collapsed && (
               <div className="text-[10px] font-medium text-gray-400 px-2 pt-4 pb-1 uppercase tracking-wider">
                 {item.section}
               </div>
@@ -56,6 +66,7 @@ export default function AdminSidebar({ user }: { user: AuthUser }) {
             <Link
               href={item.href}
               onClick={() => setMobileOpen(false)}
+              title={collapsed ? item.label : undefined}
               className={cn(
                 'flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] transition-colors',
                 active
@@ -64,7 +75,7 @@ export default function AdminSidebar({ user }: { user: AuthUser }) {
               )}
             >
               <Icon className="w-4 h-4 shrink-0" />
-              {item.label}
+              {!collapsed && item.label}
             </Link>
           </div>
         )
@@ -75,13 +86,14 @@ export default function AdminSidebar({ user }: { user: AuthUser }) {
   return (
     <>
       {/* Desktop sidebar — logical border: border-e = end-side = left in RTL */}
-      <aside className="hidden md:flex w-52 shrink-0 bg-white border-e border-gray-100 flex-col">
+      <aside className={`hidden md:flex ${collapsed ? "w-16" : "w-52"} shrink-0 bg-white border-e border-gray-100 flex-col transition-[width] duration-200`}>
         {/* Logo */}
-        <div className="flex items-center gap-2.5 px-4 py-4 border-b border-gray-100 shrink-0">
+        <div className="h-14 flex items-center gap-2.5 px-4 border-b border-gray-100 shrink-0">
           <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
             <Monitor className="w-4 h-4 text-blue-600" />
           </div>
-          <span className="font-semibold text-[15px]">SchoolScreen</span>
+          {!collapsed && <span className="font-semibold text-[15px]">SchoolScreen</span>}
+          <button type="button" onClick={toggleCollapsed} title={collapsed ? "הרחב תפריט" : "צמצם תפריט"} aria-label={collapsed ? "הרחב תפריט" : "צמצם תפריט"} className="ms-auto rounded-lg p-1 hover:bg-gray-100 text-gray-500">{collapsed ? <PanelRightOpen className="w-4 h-4" /> : <PanelRightClose className="w-4 h-4" />}</button>
         </div>
 
         {navContent}
@@ -93,7 +105,7 @@ export default function AdminSidebar({ user }: { user: AuthUser }) {
             className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] text-gray-500 hover:bg-gray-50"
           >
             <HelpCircle className="w-4 h-4" />
-            עזרה
+            {!collapsed && "עזרה"}
           </Link>
         </div>
       </aside>

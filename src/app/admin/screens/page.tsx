@@ -1,5 +1,8 @@
 // src/app/admin/screens/page.tsx
 import Link from 'next/link'
+import ScreenDeleteButton from '@/components/admin/ScreenDeleteButton'
+import ScreenSnapshot from '@/components/admin/ScreenSnapshot'
+import ShortLinkManager from '@/components/admin/ShortLinkManager'
 import { Plus, Edit, ExternalLink, Monitor } from 'lucide-react'
 import { getCurrentUser } from '@/lib/auth'
 import { db } from '@/lib/db'
@@ -12,11 +15,14 @@ export default async function ScreensPage() {
     where:   schoolId ? { schoolId } : {},
     orderBy: { createdAt: 'asc' },
     include: {
-      layout: { select: { mainSections: true, headerEnabled: true, footerEnabled: true } },
+      layout: { select: { mainSections: true, headerEnabled: true, footerEnabled: true, footerTicker: true, bgColor: true } },
+      sections: { orderBy: { position: 'asc' }, include: { contentItems: { select: { contentType: true, active: true, textContent: true, settings: true, galleryId: true, bgColor: true }, orderBy: { createdAt: 'asc' } } } },
       _count: { select: { sections: true, announcements: true } },
     },
   })
 
+  const media = schoolId ? await db.mediaFile.findMany({where:{schoolId,mediaType:'IMAGE',hidden:false},select:{id:true,url:true,galleryId:true},orderBy:{uploadedAt:'desc'}}) : []
+  const announcements = schoolId ? await db.announcement.findMany({where:{schoolId,active:true},select:{id:true,title:true,body:true,priority:true,bgColor:true},orderBy:{createdAt:'desc'}}) : []
   return (
     <div className="max-w-4xl">
       <div className="flex items-center justify-between mb-6">
@@ -46,18 +52,7 @@ export default async function ScreensPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {screens.map(screen => (
           <div key={screen.id} className="bg-white border border-gray-100 rounded-2xl overflow-hidden hover:border-gray-200 transition-colors">
-            {/* Mini preview thumbnail */}
-            <div className="h-28 bg-gray-900 flex flex-col p-2 gap-1">
-              {screen.layout?.headerEnabled && (
-                <div className="h-3 bg-white/10 rounded" />
-              )}
-              <div className="flex-1 flex gap-1">
-                {Array.from({ length: screen.layout?.mainSections ?? 1 }).map((_, i) => (
-                  <div key={i} className="flex-1 bg-white/5 rounded border border-white/10" />
-                ))}
-              </div>
-              <div className="h-2 bg-white/5 rounded" />
-            </div>
+            <ScreenSnapshot screen={screen} media={media} announcements={announcements} />
 
             <div className="p-4">
               <div className="flex items-start justify-between gap-2 mb-2">
@@ -72,6 +67,7 @@ export default async function ScreensPage() {
                 <div className="text-blue-500">/screen/{screen.slug}</div>
               </div>
 
+              <ShortLinkManager screenId={screen.id} initialCode={screen.shortCode} />
               <div className="flex items-center gap-2">
                 <Link
                   href={`/admin/editor?screen=${screen.id}`}
@@ -87,6 +83,7 @@ export default async function ScreensPage() {
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
                 </Link>
+                <ScreenDeleteButton id={screen.id} name={screen.name}/>
               </div>
             </div>
           </div>

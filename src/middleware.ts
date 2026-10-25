@@ -1,49 +1,42 @@
 // src/middleware.ts
-// Route protection — admin routes require auth, /screen/[slug] is public
-
 import { NextRequest, NextResponse } from 'next/server'
-import { getTokenFromRequest } from '@/lib/auth'
+import { verifyJWT } from '@/lib/auth'
 
-const PUBLIC_PATHS = [
-  '/auth/login',
-  '/screen',       // /screen/[slug] — public display
-  '/api/auth',     // login/logout endpoints
-  '/_next',
-  '/favicon.ico',
-]
+const PUBLIC_PATHS = ['/auth/login', '/auth/logout', '/screen/', '/api/auth/']
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
 
   // Allow public paths
-  if (PUBLIC_PATHS.some(p => pathname.startsWith(p))) {
-    return NextResponse.next()
-  }
+  const isPublic = PUBLIC_PATHS.some(p => pathname.startsWith(p))
+  if (isPublic) return NextResponse.next()
 
-  // All /admin/* routes and /api/* (except /api/auth) require auth
-  const payload = await getTokenFromRequest(req)
+  // Only protect /admin/* and /api/* (except public above)
+  const isProtected = pathname.startsWith('/admin') || pathname.startsWith('/api')
+  if (!isProtected) return NextResponse.next()
 
-  if (!payload) {
+  // Read JWT from cookie
+  const token = req.cookies.get('ss_token')?.value
+  if (!token) {
+    if (pathname.startsWith('/api')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
     const loginUrl = new URL('/auth/login', req.url)
-    loginUrl.searchParams.set('redirect', pathname)
+    loginUrl.searchParams.set('from', pathname)
     return NextResponse.redirect(loginUrl)
   }
 
-  // Attach user info to request headers for server components
-  const headers = new Headers(req.headers)
-  headers.set('x-user-id', payload.sub)
-  headers.set('x-user-role', payload.role)
-  headers.set('x-school-id', payload.schoolId ?? '')
+  const payload = await verifyJWT(token)
+  if (!payload) {
+    if (pathname.startsWith('/api')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    return NextResponse.redirect(new URL('/auth/login', req.url))
+  }
 
-  return NextResponse.next({ request: { headers } })
+  return NextResponse.next()
 }
 
 export const config = {
-  matcher: [
-    /*
-     * Match all paths except static files.
-     * This applies auth logic only to real pages/API routes.
-     */
-    '/((?!_next/static|_next/image|favicon.ico|public).*)',
-  ],
+  matcher: ['/admin/:path*', '/api/:path*'],
 }

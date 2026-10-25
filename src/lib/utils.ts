@@ -1,77 +1,54 @@
-// src/lib/utils.ts
-// Shared utility functions
-
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 
-/** Merge Tailwind classes safely */
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-/**
- * Basic HTML sanitizer.
- * Strips <script>, <iframe>, inline event handlers and dangerous URL schemes.
- * NOTE: Replace with DOMPurify in production for thorough XSS protection.
- */
-export function sanitizeHTML(html: string): string {
-  return html
-    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<iframe\b[^>]*>[\s\S]*?<\/iframe>/gi, '')
-    .replace(/<object\b[^>]*>[\s\S]*?<\/object>/gi, '')
-    .replace(/<embed[^>]*>/gi, '')
-    .replace(/\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)/gi, '')
-    .replace(/\bhref\s*=\s*["']?\s*javascript\s*:/gi, 'href="blocked:')
-    .replace(/\bsrc\s*=\s*["']?\s*javascript\s*:/gi, 'src="blocked:')
+export function toISOStringOrNull(d: Date | null | undefined): string | null {
+  if (!d) return null
+  try { return d instanceof Date ? d.toISOString() : new Date(d).toISOString() } catch { return null }
 }
 
-/**
- * Format a Date as a Hebrew (Jewish) calendar date string.
- * Uses the built-in Intl API with Hebrew calendar — no external package needed.
- */
-export function formatHebrewDate(date: Date = new Date()): string {
+export function distributeWidths(count: number): number[] {
+  if (count === 1) return [100]
+  if (count === 2) return [50, 50]
+  const base = Math.floor(100 / count)
+  const rem  = 100 - base * count
+  return Array.from({ length: count }, (_, i) => i === 0 ? base + rem : base)
+}
+
+export function sanitizeHTML(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+    .replace(/<iframe[\s\S]*?>[\s\S]*?<\/iframe>/gi, '')
+    .replace(/on\w+="[^"]*"/gi, '')
+    .replace(/on\w+='[^']*'/gi, '')
+}
+
+/** Hebrew calendar date: 15 בסיוון התשפ"ה */
+export function formatHebrewDate(date: Date): string {
   try {
-    return new Intl.DateTimeFormat('he-IL-u-ca-hebrew', {
-      day:   'numeric',
+    return new Intl.DateTimeFormat('he-IL-u-ca-hebrew-nu-latn', {
+      day: 'numeric',
       month: 'long',
-      year:  'numeric',
+      year: 'numeric',
     }).format(date)
   } catch {
-    // Fallback if Intl Hebrew calendar not supported (old Node versions)
-    return date.toLocaleDateString('he-IL')
+    return ''
   }
 }
 
-/**
- * Format a Date as a Gregorian Hebrew-locale string.
- */
-export function formatGregorianDate(date: Date = new Date()): string {
-  return date.toLocaleDateString('he-IL', {
-    weekday: 'long',
-    year:    'numeric',
-    month:   'long',
-    day:     'numeric',
-  })
-}
-
-/**
- * Distribute 100% width across N sections with no rounding loss.
- * Example: 3 sections → [34, 33, 33]
- */
-export function distributeWidths(count: number): number[] {
-  const base = Math.floor(100 / count)
-  const remainder = 100 - base * count
-  return Array.from({ length: count }, (_, i) =>
-    i === 0 ? base + remainder : base
-  )
-}
-
-/**
- * Convert a Prisma Date (or string/null) to an ISO string or null.
- * Handles both direct Prisma results (Date objects) and serialized API responses (strings).
- */
-export function toISOStringOrNull(value: Date | string | null | undefined): string | null {
-  if (!value) return null
-  if (typeof value === 'string') return value
-  return value.toISOString()
+/** Gregorian date in Hebrew: יום שלישי, 15 ביוני 2025 */
+export function formatGregorianDate(date: Date): string {
+  try {
+    return new Intl.DateTimeFormat('he-IL', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    }).format(date)
+  } catch {
+    return date.toLocaleDateString('he-IL')
+  }
 }
