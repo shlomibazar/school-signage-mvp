@@ -18,6 +18,13 @@ export default function MediaPage() {
   const [creatingFolder,setCreatingFolder]= useState(false)
   const [editFolderId, setEditFolderId] = useState<string|null>(null)
   const [editFolderName,setEditFolderName]= useState('')
+  const [selected,setSelected] = useState<Set<string>>(new Set())
+  const [anchor,setAnchor] = useState<string|null>(null)
+  const [destination,setDestination] = useState('')
+  const [busy,setBusy] = useState(false)
+  const drag = useRef<{x:number;y:number;add:boolean}|null>(null)
+  const [rectangle,setRectangle] = useState<{x:number;y:number;w:number;h:number}|null>(null)
+  const gridRef = useRef<HTMLDivElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { loadGalleries(); loadImages(null) }, [])
@@ -39,6 +46,7 @@ export default function MediaPage() {
   }
 
   async function switchGallery(id: string|null) {
+    setSelected(new Set()); setAnchor(null)
     setActiveGallery(id)
     await loadImages(id)
   }
@@ -71,6 +79,23 @@ export default function MediaPage() {
     toast.success('התמונה נמחקה בהצלחה')
     setImages(prev => prev.filter(img => img.id !== id))
     await loadGalleries()
+  }
+
+  function selectImage(id:string,e:React.MouseEvent) {
+    if(e.shiftKey && anchor){const a=images.findIndex(i=>i.id===anchor),b=images.findIndex(i=>i.id===id);if(a>=0&&b>=0){setSelected(prev=>new Set([...prev,...images.slice(Math.min(a,b),Math.max(a,b)+1).map(i=>i.id)]));return}}
+    if(e.ctrlKey||e.metaKey){setSelected(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n})}
+    else setSelected(new Set([id]));
+    setAnchor(id)
+  }
+  function beginDrag(e:React.MouseEvent<HTMLDivElement>){if(e.button!==0||!gridRef.current|| (e.target as HTMLElement).closest('button,input'))return;const r=gridRef.current.getBoundingClientRect();drag.current={x:e.clientX-r.left,y:e.clientY-r.top,add:e.ctrlKey||e.metaKey};setRectangle({x:e.clientX-r.left,y:e.clientY-r.top,w:0,h:0})}
+  function moveDrag(e:React.MouseEvent<HTMLDivElement>){if(!drag.current||!gridRef.current)return;const r=gridRef.current.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top,d=drag.current;setRectangle({x:Math.min(x,d.x),y:Math.min(y,d.y),w:Math.abs(x-d.x),h:Math.abs(y-d.y)})}
+  function endDrag(){if(!drag.current||!rectangle||!gridRef.current)return;const d=drag.current;drag.current=null;const rect=rectangle;setRectangle(null);if(rect.w<5&&rect.h<5)return;const root=gridRef.current.getBoundingClientRect();const ids=images.filter(i=>{const el=gridRef.current?.querySelector(`[data-media-id="${i.id}"]`);if(!el)return false;const b=el.getBoundingClientRect(),x=b.left-root.left,y=b.top-root.top;return x<rect.x+rect.w&&x+b.width>rect.x&&y<rect.y+rect.h&&y+b.height>rect.y}).map(i=>i.id);setSelected(prev=>new Set([...(d.add?prev:[]),...ids]))}
+  async function bulkAction(action:'delete'|'move'){
+    const ids=[...selected];if(!ids.length)return;
+    if(action==='delete'&&!confirm(`למחוק ${ids.length} פריטים?`))return;
+    if(action==='move'&&!destination){toast.error('יש לבחור תיקיית יעד');return}
+    setBusy(true)
+    try{const r=await fetch('/api/media/bulk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids,action,galleryId:destination})});if(!r.ok)throw Error();await loadImages(activeGallery);await loadGalleries();setSelected(new Set());toast.success('הפעולה הושלמה')}catch{toast.error('הפעולה נכשלה')}finally{setBusy(false)}
   }
 
   async function saveCaption(id: string) {
@@ -182,6 +207,7 @@ export default function MediaPage() {
             {activeGallery ? `העלה לתיקייה "${galleries.find(g=>g.id===activeGallery)?.name}"` : 'העלה תמונות וסרטונים · ניתן לבחור כמה קבצים'}
           </div>
 
+          {selected.size>0&&<div className="flex flex-wrap items-center gap-2 mb-3 p-2 rounded-xl bg-blue-50 text-sm" dir="rtl"><span>{selected.size} נבחרו</span><button onClick={()=>setSelected(new Set())} className="px-2 py-1 bg-white rounded">בטל בחירה</button><select value={destination} onChange={e=>setDestination(e.target.value)} className="p-1 border rounded"><option value="">בחר תיקיית יעד</option>{galleries.map(g=><option key={g.id} value={g.id}>{g.name}</option>)}</select><button disabled={busy||!destination} onClick={()=>bulkAction('move')} className="px-2 py-1 bg-blue-600 text-white rounded disabled:opacity-50">העבר לתיקייה</button><button disabled={busy} onClick={()=>bulkAction('delete')} className="px-2 py-1 bg-red-600 text-white rounded">מחק נבחרים</button></div>}
           {loading ? (
             <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-gray-400"/></div>
           ) : images.length === 0 ? (
@@ -190,11 +216,13 @@ export default function MediaPage() {
               <p className="text-gray-500 text-sm">אין קבצים {activeGallery ? 'בתיקייה זו' : 'עדיין'}</p>
             </div>
           ) : (
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+            <div ref={gridRef} onMouseDown={beginDrag} onMouseMove={moveDrag} onMouseUp={endDrag} onMouseLeave={endDrag} className="relative min-h-[640px] px-12 py-14 select-none">
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+              {rectangle&&<div className="absolute z-20 pointer-events-none border border-blue-500 bg-blue-400/20" style={{left:rectangle.x,top:rectangle.y,width:rectangle.w,height:rectangle.h}}/>}
               {images.map(img => (
-                <div key={img.id} className="group relative bg-white border border-gray-100 rounded-xl overflow-hidden hover:border-gray-300 transition-colors">
+                <div key={img.id} data-media-id={img.id} onClick={e=>selectImage(img.id,e)} className={`group relative bg-white border-2 rounded-xl overflow-hidden cursor-pointer transition-colors ${selected.has(img.id)?"border-blue-500 ring-2 ring-blue-200":"border-gray-100 hover:border-gray-300"}`}>
                   <div className="aspect-square bg-gray-50">
-                    {img.mimeType?.startsWith('video/')?<video src={img.url} muted preload="metadata" className="w-full h-full object-cover"/>:<img src={img.url} alt={img.originalName} className="w-full h-full object-cover"/>}
+                    {img.mimeType?.startsWith('video/')?<video src={img.url} muted preload="metadata" className="w-full h-full object-cover"/>:<img src={`/api/media/thumbnail/${encodeURIComponent(img.id)}`} alt={img.originalName} loading="lazy" decoding="async" draggable={false} className="w-full h-full object-cover"/>}
                   </div>
                   <div className="p-1.5">
                     {editId === img.id ? (
@@ -218,6 +246,7 @@ export default function MediaPage() {
                   </button>
                 </div>
               ))}
+              </div>
             </div>
           )}
         </div>

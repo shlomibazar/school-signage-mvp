@@ -43,7 +43,7 @@ function GalleryContent({item}:{item:ContentItem}){
   const folders=JSON.stringify(s.folderIds??[])
   const ids=JSON.stringify(s.imageIds??[])
   const mode=s.displayMode??'slideshow'
-  const dur=Math.max(2,item.slideDuration||8)*1000
+  const dur=(mode==='slideshow'?Math.max(2,item.slideDuration||8):Math.max(5,Math.min(60,s.groupDuration??15)))*1000
   useEffect(()=>{
     let alive=true
     async function load(){

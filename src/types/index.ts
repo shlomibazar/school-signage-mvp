@@ -33,7 +33,7 @@ export interface ClockSettings { hourFormat:'12'|'24'; showSeconds:boolean }
 export interface DateSettings { dateFormat:'full'|'short'|'daymonth'; locale:'he'|'en' }
 export interface RssSettings { refreshInterval:number; displayStyle:'list'|'ticker' }
 export interface VideoSettings { showControls:boolean }
-export interface GallerySettings { showCaptions:boolean; showDots:boolean; imageIds:string[]; imageFit?: "cover" | "contain"; mosaicCount?:4|6|9; folderIds?:string[]; displayMode?:"slideshow"|"mosaic"|"collage"; imageOrder?:"random"|"newest"|"oldest"|"name"; showGallery?:boolean; showSectionTitle?:boolean; sectionTitle?:string; sectionTitleSize?:"normal"|"large"|"xlarge" }
+export interface GallerySettings { showCaptions:boolean; showDots:boolean; imageIds:string[]; imageFit?: "cover" | "contain"; mosaicCount?:4|6|9; groupDuration?:number; folderIds?:string[]; displayMode?:"slideshow"|"mosaic"|"collage"; imageOrder?:"random"|"newest"|"oldest"|"name"; showGallery?:boolean; showSectionTitle?:boolean; sectionTitle?:string; sectionTitleSize?:"normal"|"large"|"xlarge" }
 export interface SingleAnnouncement { id:string; title:string; body:string; priority:'info'|'warning'|'urgent'; icon:string }
 export interface AnnouncementContentSettings { title:string; priority:'info'|'warning'|'urgent'; style:'banner'|'card'; icon:string; items:SingleAnnouncement[]; selectedAnnouncementIds?:string[]; rotationSecs:number; showSectionTitle?:boolean; sectionTitle?:string; sectionTitleSize?:'normal'|'large'|'xlarge' }
 export interface BirthdaySettings { personName:string; grade:string; birthDate:string; greetingText:string }
