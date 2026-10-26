@@ -4,6 +4,8 @@ import toast from 'react-hot-toast'
 import { useRouter } from 'next/navigation'
 import type { Announcement } from '@/types'
 import { cleanAnnouncementHtml } from '@/lib/announcementRichText'
+import AnnouncementAttachments from './AnnouncementAttachments'
+import PendingAnnouncementAttachments, { type PendingAttachment } from './PendingAnnouncementAttachments'
 const local=(v:string)=>{const d=new Date(v);return Number.isNaN(d.getTime())?'':`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`}
 export default function AnnouncementForm({initial}:{initial?:Announcement}){
   const router=useRouter()
@@ -41,9 +43,35 @@ export default function AnnouncementForm({initial}:{initial?:Announcement}){
   const [active,setActive]=useState(initial?.active??true)
   const [start,setStart]=useState(initial?local(initial.startAt):local(new Date().toISOString()))
   const [end,setEnd]=useState(initial?local(initial.endAt):'2099-12-31T23:59')
+  const [savedId,setSavedId]=useState(initial?.id??'')
+  const [pending,setPending]=useState<PendingAttachment[]>([])
   const [busy,setBusy]=useState(false),[error,setError]=useState('')
-  async function save(e:React.FormEvent){e.preventDefault();setBusy(true);setError('');try{const res=await fetch(initial?`/api/announcements/${initial.id}`:'/api/announcements',{method:initial?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,body,priority,active,startAt:new Date(start).toISOString(),endAt:new Date(end).toISOString()})});if(!res.ok)throw Error('השמירה נכשלה. בדוק את השדות והתאריכים.');toast.success('ההודעה נשמרה בהצלחה');router.push('/admin/announcements');router.refresh()}catch(e){setError(e instanceof Error?e.message:'שגיאה');toast.error('שמירת ההודעה נכשלה')}finally{setBusy(false)}}
-  return <form onSubmit={save} className="max-w-2xl space-y-4 bg-white border rounded-2xl p-6" dir="rtl">
+  async function save(e:React.FormEvent){
+    e.preventDefault();setBusy(true);setError('')
+    try{
+      const res=await fetch(savedId?`/api/announcements/${savedId}`:'/api/announcements',{method:savedId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,body,priority,active,startAt:new Date(start).toISOString(),endAt:new Date(end).toISOString()})})
+      if(!res.ok)throw Error('שמירת ההודעה נכשלה. בדוק את השדות והתאריכים.')
+      const payload=await res.json()
+      const id=savedId||payload?.data?.id
+      if(!id)throw Error('ההודעה נשמרה אך לא התקבל מזהה. רענן את הדף ובדוק את הרשימה.')
+      setSavedId(id)
+      let uploaded=0
+      for(const a of pending){
+        const form=new FormData()
+        if(a.file)form.append('file',a.file)
+        else if(a.media)form.append('mediaId',a.media.id)
+        else continue
+        const r=await fetch(`/api/announcements/${id}/attachments`,{method:'POST',body:form})
+        if(!r.ok){const d=await r.json().catch(()=>({}));setPending(p=>p.slice(uploaded));throw Error(`ההודעה נשמרה, אך צירוף קובץ נכשל: ${d.error||r.status}. ניתן לנסות לשמור שוב.`)}
+        uploaded++
+      }
+      setPending([])
+      toast.success(`ההודעה נשמרה${uploaded?` עם ${uploaded} קבצים`:''}`)
+      router.refresh()
+    }catch(e){setError(e instanceof Error?e.message:'שגיאה');toast.error('לא ניתן להשלים את השמירה')}
+    finally{setBusy(false)}
+  }
+  return <form onSubmit={save} className="w-full max-w-2xl space-y-4 bg-white border rounded-2xl p-4 sm:p-6 min-w-0 overflow-x-hidden [overflow-anchor:none]" dir="rtl">
     <h1 className="text-xl font-bold">{initial?'עריכת הודעה':'הודעה חדשה'}</h1>
     <label className="block text-sm">כותרת<input required className="block w-full mt-1 border rounded-lg p-2" value={title} onChange={e=>setTitle(e.target.value)}/></label>
     <div className="space-y-2"><label className="block text-sm font-medium">תוכן ההודעה</label>
@@ -66,7 +94,8 @@ export default function AnnouncementForm({initial}:{initial?:Announcement}){
     <div className="grid grid-cols-2 gap-3"><label className="text-sm">התחלה<input required type="datetime-local" className="block w-full mt-1 border rounded-lg p-2" value={start} onChange={e=>setStart(e.target.value)}/></label><label className="text-sm">סיום<input required type="datetime-local" className="block w-full mt-1 border rounded-lg p-2" value={end} onChange={e=>setEnd(e.target.value)}/></label></div>
     <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={active} onChange={e=>setActive(e.target.checked)}/>הודעה פעילה</label>
     <p className="text-xs text-gray-500">ההודעה לא תוצג עד שתיבחר בעורך הפריסה של המסך הרצוי.</p>
+    {savedId?<AnnouncementAttachments key={savedId} announcementId={savedId}/>:<PendingAnnouncementAttachments items={pending} onChange={setPending}/>}
     {error&&<p className="text-red-600 text-sm">{error}</p>}
-    <div className="flex gap-3"><button disabled={busy} className="bg-blue-600 text-white rounded-lg px-5 py-2">{busy?'שומר...':'שמור הודעה'}</button><button type="button" onClick={()=>router.push('/admin/announcements')} className="border rounded-lg px-5 py-2">ביטול</button></div>
+    <div className="flex gap-3"><button type="submit" disabled={busy} className="bg-blue-600 text-white rounded-lg px-5 py-2">{busy?'שומר...':'שמור הודעה'}</button><button type="button" onClick={()=>router.push('/admin/announcements')} className="border rounded-lg px-5 py-2">ביטול</button></div>
   </form>
 }

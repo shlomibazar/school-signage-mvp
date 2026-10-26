@@ -176,6 +176,10 @@ function AnnouncementContent({item}:{item:ContentItem}){
   const body=cur?.body??item.textContent??''
   const icon=cur?.icon??s.icon??''
   const priority=cur?.priority??s.priority
+  const attachments=cur?.attachments??[]
+  const [attachmentIndex,setAttachmentIndex]=useState(0)
+  useEffect(()=>setAttachmentIndex(0),[cur?.id])
+  useEffect(()=>{if(attachments.length<2)return;const timer=setInterval(()=>setAttachmentIndex(i=>(i+1)%attachments.length),Math.max(5,rot)*1000);return()=>clearInterval(timer)},[cur?.id,attachments.length,rot])
   // Standard announcements inherit the active screen theme. Priority notices retain
   // their warning colors; an explicitly chosen custom color is still respected.
   const savedBg=(item.bgColor??'').trim().toLowerCase()
@@ -186,15 +190,15 @@ function AnnouncementContent({item}:{item:ContentItem}){
   // Sizes depend on the actual panel, not the browser viewport. The same
   // sizes are used on every page of an announcement.
   const unit=Math.min(box.width/580,box.height/600)
-  const titleSize=Math.max(18,Math.min(48,Math.round(42*unit)))
-  const iconSize=Math.max(24,Math.min(54,Math.round(48*unit)))
-  const bodySize=Math.max(14,Math.min(30,Math.round(27*unit)))
+  const titleSize=Math.max(18,Math.min(attachments.length?36:48,Math.round((attachments.length?32:42)*unit)))
+  const iconSize=Math.max(20,Math.min(attachments.length?34:54,Math.round((attachments.length?30:48)*unit)))
+  const bodySize=Math.max(14,Math.min(attachments.length?25:30,Math.round((attachments.length?23:27)*unit)))
   const showSectionTitle=s.showSectionTitle ?? true
   const sectionTitle=s.sectionTitle ?? 'הודעות כלליות'
   const headingHeight=showSectionTitle && sectionTitle.trim()?box.height*0.09:0
   const padding=Math.max(12,Math.min(32,Math.round(26*unit)))
-  const dotsHeight=items.length>1||body.length>0?30:0
-  const bodyHeight=Math.max(40,box.height-headingHeight-2*padding-(icon?iconSize+12:0)-(title?titleSize*2.5+12:0)-dotsHeight)
+  const dotsHeight=items.length>1?22:0
+  const bodyHeight=attachments.length?Math.max(45,Math.min(box.height*0.24,body.length>280?box.height*0.28:box.height*0.19)):Math.max(40,box.height-headingHeight-2*padding-(icon?iconSize+12:0)-(title?titleSize*2.5+12:0)-dotsHeight)
   // Measure the actual visible body area. Avoid scrolling for subpixel/rounding overflow.
   // Keep the measurement independent of the animation so it cannot restart mid-scroll.
   const [overflow,setOverflow]=useState(0)
@@ -203,7 +207,7 @@ function AnnouncementContent({item}:{item:ContentItem}){
     const text=textRef.current
     if(!viewport||!text){setOverflow(0);return}
     const measure=()=>{
-      const extra=Math.max(0,text.scrollHeight-viewport.clientHeight)
+      const extra=attachments.length?0:Math.max(0,text.scrollHeight-viewport.clientHeight)
       setOverflow(previous=>{
         const next=extra>4?Math.ceil(extra):0
         return previous===next?previous:next
@@ -214,7 +218,7 @@ function AnnouncementContent({item}:{item:ContentItem}){
     observer.observe(viewport)
     observer.observe(text)
     return()=>observer.disconnect()
-  },[idx,body,bodySize,box.width,box.height,bodyHeight])
+  },[idx,body,bodySize,box.width,box.height,bodyHeight,attachments.length])
   useEffect(()=>{
     const distance=overflow
     const duration=distance>0?distance/15:0
@@ -233,10 +237,13 @@ function AnnouncementContent({item}:{item:ContentItem}){
   },[idx,body,overflow,items.length,rot,cycle])
   return <div ref={host} className="tv-announcement relative w-full h-full min-h-0 overflow-hidden flex flex-col items-center justify-center text-center" dir="rtl" style={{background:bg,color:ink,padding}}>
     {headingHeight>0&&<div className="absolute top-0 inset-x-0 z-10"><SectionHeading>{sectionTitle}</SectionHeading></div>}
-    <div className="w-full min-h-0 flex flex-col items-center" style={{height:'100%',paddingTop:headingHeight,paddingBottom:dotsHeight}}>
+    <div className="w-full min-h-0 flex flex-col items-center overflow-hidden" style={{height:'100%',paddingTop:headingHeight,paddingBottom:dotsHeight}}>
       {icon&&<div className="shrink-0" style={{fontSize:iconSize,lineHeight:1.1,marginBottom:12*unit}}>{icon}</div>}
       {title&&<div className="shrink-0 font-bold" style={{fontSize:titleSize,lineHeight:1.2,marginBottom:12*unit,overflowWrap:'anywhere'}}>{title}</div>}
-      {body&&<div ref={viewportRef} className="w-full min-h-0 flex-1 overflow-hidden" style={{maxHeight:bodyHeight}}>
+      {attachments.length>0&&<div className="w-full flex-1 min-h-0 overflow-hidden flex items-center justify-center mb-2">
+        <img src={attachments[attachmentIndex%attachments.length]?.url} alt={title} className="w-full h-full object-contain" />
+      </div>}
+      {body&&<div ref={viewportRef} className={`w-full min-h-0 overflow-hidden ${attachments.length?'shrink-0':'flex-1'}`} style={{maxHeight:bodyHeight}}>
         <div ref={textRef} style={{fontSize:bodySize,lineHeight:1.45,whiteSpace:'pre-wrap',overflowWrap:'anywhere',opacity:.9,transform:`translateY(-${scroll.started?scroll.distance:0}px)`,transition:scroll.started&&scroll.distance>0?`transform ${scroll.duration}s linear`:'none'}} dangerouslySetInnerHTML={{__html:cleanAnnouncementHtml(body)}} />
       </div>}
     </div>

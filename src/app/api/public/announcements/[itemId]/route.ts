@@ -10,8 +10,8 @@ export async function GET(_req:Request,{params}:{params:{itemId:string}}){
   const now=new Date()
   const weekday=now.getDay()
   const clock=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Jerusalem',hour:'2-digit',minute:'2-digit',hour12:false}).format(now)
-  const messages=await db.announcement.findMany({where:{id:{in:ids},schoolId:item.section.screen.schoolId,active:true,startAt:{lte:now},endAt:{gte:now}}})
+  const messages=await db.announcement.findMany({where:{id:{in:ids},schoolId:item.section.screen.schoolId,active:true,startAt:{lte:now},endAt:{gte:now}},include:{attachments:{orderBy:{sortOrder:'asc'}}}})
   const filtered=messages.filter(a=>(!a.daysOfWeek.length||a.daysOfWeek.includes(weekday))&&(!a.startTime||clock>=a.startTime)&&(!a.endTime||clock<=a.endTime))
-  const data=ids.flatMap(id=>{const a=filtered.find(a=>a.id===id);return a?[{id:a.id,title:a.title,body:a.body,icon:a.icon??'📢',priority:a.priority==='HIGH'||a.priority==='EMERGENCY'?'urgent':a.priority==='MEDIUM'?'warning':'info'}]:[]})
+  const data=ids.flatMap(id=>{const a=filtered.find(a=>a.id===id);return a?[{id:a.id,title:a.title,body:a.body,icon:a.icon??'📢',priority:a.priority==='HIGH'||a.priority==='EMERGENCY'?'urgent':a.priority==='MEDIUM'?'warning':'info',attachments:a.attachments.filter(f=>f.kind==='IMAGE'||f.kind==='PDF_PAGE').map(f=>({id:f.id,url:f.url,kind:f.kind}))}]:[]})
   return NextResponse.json({data},{headers:{'Cache-Control':'no-store'}})
 }

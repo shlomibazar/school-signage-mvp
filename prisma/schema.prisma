@@ -240,7 +240,25 @@ model Announcement {
   updatedAt   DateTime @updatedAt
 
   screens AnnouncementScreen[]
+  attachments AnnouncementAttachment[]
   @@map("announcements")
+}
+
+// Attachments belong to announcements, not the general media gallery.
+// A PDF's display pages are stored as separate IMAGE entries with parentPdfId.
+model AnnouncementAttachment {
+  id             String   @id @default(cuid())
+  announcementId String
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  kind           String   // IMAGE | PDF | PDF_PAGE
+  url            String
+  originalName   String
+  mimeType       String
+  sortOrder      Int      @default(0)
+  parentPdfId    String?
+  createdAt      DateTime @default(now())
+  @@index([announcementId, sortOrder])
+  @@map("announcement_attachments")
 }
 
 model AnnouncementScreen {
