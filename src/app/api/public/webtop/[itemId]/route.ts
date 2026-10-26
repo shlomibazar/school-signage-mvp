@@ -39,7 +39,14 @@ export async function GET(_req:Request,{params}:{params:{itemId:string}}){
     if(cache.size>100){const oldest=cache.keys().next().value;if(oldest)cache.delete(oldest)}
     return NextResponse.json({data,updatedAt:new Date().toISOString(),stale:false},{headers:{'Cache-Control':'no-store'}})
   }catch(e){
-    if(cached)return NextResponse.json({data:cached.data,updatedAt:new Date(cached.at).toISOString(),stale:true},{headers:{'Cache-Control':'no-store'}})
+    console.error('[WEBTOP API ERROR]', {
+      message: e instanceof Error ? e.message : String(e),
+      cause: e instanceof Error ? String(e.cause ?? '') : '',
+      institutionCode,
+      grades,
+      selectedDay,
+      endpoint: WEBTOP,
+    })
     return NextResponse.json({error:'לא ניתן לקבל נתונים מ־Webtop. יש לוודא גישה ל־API מהשרת.'},{status:502,headers:{'Cache-Control':'no-store'}})
   }
 }
