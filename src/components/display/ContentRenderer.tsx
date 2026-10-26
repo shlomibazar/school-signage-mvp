@@ -49,14 +49,11 @@ function GalleryContent({item}:{item:ContentItem}){
     async function load(){
       try{
         // The public endpoint only exposes images used by active public screens.
-        const url=((s.folderIds??[]).length||(s.imageIds??[]).length) ? `/api/public/gallery/${item.id}` : '/api/media'
-        let r=await fetch(url,{cache:'no-store'})
-        // Unsaved preview items can fall back to the editor's authenticated media list.
-        if(!r.ok && ((s.folderIds??[]).length||(s.imageIds??[]).length))r=await fetch('/api/media',{cache:'no-store'})
+        const r=await fetch(`/api/public/gallery/${encodeURIComponent(item.id)}`,{cache:'no-store'})
         if(!r.ok)return
         const d=await r.json()
         const all:Photo[]=d.data??[]
-        const chosen=(s.folderIds??[]).length?all.filter(f=>!('galleryId' in f)||(s.folderIds??[]).includes(f.galleryId??'')):(s.imageIds??[]).length?(s.imageIds??[]).map(id=>all.find(f=>f.id===id)).filter(Boolean) as Photo[]:item.gallery?.files??[]
+        const chosen=(s.folderIds??[]).length?all.filter(f=>(s.folderIds??[]).includes(f.galleryId??'')):(s.imageIds??[]).length?(s.imageIds??[]).map(id=>all.find(f=>f.id===id)).filter(Boolean) as Photo[]:all
         if(!alive)return
         const ordered=[...chosen]
         const order=s.imageOrder??'random'
