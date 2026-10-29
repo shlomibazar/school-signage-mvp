@@ -1,6 +1,7 @@
 'use client'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
+import { pdfPages } from '@/lib/pdfPages'
 
 type Attachment = {id:string;kind:string;url:string;originalName:string}
 type Media = {id:string;originalName:string;url:string}
@@ -36,8 +37,12 @@ export default function AnnouncementAttachments({announcementId}:{announcementId
     let success=0
     try{
       for(const file of Array.from(files)){
-        const form=new FormData();form.append('file',file)
-        await post(form);success++
+        const pages=await pdfPages(file)
+        for(const page of pages){
+          const form=new FormData();form.append('file',page)
+          if(file.type==='application/pdf') {form.append('pdfPage','1');form.append('originalName',page.name)}
+          await post(form);success++
+        }
       }
       await reload()
       setNotice(`${success} קבצים צורפו ונשמרו בהודעה`)
@@ -70,7 +75,7 @@ export default function AnnouncementAttachments({announcementId}:{announcementId
   }
   return <section className="border rounded-xl p-3 sm:p-4 space-y-4 min-w-0 max-w-full overflow-x-hidden" dir="rtl">
     <div className="flex items-center justify-between gap-2"><h2 className="font-semibold">תמונות וקבצים מצורפים</h2><span className="text-xs text-gray-500">{items.length} קבצים שמורים</span></div>
-    <p className="text-xs text-gray-500">תמונות נשמרות מיד עם הצירוף ויוצגו בהודעה במסך שההודעה משויכת אליו. PDF נשמר אך הצגת עמודיו בטלוויזיה עדיין בפיתוח.</p>
+    <p className="text-xs text-gray-500">תמונות נשמרות מיד עם הצירוף ויוצגו בהודעה במסך שההודעה משויכת אליו. קובצי PDF מומרים לעמודי תמונה ומוצגים בטלוויזיה לפי סדר העמודים.</p>
     <div className="flex flex-wrap gap-2">
       <label className={`inline-flex cursor-pointer items-center rounded-lg bg-blue-600 px-4 py-2 text-white text-sm ${busy?'opacity-50 pointer-events-none':''}`}>
         העלאת תמונות / PDF<input ref={inputRef} type="file" multiple disabled={busy} accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" className="sr-only" onChange={e=>void upload(e.target.files)}/>

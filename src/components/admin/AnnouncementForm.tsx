@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import { useRouter } from 'next/navigation'
 import type { Announcement } from '@/types'
 import { cleanAnnouncementHtml } from '@/lib/announcementRichText'
+import { pdfPages } from '@/lib/pdfPages'
 import AnnouncementAttachments from './AnnouncementAttachments'
 import PendingAnnouncementAttachments, { type PendingAttachment } from './PendingAnnouncementAttachments'
 const local=(v:string)=>{const d=new Date(v);return Number.isNaN(d.getTime())?'':`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`}
@@ -50,23 +51,36 @@ export default function AnnouncementForm({initial}:{initial?:Announcement}){
   const [pending,setPending]=useState<PendingAttachment[]>([])
   const [busy,setBusy]=useState(false),[error,setError]=useState('')
   async function save(e:React.FormEvent){
-    e.preventDefault();setBusy(true);setError('')
+    e.preventDefault();setError('')
+    const hasText = body.replace(/<[^>]*>/g, '').replace(/&nbsp;|\u00a0/g, ' ').trim().length > 0
+    if (!hasText && pending.length === 0 && !savedId) {
+      setError('יש להזין תוכן הודעה או לצרף תמונה / PDF')
+      return
+    }
+    setBusy(true)
     try{
-      const res=await fetch(savedId?`/api/announcements/${savedId}`:'/api/announcements',{method:savedId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,showTitle,body,priority,active,attachmentDisplayMode,attachmentSlideSeconds,startAt:new Date(start).toISOString(),endAt:new Date(end).toISOString()})})
-      if(!res.ok)throw Error('שמירת ההודעה נכשלה. בדוק את השדות והתאריכים.')
+      const res=await fetch(savedId?`/api/announcements/${savedId}`:'/api/announcements',{method:savedId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,showTitle,body,hasPendingAttachments:pending.length>0,priority,active,attachmentDisplayMode,attachmentSlideSeconds,startAt:new Date(start).toISOString(),endAt:new Date(end).toISOString()})})
+      if(!res.ok){const data=await res.json().catch(()=>null);throw Error(`שמירת ההודעה נכשלה (${res.status}): ${data?.error||data?.message||JSON.stringify(data?.details||data?.issues||'בדוק את השדות והתאריכים')}`)}
       const payload=await res.json()
       const id=savedId||payload?.data?.id
       if(!id)throw Error('ההודעה נשמרה אך לא התקבל מזהה. רענן את הדף ובדוק את הרשימה.')
       setSavedId(id)
       let uploaded=0
+      let processed=0
       for(const a of pending){
-        const form=new FormData()
-        if(a.file)form.append('file',a.file)
-        else if(a.media)form.append('mediaId',a.media.id)
-        else continue
-        const r=await fetch(`/api/announcements/${id}/attachments`,{method:'POST',body:form})
-        if(!r.ok){const d=await r.json().catch(()=>({}));setPending(p=>p.slice(uploaded));throw Error(`ההודעה נשמרה, אך צירוף קובץ נכשל: ${d.error||r.status}. ניתן לנסות לשמור שוב.`)}
-        uploaded++
+        const pages=a.file?await pdfPages(a.file):[null]
+        for(const page of pages){
+          const form=new FormData()
+          if(page){
+            form.append('file',page)
+            if(a.file?.type==='application/pdf'){form.append('pdfPage','1');form.append('originalName',page.name)}
+          } else if(a.media) form.append('mediaId',a.media.id)
+          else continue
+          const r=await fetch(`/api/announcements/${id}/attachments`,{method:'POST',body:form})
+          if(!r.ok){const d=await r.json().catch(()=>({}));setPending(p=>p.slice(processed));throw Error(`ההודעה נשמרה, אך צירוף קובץ נכשל: ${d.error||r.status}. ניתן לנסות לשמור שוב.`)}
+          uploaded++
+        }
+        processed++
       }
       setPending([])
       toast.success(`ההודעה נשמרה${uploaded?` עם ${uploaded} קבצים`:''}`)
@@ -75,13 +89,13 @@ export default function AnnouncementForm({initial}:{initial?:Announcement}){
     finally{setBusy(false)}
   }
   return <form onSubmit={save} className="w-full max-w-2xl space-y-4 bg-white border rounded-2xl p-4 sm:p-6 min-w-0 overflow-x-hidden [overflow-anchor:none]" dir="rtl">
-    <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="flex items-center justify-between gap-3 flex-wrap">
       <h1 className="text-xl font-bold">{initial?'עריכת הודעה':'הודעה חדשה'}</h1>
       <button type="submit" disabled={busy} className="bg-blue-600 text-white rounded-lg px-5 py-2 disabled:opacity-50">{busy?'שומר...':'שמור הודעה'}</button>
     </div>
     <label className="block text-sm">כותרת<input required className="block w-full mt-1 border rounded-lg p-2" value={title} onChange={e=>setTitle(e.target.value)}/></label>
     <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={showTitle} onChange={e=>setShowTitle(e.target.checked)}/>הצג כותרת בטלוויזיה</label>
-    <div className="space-y-2"><label className="block text-sm font-medium">תוכן ההודעה</label>
+    <div className="space-y-2"><label className="block text-sm font-medium">תוכן ההודעה (לא חובה אם מצרפים תמונה או PDF)</label>
       <div className="flex flex-wrap gap-1 rounded-lg border p-2" role="toolbar" aria-label="עיצוב הודעה">
         {[['bold','מודגש','B'],['italic','נטוי','I'],['underline','קו תחתון','U'],['justifyRight','יישור לימין','⇥'],['justifyCenter','יישור למרכז','☷'],['justifyLeft','יישור לשמאל','⇤'],['insertUnorderedList','רשימה','•']].map(([cmd,label,symbol])=><button key={cmd} type="button" title={label} aria-label={label} onMouseDown={e=>e.preventDefault()} onClick={()=>format(cmd)} className="border rounded px-3 py-1 font-semibold hover:bg-gray-100">{symbol}</button>)}
         <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>size(-2)} className="border rounded px-2 py-1" title="טקסט קטן">א−</button>

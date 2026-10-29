@@ -57,7 +57,7 @@ export async function POST(req:NextRequest,{params}:{params:{id:string}}){
       const file=form.get('file')
       if(!(file instanceof File)||!allowed[file.type])return error('Unsupported file',400)
       if(file.size>(file.type==='application/pdf'?20:10)*1024*1024)return error('File too large',413)
-      mimeType=file.type;originalName=file.name.slice(0,200);kind=file.type==='application/pdf'?'PDF':'IMAGE'
+      mimeType=file.type;originalName=(String(form.get('originalName')||file.name)).slice(0,200);kind=form.get('pdfPage')==='1'?'PDF_PAGE':file.type==='application/pdf'?'PDF':'IMAGE'
       url=await store(file,`${randomUUID()}.${allowed[file.type]}`)
     }
     const count=await db.announcementAttachment.count({where:{announcementId:a.id}})

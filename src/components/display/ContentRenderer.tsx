@@ -172,7 +172,7 @@ function AnnouncementContent({item}:{item:ContentItem}){
     return()=>observer.disconnect()
   },[])
   const cur=items.length?items[Math.min(idx,items.length-1)]:null
-  const title=cur?.showTitle===false?'':(cur?.title??s.title??'')
+  const title=cur?.title??s.title??''
   const body=cur?.body??item.textContent??''
   // Icons are kept in admin data but intentionally hidden on TV.
   const priority=cur?.priority??s.priority
@@ -188,7 +188,22 @@ function AnnouncementContent({item}:{item:ContentItem}){
     ? (box.width<680 || imageSpaceHeight<170 ? 1
       : box.width<1120 || imageSpaceHeight<280 ? 2 : 3)
     : 1
-  const attachmentPages=Math.ceil(attachments.length/imagesPerPage)
+  // PDF pages are always displayed individually for legibility, even in
+  // "together" mode. Regular images retain the responsive grouping behavior.
+  // Mixed attachments preserve their original order.
+  const attachmentGroups: typeof attachments[]=[]
+  let imageGroup: typeof attachments=[]
+  for(const attachment of attachments){
+    if(attachment.kind==='PDF_PAGE'){
+      if(imageGroup.length){attachmentGroups.push(imageGroup);imageGroup=[]}
+      attachmentGroups.push([attachment])
+    }else{
+      imageGroup.push(attachment)
+      if(imageGroup.length===imagesPerPage){attachmentGroups.push(imageGroup);imageGroup=[]}
+    }
+  }
+  if(imageGroup.length)attachmentGroups.push(imageGroup)
+  const attachmentPages=attachmentGroups.length
   const [attachmentIndex,setAttachmentIndex]=useState(0)
   useEffect(()=>setAttachmentIndex(0),[cur?.id,displayMode,imagesPerPage])
   useEffect(()=>{
@@ -196,7 +211,8 @@ function AnnouncementContent({item}:{item:ContentItem}){
     const timer=setInterval(()=>setAttachmentIndex(i=>(i+1)%attachmentPages),slideSeconds*1000)
     return()=>clearInterval(timer)
   },[cur?.id,attachmentPages,slideSeconds,imagesPerPage])
-  const visibleAttachments=attachments.slice(attachmentIndex*imagesPerPage,(attachmentIndex+1)*imagesPerPage)
+  const visibleAttachments=attachmentGroups[attachmentIndex%Math.max(1,attachmentPages)]??[]
+  const isPdfPage=visibleAttachments.length===1&&visibleAttachments[0]?.kind==='PDF_PAGE'
   // Standard announcements inherit the active screen theme. Priority notices retain
   // their warning colors; an explicitly chosen custom color is still respected.
   const savedBg=(item.bgColor??'').trim().toLowerCase()
@@ -251,14 +267,14 @@ function AnnouncementContent({item}:{item:ContentItem}){
       window.clearTimeout(next)
     }
   },[idx,body,overflow,items.length,rot,cycle])
-  return <div ref={host} className="tv-announcement relative w-full h-full min-h-0 overflow-hidden flex flex-col items-center justify-start text-center" dir="rtl" style={{background:bg,color:ink,padding}}>
+  return <div ref={host} className="tv-announcement relative w-full h-full min-h-0 overflow-hidden flex flex-col items-center justify-center text-center" dir="rtl" style={{background:bg,color:ink,padding:isPdfPage?4:padding}}>
     {headingHeight>0&&<div className="absolute top-0 inset-x-0 z-10"><SectionHeading>{sectionTitle}</SectionHeading></div>}
     <div className="w-full min-h-0 flex flex-col items-center overflow-hidden" style={{height:'100%',paddingTop:headingHeight,paddingBottom:dotsHeight}}>
       {title&&<div className="shrink-0 font-bold" style={{fontSize:titleSize,lineHeight:1.2,marginBottom:12*unit,overflowWrap:'anywhere'}}>{title}</div>}
-      {attachments.length>0&&<div className="w-full flex-1 min-h-0 overflow-hidden flex items-center justify-center mb-2">
+      {attachments.length>0&&<div className={`w-full flex-1 min-h-0 overflow-hidden flex items-center justify-center ${isPdfPage?'':'mb-2'}`}>
         {displayMode==='together'
           ? <div className="w-full h-full min-h-0 flex items-center justify-center gap-3 overflow-hidden">
-              {visibleAttachments.map(a=><div key={a.id} className="h-full min-h-0 min-w-0 flex items-center justify-center overflow-hidden" style={{width:`${100/visibleAttachments.length}%`,maxWidth:visibleAttachments.length===1?'100%':'min(33%, 560px)'}}><img src={a.url} alt={title} className="block max-w-full max-h-full object-contain" /></div>)}
+              {visibleAttachments.map(a=><div key={a.id} className="h-full min-h-0 min-w-0 flex items-center justify-center overflow-hidden" style={{width:`${100/visibleAttachments.length}%`,maxWidth:visibleAttachments.length===1?'100%':'min(33%, 560px)'}}><img src={a.url} alt={title} className={isPdfPage?"block w-full h-full object-contain":"block max-w-full max-h-full object-contain"} /></div>)}
             </div>
           : <img src={visibleAttachments[0]?.url} alt={title} className="w-full h-full object-contain" />}
       </div>}
