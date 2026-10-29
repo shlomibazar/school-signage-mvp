@@ -8,7 +8,8 @@ import { cloudinaryThumbnailUrl } from '@/lib/mediaThumbnail'
 
 export const runtime = 'nodejs'
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, { params: paramsPromise }: { params: Promise<{ id: string }> }) {
+  const params = await paramsPromise;
   try {
     const user = await requireRole('VIEWER')
     const file = await db.mediaFile.findFirst({

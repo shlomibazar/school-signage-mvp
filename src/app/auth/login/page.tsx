@@ -3,10 +3,11 @@ import { getSession } from '@/lib/auth'
 import LoginForm from './LoginForm'
 
 export default async function LoginPage({
-  searchParams,
+  searchParams: searchParamsPromise,
 }: {
-  searchParams: { from?: string; redirect?: string }
+  searchParams: Promise<{ from?: string; redirect?: string }>
 }) {
+  const searchParams = await searchParamsPromise;
   const user = await getSession()
   if (user) redirect(searchParams.from ?? searchParams.redirect ?? '/admin/dashboard')
 

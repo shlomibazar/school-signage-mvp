@@ -64,8 +64,9 @@ const ContentSchema = z.object({
 // ── GET ──────────────────────────────────────────────────
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string; sectionId: string } },
+  { params: paramsPromise }: { params: Promise<{ id: string; sectionId: string }> },
 ) {
+  const params = await paramsPromise;
   try {
     const user    = await requireRole('VIEWER')
     const section = await resolveSection(
@@ -102,8 +103,9 @@ export async function GET(
 // ── POST (replace) ────────────────────────────────────────
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string; sectionId: string } },
+  { params: paramsPromise }: { params: Promise<{ id: string; sectionId: string }> },
 ) {
+  const params = await paramsPromise;
   try {
     const user    = await requireRole('EDITOR')
     const section = await resolveSection(

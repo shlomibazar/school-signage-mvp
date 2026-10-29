@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 
-export async function PUT(req: NextRequest, {params}: {params:{id:string}}) {
+export async function PUT(req: NextRequest, { params: paramsPromise }: {params: Promise<{id:string}>}) {
+  const params = await paramsPromise;
   try {
     const user = await requireRole('EDITOR')
     if (user.role !== 'SUPER_ADMIN' && user.schoolId !== params.id) return NextResponse.json({error:'Forbidden'}, {status:403})

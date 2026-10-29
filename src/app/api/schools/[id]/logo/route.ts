@@ -5,7 +5,8 @@ import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
 import { randomUUID } from 'crypto'
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params: paramsPromise }: { params: Promise<{ id: string }> }) {
+  const params = await paramsPromise;
   try {
     const user = await requireRole('EDITOR')
     if (user.role !== 'SUPER_ADMIN' && user.schoolId !== params.id) return NextResponse.json({error:'אין הרשאה'}, {status:403})

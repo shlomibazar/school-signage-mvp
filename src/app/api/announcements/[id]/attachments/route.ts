@@ -34,7 +34,8 @@ async function store(file:File, name:string){
   if(!res.ok||!data.secure_url)throw new Error('Cloudinary upload failed')
   return data.secure_url
 }
-export async function GET(_req:NextRequest,{params}:{params:{id:string}}){
+export async function GET(_req:NextRequest,{ params: paramsPromise }:{params: Promise<{id:string}>}){
+  const params = await paramsPromise;
   try{
     const user=await requireRole('VIEWER')
     const a=await db.announcement.findFirst({where:{id:params.id,...(user.schoolId?{schoolId:user.schoolId}:{})}})
@@ -42,7 +43,8 @@ export async function GET(_req:NextRequest,{params}:{params:{id:string}}){
     return NextResponse.json({data:await db.announcementAttachment.findMany({where:{announcementId:a.id},orderBy:{sortOrder:'asc'}})})
   }catch{return error('Unauthorized',401)}
 }
-export async function POST(req:NextRequest,{params}:{params:{id:string}}){
+export async function POST(req:NextRequest,{ params: paramsPromise }:{params: Promise<{id:string}>}){
+  const params = await paramsPromise;
   try{
     const a=await access(params.id)
     if(!a)return error('Not found',404)
@@ -66,7 +68,8 @@ export async function POST(req:NextRequest,{params}:{params:{id:string}}){
     return NextResponse.json({data},{status:201})
   }catch(e){console.error('Announcement attachment failed',e);return error(e instanceof Error?e.message:'Upload failed',500)}
 }
-export async function DELETE(req:NextRequest,{params}:{params:{id:string}}){
+export async function DELETE(req:NextRequest,{ params: paramsPromise }:{params: Promise<{id:string}>}){
+  const params = await paramsPromise;
   try{
     const a=await access(params.id)
     if(!a)return error('Not found',404)

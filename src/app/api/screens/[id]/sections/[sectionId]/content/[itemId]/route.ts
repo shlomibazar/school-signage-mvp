@@ -56,8 +56,9 @@ const UpdateSchema = z.object({
 // ── PUT ───────────────────────────────────────────────────
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string; sectionId: string; itemId: string } },
+  { params: paramsPromise }: { params: Promise<{ id: string; sectionId: string; itemId: string }> },
 ) {
+  const params = await paramsPromise;
   try {
     const user = await requireRole('EDITOR')
 
@@ -119,8 +120,9 @@ export async function PUT(
 // ── DELETE ────────────────────────────────────────────────
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: { id: string; sectionId: string; itemId: string } },
+  { params: paramsPromise }: { params: Promise<{ id: string; sectionId: string; itemId: string }> },
 ) {
+  const params = await paramsPromise;
   try {
     const user = await requireRole('EDITOR')
 
