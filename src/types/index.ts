@@ -34,7 +34,7 @@ export interface DateSettings { dateFormat:'full'|'short'|'daymonth'; locale:'he
 export interface RssSettings { refreshInterval:number; displayStyle:'list'|'ticker' }
 export interface VideoSettings { showControls:boolean }
 export interface GallerySettings { showCaptions:boolean; showDots:boolean; imageIds:string[]; imageFit?: "cover" | "contain"; mosaicCount?:4|6|9; groupDuration?:number; folderIds?:string[]; displayMode?:"slideshow"|"mosaic"|"collage"; imageOrder?:"random"|"newest"|"oldest"|"name"; showGallery?:boolean; showSectionTitle?:boolean; sectionTitle?:string; sectionTitleSize?:"normal"|"large"|"xlarge" }
-export interface SingleAnnouncement { id:string; title:string; body:string; priority:'info'|'warning'|'urgent'; icon:string; attachments?:{id:string;url:string;kind:string}[] }
+export interface SingleAnnouncement { id:string; title:string; showTitle:boolean; body:string; priority:'info'|'warning'|'urgent'; icon:string; attachments?:{id:string;url:string;kind:string}[]; attachmentDisplayMode?:'together'|'slideshow'; attachmentSlideSeconds?:number }
 export interface AnnouncementContentSettings { title:string; priority:'info'|'warning'|'urgent'; style:'banner'|'card'; icon:string; items:SingleAnnouncement[]; selectedAnnouncementIds?:string[]; rotationSecs:number; showSectionTitle?:boolean; sectionTitle?:string; sectionTitleSize?:'normal'|'large'|'xlarge' }
 export interface BirthdaySettings { personName:string; grade:string; birthDate:string; greetingText:string }
 export interface EventSettings { eventTitle:string; eventDate:string; eventTime:string; location:string; description:string }
@@ -43,7 +43,7 @@ export type ContentSettings = ClockSettings|DateSettings|RssSettings|VideoSettin
 
 export interface ContentItem { id:string; sectionId:string; contentType:ContentType; priority:number; active:boolean; startDate:string|null; endDate:string|null; startTime:string|null; endTime:string|null; daysOfWeek:number[]; textContent:string|null; textColor:string|null; bgColor:string|null; fontSize:number|null; galleryId:string|null; gallery?:Gallery; slideDuration:number; transitionStyle:string; videoUrl:string|null; videoLoop:boolean; videoMuted:boolean; rssUrl:string|null; rssMaxItems:number; weatherCity:string|null; weatherUnits:string; settings:ContentSettings|null }
 
-export interface Announcement { id:string; schoolId:string; title:string; body:string; priority:Priority; bgColor:string; textColor:string; icon:string|null; active:boolean; startAt:string; endAt:string; startTime:string|null; endTime:string|null; daysOfWeek:number[]; isEmergency:boolean; screens?:AnnouncementScreen[] }
+export interface Announcement { id:string; schoolId:string; title:string; showTitle:boolean; body:string; priority:Priority; bgColor:string; textColor:string; icon:string|null; attachmentDisplayMode?:'together'|'slideshow'; attachmentSlideSeconds?:number; active:boolean; startAt:string; endAt:string; startTime:string|null; endTime:string|null; daysOfWeek:number[]; isEmergency:boolean; screens?:AnnouncementScreen[] }
 export interface AnnouncementScreen { announcementId:string; screenId:string; sectionPosition:number|null }
 
 export interface Message { id:string; schoolId:string; title:string; body:string; priority:string; icon:string; bgColor:string; textColor:string; active:boolean; createdAt:string; updatedAt:string }

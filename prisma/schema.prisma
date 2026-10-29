@@ -224,11 +224,14 @@ model Announcement {
   schoolId    String
   school      School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   title       String
+  showTitle   Boolean  @default(true)
   body        String
   priority    Priority @default(LOW)
   bgColor     String   @default("#1a1a2e")
   textColor   String   @default("#ffffff")
   icon        String?
+  attachmentDisplayMode String @default("slideshow") // together | slideshow
+  attachmentSlideSeconds Int @default(8)
   active      Boolean  @default(true)
   startAt     DateTime
   endAt       DateTime

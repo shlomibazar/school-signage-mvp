@@ -10,6 +10,7 @@ const local=(v:string)=>{const d=new Date(v);return Number.isNaN(d.getTime())?''
 export default function AnnouncementForm({initial}:{initial?:Announcement}){
   const router=useRouter()
   const [title,setTitle]=useState(initial?.title??'')
+  const [showTitle,setShowTitle]=useState(initial?.showTitle??true)
   const [body,setBody]=useState(initial?.body??'')
   const editorRef=useRef<HTMLDivElement>(null)
   useEffect(()=>{if(editorRef.current)editorRef.current.innerHTML=cleanAnnouncementHtml(initial?.body??'')},[initial?.id])
@@ -39,6 +40,8 @@ export default function AnnouncementForm({initial}:{initial?:Announcement}){
     }
     setBody(editor.innerHTML)
   }
+  const [attachmentDisplayMode,setAttachmentDisplayMode]=useState<'together'|'slideshow'>(initial?.attachmentDisplayMode??'together')
+  const [attachmentSlideSeconds,setAttachmentSlideSeconds]=useState(initial?.attachmentSlideSeconds??8)
   const [priority,setPriority]=useState(initial?.priority??'LOW')
   const [active,setActive]=useState(initial?.active??true)
   const [start,setStart]=useState(initial?local(initial.startAt):local(new Date().toISOString()))
@@ -49,7 +52,7 @@ export default function AnnouncementForm({initial}:{initial?:Announcement}){
   async function save(e:React.FormEvent){
     e.preventDefault();setBusy(true);setError('')
     try{
-      const res=await fetch(savedId?`/api/announcements/${savedId}`:'/api/announcements',{method:savedId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,body,priority,active,startAt:new Date(start).toISOString(),endAt:new Date(end).toISOString()})})
+      const res=await fetch(savedId?`/api/announcements/${savedId}`:'/api/announcements',{method:savedId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,showTitle,body,priority,active,attachmentDisplayMode,attachmentSlideSeconds,startAt:new Date(start).toISOString(),endAt:new Date(end).toISOString()})})
       if(!res.ok)throw Error('שמירת ההודעה נכשלה. בדוק את השדות והתאריכים.')
       const payload=await res.json()
       const id=savedId||payload?.data?.id
@@ -72,8 +75,12 @@ export default function AnnouncementForm({initial}:{initial?:Announcement}){
     finally{setBusy(false)}
   }
   return <form onSubmit={save} className="w-full max-w-2xl space-y-4 bg-white border rounded-2xl p-4 sm:p-6 min-w-0 overflow-x-hidden [overflow-anchor:none]" dir="rtl">
-    <h1 className="text-xl font-bold">{initial?'עריכת הודעה':'הודעה חדשה'}</h1>
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <h1 className="text-xl font-bold">{initial?'עריכת הודעה':'הודעה חדשה'}</h1>
+      <button type="submit" disabled={busy} className="bg-blue-600 text-white rounded-lg px-5 py-2 disabled:opacity-50">{busy?'שומר...':'שמור הודעה'}</button>
+    </div>
     <label className="block text-sm">כותרת<input required className="block w-full mt-1 border rounded-lg p-2" value={title} onChange={e=>setTitle(e.target.value)}/></label>
+    <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={showTitle} onChange={e=>setShowTitle(e.target.checked)}/>הצג כותרת בטלוויזיה</label>
     <div className="space-y-2"><label className="block text-sm font-medium">תוכן ההודעה</label>
       <div className="flex flex-wrap gap-1 rounded-lg border p-2" role="toolbar" aria-label="עיצוב הודעה">
         {[['bold','מודגש','B'],['italic','נטוי','I'],['underline','קו תחתון','U'],['justifyRight','יישור לימין','⇥'],['justifyCenter','יישור למרכז','☷'],['justifyLeft','יישור לשמאל','⇤'],['insertUnorderedList','רשימה','•']].map(([cmd,label,symbol])=><button key={cmd} type="button" title={label} aria-label={label} onMouseDown={e=>e.preventDefault()} onClick={()=>format(cmd)} className="border rounded px-3 py-1 font-semibold hover:bg-gray-100">{symbol}</button>)}
@@ -94,8 +101,14 @@ export default function AnnouncementForm({initial}:{initial?:Announcement}){
     <div className="grid grid-cols-2 gap-3"><label className="text-sm">התחלה<input required type="datetime-local" className="block w-full mt-1 border rounded-lg p-2" value={start} onChange={e=>setStart(e.target.value)}/></label><label className="text-sm">סיום<input required type="datetime-local" className="block w-full mt-1 border rounded-lg p-2" value={end} onChange={e=>setEnd(e.target.value)}/></label></div>
     <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={active} onChange={e=>setActive(e.target.checked)}/>הודעה פעילה</label>
     <p className="text-xs text-gray-500">ההודעה לא תוצג עד שתיבחר בעורך הפריסה של המסך הרצוי.</p>
+    <fieldset className="border rounded-lg p-3 space-y-2">
+      <legend className="font-semibold px-1">אופן הצגת תמונות ועמודי PDF בטלוויזיה</legend>
+      <label className="flex items-center gap-2 text-sm"><input type="radio" name="attachmentDisplayMode" checked={attachmentDisplayMode==='together'} onChange={()=>setAttachmentDisplayMode('together')}/>הצגה משותפת — כל התמונות יחד בהתאם למקום</label>
+      <label className="flex items-center gap-2 text-sm"><input type="radio" name="attachmentDisplayMode" checked={attachmentDisplayMode==='slideshow'} onChange={()=>setAttachmentDisplayMode('slideshow')}/>מעבר אוטומטי — תמונה אחת בכל פעם</label>
+      {attachmentDisplayMode==='slideshow'&&<label className="block text-sm">זמן מעבר (שניות)<input type="number" min={3} max={30} className="block mt-1 w-24 border rounded p-2" value={attachmentSlideSeconds} onChange={e=>setAttachmentSlideSeconds(Math.max(3,Math.min(30,Number(e.target.value)||8)))}/></label>}
+    </fieldset>
     {savedId?<AnnouncementAttachments key={savedId} announcementId={savedId}/>:<PendingAnnouncementAttachments items={pending} onChange={setPending}/>}
     {error&&<p className="text-red-600 text-sm">{error}</p>}
-    <div className="flex gap-3"><button type="submit" disabled={busy} className="bg-blue-600 text-white rounded-lg px-5 py-2">{busy?'שומר...':'שמור הודעה'}</button><button type="button" onClick={()=>router.push('/admin/announcements')} className="border rounded-lg px-5 py-2">ביטול</button></div>
+    <div className="sticky bottom-0 z-20 flex gap-3 bg-white border-t py-3"><button type="submit" disabled={busy} className="bg-blue-600 text-white rounded-lg px-5 py-2">{busy?'שומר...':'שמור הודעה'}</button><button type="button" onClick={()=>router.push('/admin/announcements')} className="border rounded-lg px-5 py-2">ביטול</button></div>
   </form>
 }

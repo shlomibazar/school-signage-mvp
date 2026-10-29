@@ -172,14 +172,31 @@ function AnnouncementContent({item}:{item:ContentItem}){
     return()=>observer.disconnect()
   },[])
   const cur=items.length?items[Math.min(idx,items.length-1)]:null
-  const title=cur?.title??s.title??''
+  const title=cur?.showTitle===false?'':(cur?.title??s.title??'')
   const body=cur?.body??item.textContent??''
-  const icon=cur?.icon??s.icon??''
+  // Icons are kept in admin data but intentionally hidden on TV.
   const priority=cur?.priority??s.priority
   const attachments=cur?.attachments??[]
+  const displayMode=cur?.attachmentDisplayMode??'slideshow'
+  const slideSeconds=Math.max(3,Math.min(30,cur?.attachmentSlideSeconds??8))
+  // Calculate capacity from the actual announcement panel (not window width).
+  // Reserve room for the heading, title and text before selecting image count.
+  // In a one-third-width panel, show one legible image at a time.
+  const hasLongBody=body.length>180
+  const imageSpaceHeight=box.height*(hasLongBody?0.38:body.length>80?0.48:0.65)
+  const imagesPerPage=displayMode==='together'
+    ? (box.width<680 || imageSpaceHeight<170 ? 1
+      : box.width<1120 || imageSpaceHeight<280 ? 2 : 3)
+    : 1
+  const attachmentPages=Math.ceil(attachments.length/imagesPerPage)
   const [attachmentIndex,setAttachmentIndex]=useState(0)
-  useEffect(()=>setAttachmentIndex(0),[cur?.id])
-  useEffect(()=>{if(attachments.length<2)return;const timer=setInterval(()=>setAttachmentIndex(i=>(i+1)%attachments.length),Math.max(5,rot)*1000);return()=>clearInterval(timer)},[cur?.id,attachments.length,rot])
+  useEffect(()=>setAttachmentIndex(0),[cur?.id,displayMode,imagesPerPage])
+  useEffect(()=>{
+    if(attachmentPages<2)return
+    const timer=setInterval(()=>setAttachmentIndex(i=>(i+1)%attachmentPages),slideSeconds*1000)
+    return()=>clearInterval(timer)
+  },[cur?.id,attachmentPages,slideSeconds,imagesPerPage])
+  const visibleAttachments=attachments.slice(attachmentIndex*imagesPerPage,(attachmentIndex+1)*imagesPerPage)
   // Standard announcements inherit the active screen theme. Priority notices retain
   // their warning colors; an explicitly chosen custom color is still respected.
   const savedBg=(item.bgColor??'').trim().toLowerCase()
@@ -191,14 +208,13 @@ function AnnouncementContent({item}:{item:ContentItem}){
   // sizes are used on every page of an announcement.
   const unit=Math.min(box.width/580,box.height/600)
   const titleSize=Math.max(18,Math.min(attachments.length?36:48,Math.round((attachments.length?32:42)*unit)))
-  const iconSize=Math.max(20,Math.min(attachments.length?34:54,Math.round((attachments.length?30:48)*unit)))
   const bodySize=Math.max(14,Math.min(attachments.length?25:30,Math.round((attachments.length?23:27)*unit)))
   const showSectionTitle=s.showSectionTitle ?? true
   const sectionTitle=s.sectionTitle ?? 'הודעות כלליות'
   const headingHeight=showSectionTitle && sectionTitle.trim()?box.height*0.09:0
   const padding=Math.max(12,Math.min(32,Math.round(26*unit)))
   const dotsHeight=items.length>1?22:0
-  const bodyHeight=attachments.length?Math.max(45,Math.min(box.height*0.24,body.length>280?box.height*0.28:box.height*0.19)):Math.max(40,box.height-headingHeight-2*padding-(icon?iconSize+12:0)-(title?titleSize*2.5+12:0)-dotsHeight)
+  const bodyHeight=attachments.length?Math.max(70,Math.min(box.height*0.48,box.height*(body.length>220?0.43:body.length>100?0.31:0.19))):Math.max(40,box.height-headingHeight-2*padding-(title?titleSize*2.5+12:0)-dotsHeight)
   // Measure the actual visible body area. Avoid scrolling for subpixel/rounding overflow.
   // Keep the measurement independent of the animation so it cannot restart mid-scroll.
   const [overflow,setOverflow]=useState(0)
@@ -207,7 +223,7 @@ function AnnouncementContent({item}:{item:ContentItem}){
     const text=textRef.current
     if(!viewport||!text){setOverflow(0);return}
     const measure=()=>{
-      const extra=attachments.length?0:Math.max(0,text.scrollHeight-viewport.clientHeight)
+      const extra=Math.max(0,text.scrollHeight-viewport.clientHeight)
       setOverflow(previous=>{
         const next=extra>4?Math.ceil(extra):0
         return previous===next?previous:next
@@ -235,15 +251,18 @@ function AnnouncementContent({item}:{item:ContentItem}){
       window.clearTimeout(next)
     }
   },[idx,body,overflow,items.length,rot,cycle])
-  return <div ref={host} className="tv-announcement relative w-full h-full min-h-0 overflow-hidden flex flex-col items-center justify-center text-center" dir="rtl" style={{background:bg,color:ink,padding}}>
+  return <div ref={host} className="tv-announcement relative w-full h-full min-h-0 overflow-hidden flex flex-col items-center justify-start text-center" dir="rtl" style={{background:bg,color:ink,padding}}>
     {headingHeight>0&&<div className="absolute top-0 inset-x-0 z-10"><SectionHeading>{sectionTitle}</SectionHeading></div>}
     <div className="w-full min-h-0 flex flex-col items-center overflow-hidden" style={{height:'100%',paddingTop:headingHeight,paddingBottom:dotsHeight}}>
-      {icon&&<div className="shrink-0" style={{fontSize:iconSize,lineHeight:1.1,marginBottom:12*unit}}>{icon}</div>}
       {title&&<div className="shrink-0 font-bold" style={{fontSize:titleSize,lineHeight:1.2,marginBottom:12*unit,overflowWrap:'anywhere'}}>{title}</div>}
       {attachments.length>0&&<div className="w-full flex-1 min-h-0 overflow-hidden flex items-center justify-center mb-2">
-        <img src={attachments[attachmentIndex%attachments.length]?.url} alt={title} className="w-full h-full object-contain" />
+        {displayMode==='together'
+          ? <div className="w-full h-full min-h-0 flex items-center justify-center gap-3 overflow-hidden">
+              {visibleAttachments.map(a=><div key={a.id} className="h-full min-h-0 min-w-0 flex items-center justify-center overflow-hidden" style={{width:`${100/visibleAttachments.length}%`,maxWidth:visibleAttachments.length===1?'100%':'min(33%, 560px)'}}><img src={a.url} alt={title} className="block max-w-full max-h-full object-contain" /></div>)}
+            </div>
+          : <img src={visibleAttachments[0]?.url} alt={title} className="w-full h-full object-contain" />}
       </div>}
-      {body&&<div ref={viewportRef} className={`w-full min-h-0 overflow-hidden ${attachments.length?'shrink-0':'flex-1'}`} style={{maxHeight:bodyHeight}}>
+      {body&&<div ref={viewportRef} className={`w-full min-h-0 overflow-hidden ${attachments.length?'shrink-0':'flex-1'}`} style={{height:attachments.length?bodyHeight:undefined,maxHeight:bodyHeight}}>
         <div ref={textRef} style={{fontSize:bodySize,lineHeight:1.45,whiteSpace:'pre-wrap',overflowWrap:'anywhere',opacity:.9,transform:`translateY(-${scroll.started?scroll.distance:0}px)`,transition:scroll.started&&scroll.distance>0?`transform ${scroll.duration}s linear`:'none'}} dangerouslySetInnerHTML={{__html:cleanAnnouncementHtml(body)}} />
       </div>}
     </div>
