@@ -1,10 +1,10 @@
-// src/middleware.ts
+// src/proxy.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyJWT } from '@/lib/auth'
 
 const PUBLIC_PATHS = ['/auth/login', '/auth/logout', '/screen/', '/api/auth/', '/api/public/']
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
 
   // Allow public paths

@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     if (!valid) return NextResponse.json({ error: 'אימייל או סיסמה שגויים' }, { status: 401 })
 
     const token = await signJWT({ sub: user.id, email: user.email, name: user.name, role: user.role, schoolId: user.schoolId })
-    setAuthCookie(token)
+    await setAuthCookie(token)
 
     return NextResponse.json({ ok: true, user: { id: user.id, email: user.email, name: user.name, role: user.role, schoolId: user.schoolId } })
   } catch (e) {

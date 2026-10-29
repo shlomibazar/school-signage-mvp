@@ -22,7 +22,7 @@ export async function verifyJWT(token: string): Promise<JWTPayload | null> {
 
 export async function getSession(): Promise<AuthUser | null> {
   try {
-    const token = cookies().get(COOKIE)?.value
+    const token = (await cookies()).get(COOKIE)?.value
     if (!token) return null
     const payload = await verifyJWT(token)
     if (!payload) return null
@@ -41,8 +41,8 @@ export async function requireRole(minRole: 'VIEWER' | 'EDITOR' | 'SCHOOL_ADMIN' 
   return user
 }
 
-export function setAuthCookie(token: string) {
-  cookies().set(COOKIE, token, {
+export async function setAuthCookie(token: string) {
+  (await cookies()).set(COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
@@ -51,6 +51,6 @@ export function setAuthCookie(token: string) {
   })
 }
 
-export function clearAuthCookie() {
-  cookies().set(COOKIE, '', { maxAge: 0, path: '/' })
+export async function clearAuthCookie() {
+  (await cookies()).set(COOKIE, '', { maxAge: 0, path: '/' })
 }
