@@ -29,7 +29,7 @@
     "jose": "^5.4.0",
     "lucide-react": "^0.395.0",
     "next": "16.4.3",
-    "pdfjs-dist": "3.11.174",
+    "pdfjs-dist": "6.4.299",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "react-hot-toast": "^2.4.1",

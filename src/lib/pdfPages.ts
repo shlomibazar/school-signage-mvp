@@ -11,31 +11,31 @@ type PdfDocument = {
 };
 type PdfJs = {
   GlobalWorkerOptions: { workerSrc: string };
-  getDocument: (options: { data: Uint8Array }) => { promise: Promise<PdfDocument> };
+  getDocument: (options: { data: Uint8Array }) => { promise: Promise<PdfDocument>; destroy: () => Promise<void> };
 };
-declare global { interface Window { pdfjsLib?: PdfJs } }
-
+const pdfModuleUrl = '/pdfjs/pdf.mjs';
 let loader: Promise<PdfJs> | undefined;
+
 function loadPdfJs(): Promise<PdfJs> {
-  if (typeof window === 'undefined') return Promise.reject(new Error('PDF conversion is browser-only'));
-  if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
-  if (!loader) {
-    loader = new Promise<PdfJs>((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = '/pdfjs/pdf.min.js';
-      script.async = true;
-      script.onload = () => window.pdfjsLib ? resolve(window.pdfjsLib) : reject(new Error('PDF library did not initialize'));
-      script.onerror = () => reject(new Error('Failed to load PDF library'));
-      document.head.appendChild(script);
-    }).catch(error => { loader = undefined; throw error; });
+  if (typeof window === 'undefined') {
+    return Promise.reject(new Error('PDF conversion is browser-only'));
   }
+
+  if (!loader) {
+    loader = import(/* webpackIgnore: true */ pdfModuleUrl)
+      .then(module => module as PdfJs)
+      .catch(error => {
+        loader = undefined;
+        throw error;
+      });
+  }
+
   return loader;
 }
-
 export async function pdfPages(file: File): Promise<File[]> {
   if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name)) return [file];
   const pdfjs = await loadPdfJs();
-  pdfjs.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.js';
+  pdfjs.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.mjs';
   const task = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) });
   const doc = await task.promise;
   try {
@@ -52,13 +52,14 @@ export async function pdfPages(file: File): Promise<File[]> {
       if (!context) throw new Error('לא ניתן להמיר את עמוד ה-PDF');
       context.fillStyle = '#ffffff';
       context.fillRect(0, 0, canvas.width, canvas.height);
-      await page.render({ canvasContext: context, viewport }).promise;
-      const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(b => b ? resolve(b) : reject(new Error('המרת PDF נכשלה')), 'image/png'));
+await page.render({ canvasContext: context, viewport }).promise;      const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(b => b ? resolve(b) : reject(new Error('המרת PDF נכשלה')), 'image/png'));
       results.push(new File([blob], `${file.name.replace(/\.pdf$/i, '')} - עמוד ${n}.png`, { type: 'image/png' }));
       canvas.width = 0;
       canvas.height = 0;
       page.cleanup();
     }
     return results;
-  } finally { await doc.destroy(); }
+  } finally {
+  await task.destroy();
+}
 }
