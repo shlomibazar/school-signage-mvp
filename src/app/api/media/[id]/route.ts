@@ -4,7 +4,8 @@ import path from 'path'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 function err(m:string,s:number){return NextResponse.json({error:m},{status:s})}
-export async function DELETE(_req:NextRequest,{params}:{params:{id:string}}){
+export async function DELETE(_req:NextRequest,{ params: paramsPromise }:{params: Promise<{id:string}>}){
+  const params = await paramsPromise;
   try{const user=await requireRole('EDITOR');const sc=user.schoolId
   const file=await db.mediaFile.findFirst({where:{id:params.id,...(user.role!=='SUPER_ADMIN'&&sc?{schoolId:sc}:{})}})
   if(!file)return err('Not found',404)
@@ -12,7 +13,8 @@ export async function DELETE(_req:NextRequest,{params}:{params:{id:string}}){
   await db.mediaFile.delete({where:{id:params.id}});return NextResponse.json({ok:true})}
   catch(e:any){if(e.message==='Unauthorized')return err('Unauthorized',401);return err('Server error',500)}
 }
-export async function PATCH(req:NextRequest,{params}:{params:{id:string}}){
+export async function PATCH(req:NextRequest,{ params: paramsPromise }:{params: Promise<{id:string}>}){
+  const params = await paramsPromise;
   try{const user=await requireRole('EDITOR');const sc=user.schoolId
   const file=await db.mediaFile.findFirst({where:{id:params.id,...(user.role!=='SUPER_ADMIN'&&sc?{schoolId:sc}:{})}})
   if(!file)return err('Not found',404)

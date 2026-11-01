@@ -3,7 +3,8 @@ import { db } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-export default async function ShortScreenPage({ params }: { params: { code: string } }) {
+export default async function ShortScreenPage({ params: paramsPromise }: { params: Promise<{ code: string }> }) {
+  const params = await paramsPromise;
   if (!/^[A-Za-z0-9]{6,10}$/.test(params.code)) notFound()
   const screen = await db.screen.findUnique({
     where: { shortCode: params.code },

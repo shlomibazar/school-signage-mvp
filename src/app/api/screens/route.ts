@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     if (err.message === 'Unauthorized') return apiError('נדרשת כניסה למערכת', 401)
     if (err.message === 'Forbidden')    return apiError('אין הרשאה',          403)
-    if (err instanceof z.ZodError)      return NextResponse.json({ error: err.errors }, { status: 400 })
+    if (err instanceof z.ZodError)      return NextResponse.json({ error: err.issues }, { status: 400 })
     console.error('POST /api/screens', err)
     return apiError('שגיאת שרת', 500)
   }

@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 export const dynamic = 'force-dynamic'
-export async function GET(_req:Request,{params}:{params:{itemId:string}}){
+export async function GET(_req:Request,{ params: paramsPromise }:{params: Promise<{itemId:string}>}){
+  const params = await paramsPromise;
   const item=await db.contentItem.findUnique({where:{id:params.itemId},include:{section:{include:{screen:true}}}})
   if(!item||item.contentType!=='ANNOUNCEMENT'||!item.section.screen.active)return NextResponse.json({data:[]})
   const settings=(item.settings??{}) as {selectedAnnouncementIds?:string[]}

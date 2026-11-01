@@ -8,10 +8,11 @@ import ScreenSelector from '@/components/admin/editor/ScreenSelector'
 import type { Screen, ScreenLayout, ScreenSection, ContentItem } from '@/types'
 
 interface Props {
-  searchParams: { screen?: string }
+  searchParams: Promise<{ screen?: string }>
 }
 
-export default async function EditorPage({ searchParams }: Props) {
+export default async function EditorPage({ searchParams: searchParamsPromise }: Props) {
+  const searchParams = await searchParamsPromise;
   const user = await getCurrentUser()
   if (!user) redirect('/auth/login')
 

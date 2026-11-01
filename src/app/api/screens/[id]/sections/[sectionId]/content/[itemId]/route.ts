@@ -50,14 +50,15 @@ const UpdateSchema = z.object({
   rssMaxItems:     z.number().int().min(1).max(20).optional(),
   weatherCity:     z.string().nullable().optional(),
   weatherUnits:    z.string().optional(),
-  settings:        z.record(z.unknown()).nullable().optional(),
+  settings:        z.record(z.string(), z.unknown()).nullable().optional(),
 })
 
 // ── PUT ───────────────────────────────────────────────────
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string; sectionId: string; itemId: string } },
+  { params: paramsPromise }: { params: Promise<{ id: string; sectionId: string; itemId: string }> },
 ) {
+  const params = await paramsPromise;
   try {
     const user = await requireRole('EDITOR')
 
@@ -110,7 +111,7 @@ export async function PUT(
   } catch (err: any) {
     if (err.message === 'Unauthorized') return apiError('Unauthorized', 401)
     if (err.message === 'Forbidden')    return apiError('Forbidden', 403)
-    if (err instanceof z.ZodError)      return NextResponse.json({ error: err.errors }, { status: 400 })
+    if (err instanceof z.ZodError)      return NextResponse.json({ error: err.issues }, { status: 400 })
     console.error('PUT content item', err)
     return apiError('Server error', 500)
   }
@@ -119,8 +120,9 @@ export async function PUT(
 // ── DELETE ────────────────────────────────────────────────
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: { id: string; sectionId: string; itemId: string } },
+  { params: paramsPromise }: { params: Promise<{ id: string; sectionId: string; itemId: string }> },
 ) {
+  const params = await paramsPromise;
   try {
     const user = await requireRole('EDITOR')
 

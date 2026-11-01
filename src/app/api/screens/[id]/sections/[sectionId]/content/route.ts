@@ -58,14 +58,15 @@ const ContentSchema = z.object({
   weatherCity:     z.string().nullable().optional(),
   weatherUnits:    z.string().default('metric'),
   // Flexible per-type settings JSON
-  settings:        z.record(z.unknown()).nullable().optional(),
+  settings:        z.record(z.string(), z.unknown()).nullable().optional(),
 })
 
 // ── GET ──────────────────────────────────────────────────
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string; sectionId: string } },
+  { params: paramsPromise }: { params: Promise<{ id: string; sectionId: string }> },
 ) {
+  const params = await paramsPromise;
   try {
     const user    = await requireRole('VIEWER')
     const section = await resolveSection(
@@ -102,8 +103,9 @@ export async function GET(
 // ── POST (replace) ────────────────────────────────────────
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string; sectionId: string } },
+  { params: paramsPromise }: { params: Promise<{ id: string; sectionId: string }> },
 ) {
+  const params = await paramsPromise;
   try {
     const user    = await requireRole('EDITOR')
     const section = await resolveSection(
@@ -161,7 +163,7 @@ export async function POST(
   } catch (err: any) {
     if (err.message === 'Unauthorized') return apiError('Unauthorized', 401)
     if (err.message === 'Forbidden')    return apiError('Forbidden', 403)
-    if (err instanceof z.ZodError)      return NextResponse.json({ error: err.errors }, { status: 400 })
+    if (err instanceof z.ZodError)      return NextResponse.json({ error: err.issues }, { status: 400 })
     console.error('POST content', err)
     return apiError('Server error', 500)
   }

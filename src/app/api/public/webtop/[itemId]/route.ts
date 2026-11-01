@@ -7,7 +7,8 @@ const WEBTOP = 'https://webtopserver.smartschool.co.il/server/api/shotef/Schoolc
 const cache = new Map<string, {at:number; data:unknown}>()
 
 type WebtopSettings = {institutionCode?:string; grades?:number[]; refreshSeconds?:number; dateMode?:string; specificDate?:string}
-export async function GET(_req:Request,{params}:{params:{itemId:string}}){
+export async function GET(_req:Request,{ params: paramsPromise }:{params: Promise<{itemId:string}>}){
+  const params = await paramsPromise;
   const item=await db.contentItem.findUnique({where:{id:params.itemId},include:{section:{include:{screen:true}}}})
   if(!item||item.contentType!=='TIMETABLE'||!item.section.screen.active)return NextResponse.json({error:'Not found'},{status:404})
   const s=(item.settings??{}) as WebtopSettings & {displayMode?:string}

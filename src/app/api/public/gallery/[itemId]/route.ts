@@ -5,7 +5,8 @@ export const dynamic = 'force-dynamic'
 
 // Public display access is restricted to media belonging to the active screen's school.
 // Media management endpoints remain authenticated.
-export async function GET(_request: Request, { params }: { params: { itemId: string } }) {
+export async function GET(_request: Request, { params: paramsPromise }: { params: Promise<{ itemId: string }> }) {
+  const params = await paramsPromise;
   const item = await db.contentItem.findUnique({
     where: { id: params.itemId },
     include: { section: { include: { screen: true } } },

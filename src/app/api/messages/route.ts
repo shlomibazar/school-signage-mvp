@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ data: { ...msg, createdAt: msg.createdAt.toISOString(), updatedAt: msg.updatedAt.toISOString() } }, { status: 201 })
   } catch (e:any) {
     if (e.message === 'Unauthorized') return err('Unauthorized', 401)
-    if (e instanceof z.ZodError) return NextResponse.json({ error: e.errors }, { status: 400 })
+    if (e instanceof z.ZodError) return NextResponse.json({ error: e.issues }, { status: 400 })
     return err('Server error', 500)
   }
 }
