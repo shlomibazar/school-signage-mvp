@@ -122,10 +122,11 @@ model Screen {
   width             Int                      @default(1920)
   height            Int                      @default(1080)
   active            Boolean                  @default(true)
-  refreshSecs       Int                      @default(30)
+  refreshSecs       Int                      @default(300)
   createdAt         DateTime                 @default(now())
   updatedAt         DateTime                 @updatedAt
   operatingSchedule ScreenOperatingSchedule?
+  pairingCodes ScreenPairingCode[]
 
   layout        ScreenLayout?
   sections      ScreenSection[]
@@ -355,4 +356,25 @@ model ScreenOperatingSchedule {
   screen Screen @relation(fields: [screenId], references: [id], onDelete: Cascade)
 
   @@map("ScreenOperatingSchedule")
+}
+
+
+model ScreenPairingCode {
+  id String @id @default(cuid())
+  screenId String
+  screen Screen @relation(fields: [screenId], references: [id], onDelete: Cascade)
+  codeHash String @unique
+  expiresAt DateTime
+  usedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([screenId, expiresAt])
+  @@map("screen_pairing_codes")
+}
+
+model PairingRateLimit {
+  key String @id
+  count Int @default(0)
+  windowStart DateTime
+  @@map("pairing_rate_limits")
 }

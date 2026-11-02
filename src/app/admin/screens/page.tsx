@@ -1,3 +1,4 @@
+import ScreenPairingManager from '@/components/admin/ScreenPairingManager'
 import ScreenActiveToggle from '@/components/admin/ScreenActiveToggle'
 // src/app/admin/screens/page.tsx
 import Link from 'next/link'
@@ -68,6 +69,7 @@ export default async function ScreensPage() {
               </div>
 
               <ShortLinkManager screenId={screen.id} initialCode={screen.shortCode} />
+              {canEdit && <ScreenPairingManager screenId={screen.id} />}
               <div className="flex items-center gap-2">
                 <Link
                   href={`/admin/editor?screen=${screen.id}`}
