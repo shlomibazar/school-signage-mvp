@@ -10,7 +10,7 @@ const CreateScreenSchema = z.object({
   orientation: z.enum(['LANDSCAPE', 'PORTRAIT']).default('LANDSCAPE'),
   width:       z.number().int().default(1920),
   height:      z.number().int().default(1080),
-  refreshSecs: z.number().int().min(5).max(300).default(30),
+  refreshSecs: z.number().int().min(300).max(900).default(600),
 })
 
 function apiError(message: string, status: number) {

@@ -60,7 +60,7 @@ function detailLines(value:unknown,kind:'event'|'exam'|'message'):string[]{
 }
 function shownPageKey(pages:ClassRow[][],page:number){return (pages[Math.min(page,pages.length-1)]??[]).map(c=>c.key).join(',')}
 function accent(c:Change,cellHour:number){if(isGroupMerge(c))return '#fbbf24';if(isCancelledHere(c,cellHour))return '#fb7185';if(isFillUp(c))return '#fde68a';if(moved(c))return '#c4b5fd';const t=`${c.type??''} ${c.definition??''}`;return c.isRoomChange||/חדר/.test(t)?'#67e8f9':/פינוי/.test(t)?'#fde68a':'#c4b5fd'}
-export default function WebtopTimetable({item,settings}:{item:ContentItem;settings:Partial<TimetableSettings>}){
+export default function WebtopTimetable({item,settings,offline=false,screenId}:{item:ContentItem;settings:Partial<TimetableSettings>;offline?:boolean;screenId?:string}){
   const [data,setData]=useState<Data|null>(null)
   const [error,setError]=useState('')
   const [stale,setStale]=useState(false)
@@ -73,15 +73,18 @@ export default function WebtopTimetable({item,settings}:{item:ContentItem;settin
   const refresh=Math.max(30,Math.min(600,settings.refreshSeconds??60))*1000
   useEffect(()=>{
     let alive=true
+    const cacheKey=`schoolscreen:offline:v1:${screenId ?? 'unknown'}:webtop:${item.id}`
+    try { const saved=localStorage.getItem(cacheKey);if(saved){const parsed=JSON.parse(saved) as Data;if(alive)setData(parsed)} } catch {}
+    if(offline)return () => {alive=false}
     async function load(){try{
       const r=await fetch(`/api/public/webtop/${encodeURIComponent(item.id)}`,{cache:'no-store'})
       const j=await r.json()
       if(!r.ok)throw new Error(j.error||`HTTP ${r.status}`)
-      if(alive){setData(j.data);setError('');setStale(!!j.stale);setUpdated(j.updatedAt||'')}
+      if(alive){setData(j.data);setError('');setStale(!!j.stale);setUpdated(j.updatedAt||'');try{localStorage.setItem(cacheKey,JSON.stringify(j.data))}catch{}}
     }catch(e){if(alive)setError(e instanceof Error?e.message:'שגיאת חיבור')}}
     void load();const t=setInterval(load,refresh)
     return()=>{alive=false;clearInterval(t)}
-  },[item.id,refresh])
+  },[item.id,refresh,offline,screenId])
   useEffect(()=>{const el=host.current;if(!el)return;const ro=new ResizeObserver(entries=>setWidth(entries[0]?.contentRect.width??800));ro.observe(el);return()=>ro.disconnect()},[])
   const classes=useMemo(()=>Object.entries(data?.grades??{}).flatMap(([grade,v])=>(v.classes??[]).map(c=>({key:`${grade}-${c.classNum}`,name:`${letters[Number(grade)]??grade}׳${c.classNum}`,grade:Number(grade),num:c.classNum,hours:c.hours??[]}))).sort((a,b)=>a.grade-b.grade||a.num-b.num),[data])
   const isGrid=settings.displayMode==='webtop-grid'
@@ -214,9 +217,8 @@ export default function WebtopTimetable({item,settings}:{item:ContentItem;settin
       const gradePageIndex=gradePages.findIndex(x=>x.i===shown)+1
       return `שכבת ${gradeLabel(grade)} · ${gradeClasses} כיתות · ${gradePageIndex}/${gradePages.length}`
     })()}</span></header>
-    {error&&<div className="px-3 py-1 text-amber-200 text-xs">{error}{data?' · מוצגים נתונים אחרונים':''}</div>}
-    {stale&&<div className="px-3 py-1 text-amber-200 text-xs">הנתונים אינם מעודכנים (Webtop אינו זמין)</div>}
-    {!data?<div className="flex-1 grid place-items-center text-white/60 text-sm">{error||'טוען נתונים מ־Webtop…'}</div>:isGrid?
+    {(offline || !!error || stale) && data && <div className="px-3 py-1 text-amber-200 text-xs">{offline || !!error ? 'אין חיבור לאינטרנט · מוצגים שינויי המערכת האחרונים שנשמרו' : 'מוצגים נתונים אחרונים · המידע טרם התעדכן'}</div>}
+    {!data?<div className="flex-1 grid place-items-center text-white/60 text-sm">{offline || !!error ? 'ממתינים לחיבור לאינטרנט' : 'טוען נתונים מ־Webtop…'}</div>:isGrid?
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
         {/* Keep column labels outside the scrolling area: no gap or text bleed above them. */}
         <div className="grid gap-px shrink-0" style={{gridTemplateColumns:`64px repeat(${(gridPages[shown]??[]).length},minmax(0,1fr))`,background:'rgba(255,255,255,.13)'}}>

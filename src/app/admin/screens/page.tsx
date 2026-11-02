@@ -1,3 +1,4 @@
+import ScreenActiveToggle from '@/components/admin/ScreenActiveToggle'
 // src/app/admin/screens/page.tsx
 import Link from 'next/link'
 import ScreenDeleteButton from '@/components/admin/ScreenDeleteButton'
@@ -10,6 +11,7 @@ import { db } from '@/lib/db'
 export default async function ScreensPage() {
   const user     = await getCurrentUser()
   const schoolId = user?.schoolId
+  const canEdit = user?.role === 'SCHOOL_ADMIN' || user?.role === 'SUPER_ADMIN'
 
   const screens = await db.screen.findMany({
     where:   schoolId ? { schoolId } : {},
@@ -57,9 +59,7 @@ export default async function ScreensPage() {
             <div className="p-4">
               <div className="flex items-start justify-between gap-2 mb-2">
                 <h3 className="font-semibold text-gray-800">{screen.name}</h3>
-                <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${screen.active ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                  {screen.active ? 'פעיל' : 'כבוי'}
-                </span>
+                <ScreenActiveToggle id={screen.id} initialActive={screen.active} canEdit={canEdit} screenName={screen.name} />
               </div>
 
               <div className="text-xs text-gray-400 space-y-1 mb-3">

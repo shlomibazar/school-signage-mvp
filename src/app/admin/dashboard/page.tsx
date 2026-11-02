@@ -1,3 +1,4 @@
+import ScreenActiveToggle from '@/components/admin/ScreenActiveToggle'
 // src/app/admin/dashboard/page.tsx
 import Link from 'next/link'
 import { Monitor, Megaphone, ImageIcon, Plus, Edit, ExternalLink } from 'lucide-react'
@@ -7,6 +8,7 @@ import { db } from '@/lib/db'
 export default async function DashboardPage() {
   const user = await getCurrentUser()
   const schoolId = user?.schoolId
+  const canEdit = user?.role === 'SCHOOL_ADMIN' || user?.role === 'SUPER_ADMIN'
 
   // SUPER_ADMIN with no school: show global stats
   const [screenCount, activeScreenCount, announcementCount, mediaCount] = await Promise.all([
@@ -78,9 +80,7 @@ export default async function DashboardPage() {
                   <div className="text-sm font-medium text-gray-800 truncate">{s.name}</div>
                   <div className="text-xs text-gray-400">/screen/{s.slug}</div>
                 </div>
-                <div className={`text-xs px-2 py-0.5 rounded-full ${s.active ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                  {s.active ? 'פעיל' : 'כבוי'}
-                </div>
+                <ScreenActiveToggle id={s.id} initialActive={s.active} canEdit={canEdit} screenName={s.name} />
                 <div className="flex items-center gap-1">
                   <Link href={`/admin/editor?screen=${s.id}`}
                     className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors">

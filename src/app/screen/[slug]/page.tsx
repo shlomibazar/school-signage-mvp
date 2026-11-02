@@ -1,14 +1,16 @@
+import DisabledScreen from '@/components/display/DisabledScreen'
 import { notFound } from 'next/navigation'
 import { db } from '@/lib/db'
 import { resolveEmergency, getActiveAnnouncements, resolveActiveContent } from '@/lib/scheduling'
 import { toISOStringOrNull } from '@/lib/utils'
 import type { PublicScreenData, ContentItem, Announcement, Screen, School } from '@/types'
 import ScreenDisplay from '@/components/display/ScreenDisplay'
+import { DEFAULT_SCHEDULE, type ScreenSchedule } from '@/lib/screenSchedule'
 export const dynamic='force-dynamic'
 export const revalidate=0
 function serializeCI(raw:any):ContentItem{return{id:raw.id,sectionId:raw.sectionId,contentType:raw.contentType,priority:raw.priority,active:raw.active,startDate:toISOStringOrNull(raw.startDate),endDate:toISOStringOrNull(raw.endDate),startTime:raw.startTime??null,endTime:raw.endTime??null,daysOfWeek:raw.daysOfWeek??[],textContent:raw.textContent??null,textColor:raw.textColor??null,bgColor:raw.bgColor??null,fontSize:raw.fontSize??null,galleryId:raw.galleryId??null,slideDuration:raw.slideDuration,transitionStyle:raw.transitionStyle,videoUrl:raw.videoUrl??null,videoLoop:raw.videoLoop,videoMuted:raw.videoMuted,rssUrl:raw.rssUrl??null,rssMaxItems:raw.rssMaxItems,weatherCity:raw.weatherCity??null,weatherUnits:raw.weatherUnits,settings:raw.settings??null,gallery:raw.gallery?{id:raw.gallery.id,schoolId:raw.gallery.schoolId,name:raw.gallery.name,createdAt:toISOStringOrNull(raw.gallery.createdAt)??'',files:(raw.gallery.files??[]).map((f:any)=>({id:f.id,schoolId:f.schoolId,galleryId:f.galleryId??null,filename:f.filename,originalName:f.originalName,mimeType:f.mimeType,size:f.size,mediaType:f.mediaType,url:f.url,caption:f.caption??null,hidden:f.hidden,uploadedAt:toISOStringOrNull(f.uploadedAt)??''}))}:undefined}}
 async function getScreenData(slug:string):Promise<PublicScreenData|null>{
-  const raw=await db.screen.findUnique({where:{slug,active:true},include:{school:{include:{theme:true}},layout:true,sections:{orderBy:{position:'asc'},include:{contentItems:{where:{active:true},orderBy:{priority:'desc'},include:{gallery:{include:{files:{where:{hidden:false}}}}}}}},announcements:{include:{announcement:true}}}})
+  const raw=await db.screen.findUnique({where:{slug},include:{school:{include:{theme:true}},layout:true,sections:{orderBy:{position:'asc'},include:{contentItems:{where:{active:true},orderBy:{priority:'desc'},include:{gallery:{include:{files:{where:{hidden:false}}}}}}}},announcements:{include:{announcement:true}}}})
   if(!raw)return null
   const screen:Screen={id:raw.id,schoolId:raw.schoolId,name:raw.name,slug:raw.slug,orientation:raw.orientation,width:raw.width,height:raw.height,active:raw.active,refreshSecs:raw.refreshSecs,layout:raw.layout?{id:raw.layout.id,screenId:raw.layout.screenId,headerEnabled:raw.layout.headerEnabled,headerShowLogo:raw.layout.headerShowLogo,headerShowTitle:raw.layout.headerShowTitle,headerShowClock:raw.layout.headerShowClock,headerShowDate:raw.layout.headerShowDate,headerShowParasha:raw.layout.headerShowParasha,headerShowHebDate:raw.layout.headerShowHebDate,headerShowWeather:raw.layout.headerShowWeather,headerScrollText:raw.layout.headerScrollText??null,mainSections:raw.layout.mainSections,footerEnabled:raw.layout.footerEnabled,footerTicker:raw.layout.footerTicker??null,footerFeedMode:raw.layout.footerFeedMode as "manual"|"rss"|"both",footerRssUrl:raw.layout.footerRssUrl??null,footerRssMaxItems:raw.layout.footerRssMaxItems,footerRssRefreshMinutes:raw.layout.footerRssRefreshMinutes,footerTickerSpeed:raw.layout.footerTickerSpeed as "slow"|"normal"|"fast",footerHeight:raw.layout.footerHeight,footerShowBirthdays:raw.layout.footerShowBirthdays,headerHeight:raw.layout.headerHeight,headerTitleFontSize:raw.layout.headerTitleFontSize,headerTitleFontWeight:raw.layout.headerTitleFontWeight,headerDateType:raw.layout.headerDateType as "HEBREW"|"GREGORIAN"|"BOTH",footerShowSchoolName:raw.layout.footerShowSchoolName,footerShowClock:raw.layout.footerShowClock,bgColor:raw.layout.bgColor??null,bgImageUrl:raw.layout.bgImageUrl??null,fontFamily:raw.layout.fontFamily??"Heebo"}:undefined}
   const school:School={id:raw.school.id,name:raw.school.name,slug:raw.school.slug,logoUrl:raw.school.logoUrl??null,weatherCity:raw.school.weatherCity??null,locale:raw.school.locale,timezone:raw.school.timezone,active:raw.school.active,theme:raw.school.theme?{primaryColor:raw.school.theme.primaryColor,secondaryColor:raw.school.theme.secondaryColor,backgroundColor:raw.school.theme.backgroundColor,fontFamily:raw.school.theme.fontFamily,logoUrl:raw.school.theme.logoUrl??null,borderRadius:raw.school.theme.borderRadius}:undefined}
@@ -18,7 +20,20 @@ async function getScreenData(slug:string):Promise<PublicScreenData|null>{
 }
 export default async function PublicScreenPage({ params: paramsPromise }:{params: Promise<{slug:string}>}){
   const params = await paramsPromise;
+  // Check activation before loading expensive media and content relations.
+  const state = await db.screen.findUnique({ where: { slug: params.slug }, select: { active: true, school: { select: { timezone: true } } } })
+  if (!state) notFound()
+  if (!state.active) return <DisabledScreen timezone={state.school.timezone} />
   const data=await getScreenData(params.slug)
   if(!data)notFound()
-  return <ScreenDisplay data={data} refreshSecs={data.screen.refreshSecs}/>
+  const stored = await db.$queryRaw<Array<{ enabled: boolean; startTime: string; endTime: string; days: number[]; standbyMode: string }>>`
+    SELECT "enabled", "startTime", "endTime", "days", "standbyMode"
+    FROM "ScreenOperatingSchedule" WHERE "screenId" = ${data.screen.id} LIMIT 1
+  `
+  const item = stored[0]
+  const schedule: ScreenSchedule = item ? {
+    enabled: item.enabled, startTime: item.startTime, endTime: item.endTime,
+    days: item.days, standbyMode: ['clock', 'message', 'logo'].includes(item.standbyMode) ? item.standbyMode as ScreenSchedule['standbyMode'] : 'logo',
+  } : DEFAULT_SCHEDULE
+  return <ScreenDisplay data={data} refreshSecs={data.screen.refreshSecs} schedule={schedule}/>
 }

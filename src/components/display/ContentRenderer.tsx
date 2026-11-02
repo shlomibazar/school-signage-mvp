@@ -5,21 +5,34 @@ import { cleanAnnouncementHtml } from '@/lib/announcementRichText'
 import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from 'react'
 import type { ContentItem,ClockSettings,DateSettings,AnnouncementContentSettings,SingleAnnouncement,BirthdaySettings,EventSettings,TimetableSettings,RssSettings,GallerySettings,RssFeedItem } from '@/types'
 import { sanitizeHTML, formatHebrewDate, formatGregorianDate } from '@/lib/utils'
-export default function ContentRenderer({item}:{item:ContentItem}){
+export default function ContentRenderer({item,offline=false,screenId}:{item:ContentItem;offline?:boolean;screenId?:string}){
   switch(item.contentType){
     case 'TEXT':          return <TextContent item={item}/>
-    case 'IMAGE_GALLERY': return <GalleryContent item={item}/>
+    case 'IMAGE_GALLERY': return offline ? <OfflineMedia /> : <GalleryContent item={item}/>
     case 'CLOCK':         return <ClockContent item={item}/>
     case 'DATE':          return <DateContent item={item}/>
     case 'WEATHER':       return <WeatherContent item={item}/>
-    case 'ANNOUNCEMENT':  return <AnnouncementContent item={item}/>
+    case 'ANNOUNCEMENT':  return <AnnouncementContent item={item} offline={offline} screenId={screenId}/>
     case 'BIRTHDAYS':     return <BirthdayContent item={item}/>
     case 'EVENTS':        return <EventContent item={item}/>
-    case 'TIMETABLE':     return <TimetableContent item={item}/>
+    case 'TIMETABLE':     return <TimetableContent item={item} offline={offline} screenId={screenId}/>
     case 'RSS_FEED':      return <RssContent item={item}/>
-    case 'VIDEO':         return <VideoContent item={item}/>
+    case 'VIDEO':         return offline ? <OfflineMedia /> : <VideoContent item={item}/>
     default: return <div className="w-full h-full flex items-center justify-center text-white/30 text-sm">{item.contentType}</div>
   }
+}
+function OfflineMedia(){
+  return <div dir="rtl" className="w-full h-full flex flex-col items-center justify-center gap-3 text-center p-4" style={{background:'var(--tv-panel, #172c48)',color:'var(--tv-panel-ink, #fff)'}}>
+    <span aria-hidden="true" style={{fontSize:34}}>⌁</span>
+    <span style={{fontSize:'clamp(16px,2vw,28px)'}}>ממתינים לחיבור לאינטרנט</span>
+  </div>
+}
+const offlineKey = (screenId:string|undefined, kind:string, itemId:string) => `schoolscreen:offline:v1:${screenId ?? 'unknown'}:${kind}:${itemId}`
+function readOffline<T>(key:string):T|null {
+  try { const raw=window.localStorage.getItem(key); return raw?JSON.parse(raw) as T:null } catch {return null}
+}
+function saveOffline(key:string, value:unknown){
+  try { window.localStorage.setItem(key,JSON.stringify(value)) } catch { /* Browser storage may be disabled or full */ }
 }
 // One header component for every panel; dimensions follow the screen container.
 function SectionHeading({children,aside}:{children:React.ReactNode;aside?:React.ReactNode}){
@@ -142,18 +155,22 @@ function WeatherContent({item}:{item:ContentItem}){
     {dm==='full'&&<div className="text-white/40" style={{fontSize:'clamp(10px,1.2vw,14px)'}}>שמיים מעוננים חלקית</div>}
   </div>
 }
-function AnnouncementContent({item}:{item:ContentItem}){
+function AnnouncementContent({item,offline,screenId}:{item:ContentItem;offline:boolean;screenId?:string}){
   const s=(item.settings??{}) as Partial<AnnouncementContentSettings>
   const [remoteItems,setRemoteItems]=useState<SingleAnnouncement[]>([])
   const selectedIds=s.selectedAnnouncementIds??[]
+  const cacheKey=offlineKey(screenId,'announcements',item.id)
   useEffect(()=>{
     if(!selectedIds.length){setRemoteItems([]);return}
     let alive=true
-    const load=()=>fetch(`/api/public/announcements/${item.id}`,{cache:'no-store'}).then(r=>r.ok?r.json():{data:[]}).then(d=>{if(alive)setRemoteItems(d.data??[])}).catch(()=>{if(alive)setRemoteItems([])})
+    const saved=readOffline<SingleAnnouncement[]>(cacheKey)
+    if(saved && alive)setRemoteItems(saved)
+    if(offline)return () => {alive=false}
+    const load=()=>fetch(`/api/public/announcements/${item.id}`,{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Failed to load announcements');return r.json()}).then(d=>{if(alive){const list=(d.data??[]) as SingleAnnouncement[];setRemoteItems(list);saveOffline(cacheKey,list.map(a=>({...a,attachments:[]})))}}).catch(()=>{ /* Preserve last successful content */ })
     void load()
     const timer=setInterval(load,60000)
     return()=>{alive=false;clearInterval(timer)}
-  },[item.id,selectedIds.join(',')])
+  },[item.id,selectedIds.join(','),offline,cacheKey])
   const items:SingleAnnouncement[]=selectedIds.length?remoteItems:[]
   const rot=Math.max(3,s.rotationSecs??10)
   const [idx,setIdx]=useState(0)
@@ -176,7 +193,7 @@ function AnnouncementContent({item}:{item:ContentItem}){
   const body=cur?.body??item.textContent??''
   // Icons are kept in admin data but intentionally hidden on TV.
   const priority=cur?.priority??s.priority
-  const attachments=cur?.attachments??[]
+  const attachments=offline?[]:(cur?.attachments??[])
   const displayMode=cur?.attachmentDisplayMode??'slideshow'
   const slideSeconds=Math.max(3,Math.min(30,cur?.attachmentSlideSeconds??8))
   // Calculate capacity from the actual announcement panel (not window width).
@@ -267,6 +284,7 @@ function AnnouncementContent({item}:{item:ContentItem}){
       window.clearTimeout(next)
     }
   },[idx,body,overflow,items.length,rot,cycle])
+  if(offline && !title.trim() && !body.trim())return <OfflineMedia />
   return <div ref={host} className="tv-announcement relative w-full h-full min-h-0 overflow-hidden flex flex-col items-center justify-center text-center" dir="rtl" style={{background:bg,color:ink,padding:isPdfPage?4:padding}}>
     {headingHeight>0&&<div className="absolute top-0 inset-x-0 z-10"><SectionHeading>{sectionTitle}</SectionHeading></div>}
     <div className="w-full min-h-0 flex flex-col items-center overflow-hidden" style={{height:'100%',paddingTop:headingHeight,paddingBottom:dotsHeight}}>
@@ -321,9 +339,9 @@ function parseChange(raw:string){
   }
   return {raw,parts,kind,...styles[kind]}
 }
-function TimetableContent({item}:{item:ContentItem}){
+function TimetableContent({item,offline,screenId}:{item:ContentItem;offline:boolean;screenId?:string}){
   const s=(item.settings??{}) as Partial<TimetableSettings>
-  if(s.displayMode==='webtop-list'||s.displayMode==='webtop-grid')return <WebtopTimetable item={item} settings={s}/>
+  if(s.displayMode==='webtop-list'||s.displayMode==='webtop-grid')return <WebtopTimetable item={item} settings={s} offline={offline} screenId={screenId}/>
   return <ManualTimetableContent item={item}/>
 }
 function ManualTimetableContent({item}:{item:ContentItem}){
