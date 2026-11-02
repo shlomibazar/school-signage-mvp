@@ -1,22 +1,40 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
-import { Upload, Trash2, Check, Loader2, X, Film } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Switch } from '@/components/ui/Switch'
-import type { ContentItem, GallerySettings, MediaLibraryImage } from '@/types'
+import type { ContentItem, GallerySettings } from '@/types'
 interface Props { item:Partial<ContentItem>; settings:GallerySettings; onChange:(p:Partial<ContentItem>)=>void; onSettings:(s:GallerySettings)=>void }
 const TRANSITIONS=[{value:'fade',label:'המסה'},{value:'slide',label:'הזזה'},{value:'instant',label:'מיידי'}]
 export default function GalleryContentForm({item,settings,onChange,onSettings}:Props){
-  const [images,setImages]=useState<MediaLibraryImage[]>([])
   const [folders,setFolders]=useState<{id:string;name:string;fileCount:number}[]>([])
   const [loading,setLoading]=useState(true)
-  const [uploading,setUploading]=useState(false)
-  const [selected,setSelected]=useState<Set<string>>(new Set(settings.imageIds??[]))
-  const fileRef=useRef<HTMLInputElement>(null)
-  useEffect(()=>{let c=false;async function load(){setLoading(true);try{const [r,g]=await Promise.all([fetch('/api/media'),fetch('/api/galleries')]);const [d,gd]=await Promise.all([r.json(),g.json()]);if(!c){setImages(d.data??[]);setFolders(gd.data??[])}}catch{}finally{if(!c)setLoading(false)}};load();return()=>{c=true}},[])
-  function toggleImage(id:string){setSelected(prev=>{const next=new Set(prev);if(next.has(id))next.delete(id);else next.add(id);onSettings({...settings,imageIds:Array.from(next)});return next})}
-  async function handleUpload(e:React.ChangeEvent<HTMLInputElement>){const files=Array.from(e.target.files??[]);if(!files.length)return;setUploading(true);try{for(const f of files){const fd=new FormData();fd.append('file',f);const r=await fetch('/api/media',{method:'POST',body:fd});const d=await r.json();if(r.ok&&Array.isArray(d.data)){setImages(p=>[...d.data,...p]);const uploaded=d.data.map((x:MediaLibraryImage)=>x.id);onSettings({...settings,imageIds:[...(settings.imageIds??[]),...uploaded]});setSelected(p=>new Set([...p,...uploaded]))}}}finally{setUploading(false);if(fileRef.current)fileRef.current.value=''}}
-  async function handleDelete(id:string,e:React.MouseEvent){e.stopPropagation();await fetch('/api/media/'+id,{method:'DELETE'});setImages(p=>p.filter(img=>img.id!==id));if(selected.has(id)){setSelected(p=>{const n=new Set(p);n.delete(id);onSettings({...settings,imageIds:Array.from(n)});return n})}}
+  const [loadError,setLoadError]=useState(false)
+  useEffect(()=>{
+    let cancelled=false
+    async function loadFolders(){
+      try {
+        const response=await fetch('/api/galleries')
+        if(!response.ok) throw new Error('Failed to load galleries')
+        const result=await response.json()
+        if(!cancelled) setFolders(Array.isArray(result.data)?result.data:[])
+      } catch {
+        if(!cancelled) setLoadError(true)
+      } finally {
+        if(!cancelled) setLoading(false)
+      }
+    }
+    loadFolders()
+    return ()=>{cancelled=true}
+  },[])
+  const folderIds=settings.folderIds??[]
+  const legacyImageCount=(settings.imageIds??[]).length
+  function toggleFolder(id:string,checked:boolean){
+    const next=checked?[...new Set([...folderIds,id])]:folderIds.filter(folderId=>folderId!==id)
+    // Existing manual selections remain intact until a folder is explicitly chosen.
+    // Once folders are selected, the public display uses their live contents.
+    onSettings({...settings,folderIds:next,imageIds:next.length?[]:settings.imageIds??[]})
+  }
   return(
     <div className="space-y-3">
       <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-3" dir="rtl">
@@ -33,29 +51,15 @@ export default function GalleryContentForm({item,settings,onChange,onSettings}:P
       </div>
       <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 space-y-2" dir="rtl">
         <p className="text-xs font-semibold text-blue-900">בחירת תיקיות לגלריה</p>
-        <p className="text-[11px] text-blue-700">בחר תיקייה אחת או יותר. התמונות מכל התיקיות יוצגו יחד. תיקיות חדשות לא יתווספו מעצמן.</p>
-        {folders.length===0?<p className="text-xs text-gray-500">אין תיקיות. צור תיקייה בספריית המדיה.</p>:folders.map(f=><label key={f.id} className="flex items-center gap-2 text-xs cursor-pointer py-1"><input type="checkbox" checked={(settings.folderIds??[]).includes(f.id)} onChange={e=>{const ids=settings.folderIds??[];onSettings({...settings,folderIds:e.target.checked?[...ids,f.id]:ids.filter(id=>id!==f.id),imageIds:[]})}}/><span>{f.name}</span><span className="text-gray-500">({f.fileCount})</span></label>)}
-        <p className="text-[11px] text-gray-500">ללא בחירת תיקייה, אפשר לבחור תמונות ידנית למטה.</p>
+        <p className="text-[11px] text-blue-700">בחר תיקייה אחת או יותר. כל התמונות בתיקיות שנבחרו יוצגו אוטומטית, כולל תמונות שתוסיף אליהן בעתיד.</p>
+        {loading ? <div className="flex items-center gap-2 text-xs text-gray-500"><Loader2 className="w-4 h-4 animate-spin"/>טוען תיקיות...</div>
+          : loadError ? <p className="text-xs text-red-600">לא ניתן לטעון את התיקיות. רענן את העמוד ונסה שוב.</p>
+          : folders.length===0 ? <p className="text-xs text-gray-500">אין תיקיות. צור תיקייה בספריית המדיה והוסף אליה תמונות.</p>
+          : folders.map(f=><label key={f.id} className="flex items-center gap-2 text-xs cursor-pointer py-1"><input type="checkbox" checked={folderIds.includes(f.id)} onChange={e=>toggleFolder(f.id,e.target.checked)}/><span>{f.name}</span><span className="text-gray-500">({f.fileCount})</span></label>)}
+        {folderIds.length===0 && legacyImageCount>0 && <p className="text-[11px] text-amber-700">בגלריה זו מוגדרות {legacyImageCount} תמונות שנבחרו בעבר. הן ימשיכו לפעול עד שתבחר תיקייה ותשמור את הפריסה.</p>}
+        {folderIds.length===0 && legacyImageCount===0 && <p className="text-[11px] text-amber-700">לא נבחרה תיקייה. בחר לפחות תיקייה אחת כדי להגדיר במפורש את התמונות שיוצגו.</p>}
+        <p className="text-[11px] text-gray-500">ניהול והעלאת תמונות מתבצעים דרך ספריית המדיה. אין צורך לבחור תמונות בנפרד בעורך.</p>
       </div>
-      <div onClick={()=>fileRef.current?.click()} className="flex items-center justify-center gap-2 py-3 border border-dashed border-blue-300 rounded-xl text-blue-600 text-xs cursor-pointer hover:bg-blue-50 transition-colors">
-        {uploading?<><Loader2 className="w-4 h-4 animate-spin"/>מעלה...</>:<><Upload className="w-4 h-4"/>העלאת תמונות וסרטונים</>}
-      </div>
-      <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml,video/mp4,video/webm" multiple className="hidden" onChange={handleUpload}/>
-      {(settings.folderIds??[]).length===0&&selected.size>0&&<div className="flex items-center justify-between text-xs bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
-        <span className="text-blue-700 font-medium">{selected.size} פריטים נבחרו</span>
-        <button onClick={()=>{setSelected(new Set());onSettings({...settings,imageIds:[]})}} className="text-blue-400 hover:text-blue-600"><X className="w-3.5 h-3.5"/></button>
-      </div>}
-      {(settings.folderIds??[]).length===0&&(loading?<div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-gray-400"/></div>
-      :images.length===0?<div className="text-center py-8 text-xs text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200">אין פריטים — העלה תמונה או סרטון</div>
-      :<div className="grid grid-cols-3 gap-1.5 max-h-52 overflow-y-auto">
-        {images.map(img=>{const isSel=selected.has(img.id);return(
-          <div key={img.id} onClick={()=>toggleImage(img.id)} className={cn('relative aspect-square rounded-lg overflow-hidden cursor-pointer border-2 transition-all group',isSel?'border-blue-500 ring-2 ring-blue-300':'border-transparent hover:border-gray-300')}>
-            {img.mimeType?.startsWith('video/')?<div className="w-full h-full bg-gray-900 flex items-center justify-center text-white"><Film className="w-7 h-7"/></div>:<img src={img.url} alt={img.originalName} className="w-full h-full object-cover"/>}
-            {isSel&&<div className="absolute inset-0 bg-blue-500/20 flex items-center justify-center"><Check className="w-5 h-5 text-white drop-shadow"/></div>}
-            <button onClick={e=>handleDelete(img.id,e)} className="absolute top-1 right-1 p-1 bg-black/60 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"><Trash2 className="w-3 h-3"/></button>
-          </div>
-        )})}
-      </div>)}
       <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-2.5">
         <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">הגדרות גלריה</p>
         <div><label className="block text-xs text-gray-500 mb-1">מצב תצוגה</label><div className="grid grid-cols-3 gap-1">{([{value:'slideshow',label:'מצגת'},{value:'mosaic',label:'פסיפס'},{value:'collage',label:"קולאז'"}] as const).map(o=><button key={o.value} type="button" onClick={()=>onSettings({...settings,displayMode:o.value})} className={cn('rounded-lg border p-2 text-xs',(settings.displayMode??'slideshow')===o.value?'bg-blue-500 text-white':'bg-white text-gray-700')}>{o.label}</button>)}</div></div>
