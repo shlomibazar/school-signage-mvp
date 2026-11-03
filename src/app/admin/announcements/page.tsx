@@ -70,7 +70,8 @@ export default async function AnnouncementsPage() {
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-600 text-white font-medium">חירום</span>
                       )}
                     </div>
-                    <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{a.body}</p>
+                    {/* Body is stored as rich-text HTML; show it as plain text in the list. */}
+                    <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{a.body.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim()}</p>
                     <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-400">
                       <span>
                         {new Date(a.startAt).toLocaleDateString('he-IL')} –{' '}

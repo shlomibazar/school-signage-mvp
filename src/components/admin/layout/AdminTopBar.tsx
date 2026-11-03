@@ -2,10 +2,11 @@
 // src/components/admin/layout/AdminTopBar.tsx
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { LogOut, ChevronDown, School } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { AuthUser } from '@/types'
+import { adminPageLabel } from './AdminSidebar'
 
 const ROLE_LABELS: Record<string, string> = {
   SUPER_ADMIN:  'מנהל ראשי',
@@ -16,6 +17,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 export default function AdminTopBar({ user }: { user: AuthUser }) {
   const router  = useRouter()
+  const pathname = usePathname()
   const [open, setOpen]       = useState(false)
   const [loading, setLoading] = useState(false)
 
@@ -33,13 +35,13 @@ export default function AdminTopBar({ user }: { user: AuthUser }) {
     .join('')
 
   return (
-    <header className="h-14 bg-white border-b border-gray-100 flex items-center justify-between px-5 shrink-0">
-      {/* Left: breadcrumb placeholder */}
-      <div className="flex items-center gap-2 text-sm text-gray-500">
-        <School className="w-4 h-4" />
-        <span className="text-gray-800 font-medium">
-          {/* School name comes from user context in a real app */}
-          לוח בקרה
+    // On mobile, leave room at the end side for the fixed menu button (AdminSidebar).
+    <header className="h-14 bg-white border-b border-gray-100 flex items-center justify-between ps-5 pe-16 md:pe-5 shrink-0">
+      {/* Current page title */}
+      <div className="flex items-center gap-2 text-sm text-gray-500 min-w-0">
+        <School className="w-4 h-4 shrink-0" />
+        <span className="text-gray-800 font-medium truncate">
+          {adminPageLabel(pathname)}
         </span>
       </div>
 

@@ -30,6 +30,20 @@ const NAV: NavItem[] = [
   { href: '/admin/change-password', label: 'שינוי סיסמה', icon: LockKeyhole },
 ]
 
+// Title for the top bar: the menu item that owns the current path.
+export function adminPageLabel(pathname: string): string {
+  return NAV.find(item => pathname.startsWith(item.href))?.label ?? 'SchoolScreen'
+}
+
+// The layout editor flags unsaved changes on <body>; client-side links skip beforeunload.
+function confirmLeaveEditor(e: React.MouseEvent) {
+  if (document.body.dataset.screenEditorDirty === 'true' && !window.confirm('יש שינויים שלא נשמרו. לעזוב את העורך ולבטל אותם?')) {
+    e.preventDefault()
+    return false
+  }
+  return true
+}
+
 export default function AdminSidebar({ user }: { user: AuthUser }) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -44,9 +58,10 @@ export default function AdminSidebar({ user }: { user: AuthUser }) {
     })
   }
 
-  let lastSection: string | undefined
-
-  const navContent = (
+  // The mobile drawer always shows labels, even when the desktop sidebar is collapsed.
+  const renderNav = (collapsed: boolean) => {
+    let lastSection: string | undefined
+    return (
     <nav className="flex-1 px-2 py-3 flex flex-col gap-0.5 overflow-y-auto">
       {NAV.map(item => {
         if (item.roles && !item.roles.includes(user.role)) return null
@@ -66,7 +81,7 @@ export default function AdminSidebar({ user }: { user: AuthUser }) {
             )}
             <Link
               href={item.href}
-              onClick={() => setMobileOpen(false)}
+              onClick={e => { if (confirmLeaveEditor(e)) setMobileOpen(false) }}
               title={collapsed ? item.label : undefined}
               className={cn(
                 'flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] transition-colors',
@@ -82,7 +97,8 @@ export default function AdminSidebar({ user }: { user: AuthUser }) {
         )
       })}
     </nav>
-  )
+    )
+  }
 
   return (
     <>
@@ -97,7 +113,7 @@ export default function AdminSidebar({ user }: { user: AuthUser }) {
           <button type="button" onClick={toggleCollapsed} title={collapsed ? "הרחב תפריט" : "צמצם תפריט"} aria-label={collapsed ? "הרחב תפריט" : "צמצם תפריט"} className="ms-auto rounded-lg p-1 hover:bg-gray-100 text-gray-500">{collapsed ? <PanelRightOpen className="w-4 h-4" /> : <PanelRightClose className="w-4 h-4" />}</button>
         </div>
 
-        {navContent}
+        {renderNav(collapsed)}
 
         {/* Help */}
         <div className="px-2 pb-3 shrink-0">
@@ -134,7 +150,7 @@ export default function AdminSidebar({ user }: { user: AuthUser }) {
               </div>
               <span className="font-semibold text-[15px]">SchoolScreen</span>
             </div>
-            {navContent}
+            {renderNav(false)}
           </aside>
         </>
       )}

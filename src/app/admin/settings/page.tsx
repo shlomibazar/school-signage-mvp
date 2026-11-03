@@ -29,11 +29,11 @@ export default async function SettingsPage() {
     return { id: s.id, name: s.name, school: s.school, schedule }
   })
   const canEdit = user.role === 'SUPER_ADMIN' || user.role === 'SCHOOL_ADMIN'
-  return <main dir="rtl" className="max-w-4xl space-y-5">
+  return <div dir="rtl" className="max-w-4xl space-y-5">
     <div><h1 className="text-xl font-semibold text-gray-900">הגדרות</h1><p className="text-sm text-gray-500 mt-1">הגדרות תפעול, ללא כפילות עם עורך הפריסה.</p></div>
     <SettingsAccordion sections={[
       { id: 'hours', title: 'שעות פעילות', description: 'תזמון מסכים ותצוגת ״נתראה בקרוב״', content: <ScreenOperatingSettings screens={screenSchedules} canEdit={canEdit}/> },
       { id: 'refresh', title: 'רענון תוכן', description: 'כל 5, 10 או 15 דקות — לכל מסך בנפרד', content: <ScreenRefreshSettings screens={screens} canEdit={canEdit}/> },
     ]}/>
-  </main>
+  </div>
 }
