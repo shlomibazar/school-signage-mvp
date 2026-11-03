@@ -2,20 +2,35 @@ import { cookies } from 'next/headers'
 import { SignJWT, jwtVerify } from 'jose'
 import type { AuthUser, JWTPayload } from '@/types'
 
-const SECRET = new TextEncoder().encode(process.env.JWT_SECRET ?? 'schoolscreen-dev-secret-change-in-prod')
 const COOKIE = 'ss_token'
+// The old public fallback value is rejected so tokens signed with it can never be accepted again.
+const KNOWN_INSECURE_SECRET = 'schoolscreen-dev-secret-change-in-prod'
+let secretErrorLogged = false
+
+// Read lazily so a missing secret fails requests (sign throws, verify rejects) instead of the build.
+function getJwtSecret(): Uint8Array {
+  const secret = process.env.JWT_SECRET
+  if (!secret || secret === KNOWN_INSECURE_SECRET) {
+    if (!secretErrorLogged) {
+      secretErrorLogged = true
+      console.error('JWT_SECRET is missing or insecure; authentication is disabled until it is configured.')
+    }
+    throw new Error('JWT_SECRET is not configured')
+  }
+  return new TextEncoder().encode(secret)
+}
 
 export async function signJWT(payload: Omit<JWTPayload, 'iat' | 'exp'>): Promise<string> {
   return new SignJWT(payload as any)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('7d')
-    .sign(SECRET)
+    .sign(getJwtSecret())
 }
 
 export async function verifyJWT(token: string): Promise<JWTPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, SECRET)
+    const { payload } = await jwtVerify(token, getJwtSecret())
     return payload as unknown as JWTPayload
   } catch { return null }
 }

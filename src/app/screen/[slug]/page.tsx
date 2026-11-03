@@ -18,6 +18,26 @@ async function getScreenData(slug:string):Promise<PublicScreenData|null>{
   const allAnn:Announcement[]=raw.announcements.map(a=>({id:a.announcement.id,schoolId:a.announcement.schoolId,title:a.announcement.title,body:a.announcement.body,priority:a.announcement.priority,bgColor:a.announcement.bgColor,textColor:a.announcement.textColor,icon:a.announcement.icon??null,showTitle:a.announcement.showTitle,active:a.announcement.active,startAt:toISOStringOrNull(a.announcement.startAt)??'',endAt:toISOStringOrNull(a.announcement.endAt)??'',startTime:a.announcement.startTime??null,endTime:a.announcement.endTime??null,daysOfWeek:a.announcement.daysOfWeek??[],isEmergency:a.announcement.isEmergency,screens:[{announcementId:a.announcement.id,screenId:raw.id,sectionPosition:null}]}))
   return{screen,school,emergencyAlert:resolveEmergency(allAnn,now),activeAnnouncements:getActiveAnnouncements(allAnn,raw.id,now),sections:raw.sections.slice(0,raw.layout?.mainSections ?? raw.sections.length).map(s=>({position:s.position,widthPct:s.widthPct,activeContent:resolveActiveContent(s.contentItems.map(serializeCI),raw.refreshSecs,now)}))}
 }
+// Fallback: if the schedule table is missing (migration not applied) or the query fails,
+// the screen uses DEFAULT_SCHEDULE (schedule disabled), so content stays on air rather
+// than the whole public screen failing. Only the error code/name is logged.
+async function loadOperatingSchedule(screenId:string):Promise<ScreenSchedule>{
+  try{
+    const stored = await db.$queryRaw<Array<{ enabled: boolean; startTime: string; endTime: string; days: number[]; standbyMode: string }>>`
+      SELECT "enabled", "startTime", "endTime", "days", "standbyMode"
+      FROM "ScreenOperatingSchedule" WHERE "screenId" = ${screenId} LIMIT 1
+    `
+    const item = stored[0]
+    return item ? {
+      enabled: item.enabled, startTime: item.startTime, endTime: item.endTime,
+      days: item.days, standbyMode: ['clock', 'message', 'logo'].includes(item.standbyMode) ? item.standbyMode as ScreenSchedule['standbyMode'] : 'logo',
+    } : DEFAULT_SCHEDULE
+  }catch(error){
+    const code=(error as {code?:unknown})?.code
+    console.error('Operating schedule unavailable; using default schedule (always on).', typeof code==='string'?code:(error as Error)?.name??'UnknownError')
+    return DEFAULT_SCHEDULE
+  }
+}
 export default async function PublicScreenPage({ params: paramsPromise }:{params: Promise<{slug:string}>}){
   const params = await paramsPromise;
   // Check activation before loading expensive media and content relations.
@@ -26,14 +46,6 @@ export default async function PublicScreenPage({ params: paramsPromise }:{params
   if (!state.active) return <DisabledScreen timezone={state.school.timezone} />
   const data=await getScreenData(params.slug)
   if(!data)notFound()
-  const stored = await db.$queryRaw<Array<{ enabled: boolean; startTime: string; endTime: string; days: number[]; standbyMode: string }>>`
-    SELECT "enabled", "startTime", "endTime", "days", "standbyMode"
-    FROM "ScreenOperatingSchedule" WHERE "screenId" = ${data.screen.id} LIMIT 1
-  `
-  const item = stored[0]
-  const schedule: ScreenSchedule = item ? {
-    enabled: item.enabled, startTime: item.startTime, endTime: item.endTime,
-    days: item.days, standbyMode: ['clock', 'message', 'logo'].includes(item.standbyMode) ? item.standbyMode as ScreenSchedule['standbyMode'] : 'logo',
-  } : DEFAULT_SCHEDULE
+  const schedule = await loadOperatingSchedule(data.screen.id)
   return <ScreenDisplay data={data} refreshSecs={data.screen.refreshSecs} schedule={schedule}/>
 }

@@ -45,11 +45,20 @@ function TextContent({item}:{item:ContentItem}){
   const h=useMemo(()=>sanitizeHTML(item.textContent??''),[item.textContent])
   return <div className="tv-text-content w-full h-full flex items-center justify-center p-6 text-center" style={{background:item.bgColor??'transparent',color:item.textColor??'#ffffff',fontSize:item.fontSize??24,fontWeight:500,lineHeight:1.4}}><div className="tv-text-body" dangerouslySetInnerHTML={{__html:h}}/></div>
 }
+function shuffled<T>(list:T[]):T[]{
+  const out=[...list]
+  for(let i=out.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[out[i],out[j]]=[out[j],out[i]]}
+  return out
+}
 function GalleryContent({item}:{item:ContentItem}){
   const s=(item.settings??{}) as Partial<GallerySettings>
   type Photo={id:string;url:string;caption:string|null;originalName?:string;uploadedAt?:string;galleryId?:string|null;mimeType?:string}
   const [images,setImages]=useState<Photo[]>([])
   const [index,setIndex]=useState(0)
+  // Latest values for the periodic reload, so a refresh can keep the slideshow where it is.
+  const imagesRef=useRef<Photo[]>([])
+  const indexRef=useRef(0)
+  useEffect(()=>{imagesRef.current=images;indexRef.current=index},[images,index])
   const completedVideos=useRef<Set<string>>(new Set())
   const [dimensions,setDimensions]=useState({width:900,height:600})
   const host=useRef<HTMLDivElement>(null)
@@ -59,6 +68,8 @@ function GalleryContent({item}:{item:ContentItem}){
   const dur=(mode==='slideshow'?Math.max(2,item.slideDuration||8):Math.max(5,Math.min(60,s.groupDuration??15)))*1000
   useEffect(()=>{
     let alive=true
+    // The first load after a settings change starts fresh; later reloads keep the current position.
+    let firstLoad=true
     async function load(){
       try{
         // The public endpoint only exposes images used by active public screens.
@@ -68,13 +79,23 @@ function GalleryContent({item}:{item:ContentItem}){
         const all:Photo[]=d.data??[]
         const chosen=(s.folderIds??[]).length?all.filter(f=>(s.folderIds??[]).includes(f.galleryId??'')):(s.imageIds??[]).length?(s.imageIds??[]).map(id=>all.find(f=>f.id===id)).filter(Boolean) as Photo[]:all
         if(!alive)return
-        const ordered=[...chosen]
+        const prev=firstLoad?[]:imagesRef.current
+        let ordered=[...chosen]
         const order=s.imageOrder??'random'
         if(order==='random'){
-          for(let i=ordered.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[ordered[i],ordered[j]]=[ordered[j],ordered[i]]}
+          // Keep the current round's order; only newly added items are shuffled in at the end.
+          const fresh=new Map(chosen.map(f=>[f.id,f]))
+          const prevIds=new Set(prev.map(f=>f.id))
+          const kept=prev.filter(f=>fresh.has(f.id)).map(f=>fresh.get(f.id)!)
+          ordered=[...kept,...shuffled(chosen.filter(f=>!prevIds.has(f.id)))]
         }else if(order==='name')ordered.sort((a,b)=>(a.originalName??'').localeCompare(b.originalName??'','he'))
         else ordered.sort((a,b)=>{const v=(new Date(b.uploadedAt??0).getTime()-new Date(a.uploadedAt??0).getTime());return order==='newest'?v:-v})
-        setImages(ordered);setIndex(0)
+        // Stay on the item currently shown; if it was removed, keep the same slot.
+        const currentId=prev[indexRef.current]?.id
+        const at=currentId?ordered.findIndex(f=>f.id===currentId):-1
+        const nextIndex=at>=0?at:prev.length&&ordered.length?indexRef.current%ordered.length:0
+        firstLoad=false
+        setImages(ordered);setIndex(nextIndex)
       }catch{}
     }
     load();const timer=setInterval(load,60000)
@@ -91,7 +112,15 @@ function GalleryContent({item}:{item:ContentItem}){
   const isVideo=(f:Photo)=>f.mimeType?.startsWith('video/')||/\.(mp4|webm)(?:\?|$)/i.test(f.url)
   const shownNow=Array.from({length:pageSize},(_,j)=>images[(index+j)%images.length]).filter(Boolean)
   const hasVideo=shownNow.some(isVideo)
-  const nextPage=()=>{completedVideos.current.clear();setIndex(i=>(i+pageSize)%images.length)}
+  const nextPage=()=>{
+    completedVideos.current.clear()
+    const list=imagesRef.current
+    if(!list.length)return
+    const next=indexRef.current+pageSize
+    // Random order: every item is shown once per round, then a new round is shuffled.
+    if(next>=list.length&&(s.imageOrder??'random')==='random'&&list.length>pageSize){setImages(shuffled(list));setIndex(0)}
+    else setIndex(next%list.length)
+  }
   const finishVideo=(id:string)=>{completedVideos.current.add(id);if(shownNow.filter(isVideo).every(f=>completedVideos.current.has(f.id)))nextPage()}
   useEffect(()=>{
     if(!images.length)return
@@ -190,6 +219,8 @@ function AnnouncementContent({item,offline,screenId}:{item:ContentItem;offline:b
   },[])
   const cur=items.length?items[Math.min(idx,items.length-1)]:null
   const title=cur?.title??s.title??''
+  // Per-announcement "show title" setting; legacy/cached items without the field keep showing it.
+  const visibleTitle=cur?.showTitle===false?'':title
   const body=cur?.body??item.textContent??''
   // Icons are kept in admin data but intentionally hidden on TV.
   const priority=cur?.priority??s.priority
@@ -247,7 +278,7 @@ function AnnouncementContent({item,offline,screenId}:{item:ContentItem;offline:b
   const headingHeight=showSectionTitle && sectionTitle.trim()?box.height*0.09:0
   const padding=Math.max(12,Math.min(32,Math.round(26*unit)))
   const dotsHeight=items.length>1?22:0
-  const bodyHeight=attachments.length?Math.max(70,Math.min(box.height*0.48,box.height*(body.length>220?0.43:body.length>100?0.31:0.19))):Math.max(40,box.height-headingHeight-2*padding-(title?titleSize*2.5+12:0)-dotsHeight)
+  const bodyHeight=attachments.length?Math.max(70,Math.min(box.height*0.48,box.height*(body.length>220?0.43:body.length>100?0.31:0.19))):Math.max(40,box.height-headingHeight-2*padding-(visibleTitle?titleSize*2.5+12:0)-dotsHeight)
   // Measure the actual visible body area. Avoid scrolling for subpixel/rounding overflow.
   // Keep the measurement independent of the animation so it cannot restart mid-scroll.
   const [overflow,setOverflow]=useState(0)
@@ -274,7 +305,10 @@ function AnnouncementContent({item,offline,screenId}:{item:ContentItem;offline:b
     setScroll({distance,duration,started:false})
     // Start only when there is real overflow, after a 4-second reading pause.
     const start=distance>0?window.setTimeout(()=>setScroll({distance,duration,started:true}),4000):undefined
-    const totalMs=distance>0?4000+duration*1000+4000:Math.max(rot*1000,3500)
+    const textMs=distance>0?4000+duration*1000+4000:Math.max(rot*1000,3500)
+    // Stay until every attachment slide (including each PDF page) has had its full slot.
+    const attachmentsMs=attachmentPages>1?attachmentPages*slideSeconds*1000:0
+    const totalMs=Math.max(textMs,attachmentsMs)
     const next=window.setTimeout(()=>{
       if(items.length>1)setIdx(current=>(current+1)%items.length)
       else setCycle(v=>v+1)
@@ -283,12 +317,12 @@ function AnnouncementContent({item,offline,screenId}:{item:ContentItem;offline:b
       if(start!==undefined)window.clearTimeout(start)
       window.clearTimeout(next)
     }
-  },[idx,body,overflow,items.length,rot,cycle])
-  if(offline && !title.trim() && !body.trim())return <OfflineMedia />
+  },[idx,body,overflow,items.length,rot,cycle,attachmentPages,slideSeconds])
+  if(offline && !visibleTitle.trim() && !body.trim())return <OfflineMedia />
   return <div ref={host} className="tv-announcement relative w-full h-full min-h-0 overflow-hidden flex flex-col items-center justify-center text-center" dir="rtl" style={{background:bg,color:ink,padding:isPdfPage?4:padding}}>
     {headingHeight>0&&<div className="absolute top-0 inset-x-0 z-10"><SectionHeading>{sectionTitle}</SectionHeading></div>}
     <div className="w-full min-h-0 flex flex-col items-center overflow-hidden" style={{height:'100%',paddingTop:headingHeight,paddingBottom:dotsHeight}}>
-      {title&&<div className="shrink-0 font-bold" style={{fontSize:titleSize,lineHeight:1.2,marginBottom:12*unit,overflowWrap:'anywhere'}}>{title}</div>}
+      {visibleTitle&&<div className="shrink-0 font-bold" style={{fontSize:titleSize,lineHeight:1.2,marginBottom:12*unit,overflowWrap:'anywhere'}}>{visibleTitle}</div>}
       {attachments.length>0&&<div className={`w-full flex-1 min-h-0 overflow-hidden flex items-center justify-center ${isPdfPage?'':'mb-2'}`}>
         {displayMode==='together'
           ? <div className="w-full h-full min-h-0 flex items-center justify-center gap-3 overflow-hidden">
