@@ -1,4 +1,5 @@
 // src/app/api/screens/route.ts
+import { randomBytes } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
@@ -6,7 +7,8 @@ import { requireRole } from '@/lib/auth'
 
 const CreateScreenSchema = z.object({
   name:        z.string().min(2).max(100),
-  slug:        z.string().min(2).max(50).regex(/^[a-z0-9-]+$/, 'Slug חייב להכיל רק אותיות לועזיות קטנות, מספרים ומקף'),
+  // Optional: the admin form no longer sends it, and a unique one is generated instead.
+  slug:        z.string().min(2).max(50).regex(/^[a-z0-9-]+$/, 'Slug חייב להכיל רק אותיות לועזיות קטנות, מספרים ומקף').optional(),
   orientation: z.enum(['LANDSCAPE', 'PORTRAIT']).default('LANDSCAPE'),
   width:       z.number().int().default(1920),
   height:      z.number().int().default(1080),
@@ -16,6 +18,17 @@ const CreateScreenSchema = z.object({
 function apiError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status })
 }
+
+// Matches /^[a-z0-9-]+$/ and 2–50 chars. Latin names keep a readable prefix (Hebrew names
+// fall back to "screen"); the random suffix keeps public URLs unique and hard to guess.
+function generateSlug(name: string): string {
+  const base = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+    .replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 30).replace(/-$/, '')
+  return `${base.length >= 2 ? base : 'screen'}-${randomBytes(4).toString('hex')}`
+}
+
+const isSlugConflict = (err: any) =>
+  err?.code === 'P2002' && [err?.meta?.target].flat().some((t: unknown) => String(t).includes('slug'))
 
 export async function GET() {
   try {
@@ -61,13 +74,16 @@ export async function POST(req: NextRequest) {
 
     if (!schoolId) return apiError('משתמש לא שייך לבית ספר', 400)
 
-    // Unique slug check
-    const existing = await db.screen.findUnique({ where: { slug: validated.slug } })
-    if (existing) return apiError('כתובת ה-URL כבר בשימוש, בחר אחרת', 409)
+    // An explicitly requested slug must be free (unchanged behavior for API callers).
+    if (validated.slug) {
+      const existing = await db.screen.findUnique({ where: { slug: validated.slug } })
+      if (existing) return apiError('כתובת ה-URL כבר בשימוש, בחר אחרת', 409)
+    }
 
-    const screen = await db.screen.create({
+    const create = (slug: string) => db.screen.create({
       data: {
         ...validated,
+        slug,
         schoolId,
         layout: {
           create: {
@@ -84,7 +100,24 @@ export async function POST(req: NextRequest) {
       include: { layout: true, sections: true },
     })
 
-    return NextResponse.json({ data: screen }, { status: 201 })
+    if (validated.slug) {
+      try {
+        return NextResponse.json({ data: await create(validated.slug) }, { status: 201 })
+      } catch (err) {
+        // Taken between the check and the insert.
+        if (isSlugConflict(err)) return apiError('כתובת ה-URL כבר בשימוש, בחר אחרת', 409)
+        throw err
+      }
+    }
+    // Generated slug: the unique index is the source of truth, so retry on a collision.
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        return NextResponse.json({ data: await create(generateSlug(validated.name)) }, { status: 201 })
+      } catch (err) {
+        if (!isSlugConflict(err)) throw err
+      }
+    }
+    return apiError('לא ניתן ליצור כתובת למסך כעת, נסה שוב', 503)
   } catch (err: any) {
     if (err.message === 'Unauthorized') return apiError('נדרשת כניסה למערכת', 401)
     if (err.message === 'Forbidden')    return apiError('אין הרשאה',          403)
