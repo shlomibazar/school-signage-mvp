@@ -5,6 +5,7 @@ import path from 'path'
 import { createHash, randomUUID } from 'crypto'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
+import { schoolWhere, galleryBelongsToSchool } from '@/lib/schoolScope'
 
 export const runtime = 'nodejs'
 
@@ -110,16 +111,12 @@ async function storeFile(
 export async function GET(req: NextRequest) {
   try {
     const user = await requireRole('VIEWER')
-    const schoolId =
-      user.role === 'SUPER_ADMIN'
-        ? undefined
-        : (user.schoolId ?? undefined)
 
     const galleryId = req.nextUrl.searchParams.get('galleryId')
 
     const files = await db.mediaFile.findMany({
       where: {
-        ...(schoolId ? { schoolId } : {}),
+        ...schoolWhere(user),
         mediaType: 'IMAGE',
         hidden: false,
         ...(galleryId ? { galleryId } : {}),
@@ -156,14 +153,15 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireRole('EDITOR')
+    // Media always belongs to the uploader's school (a SUPER_ADMIN without one cannot upload).
     const schoolId = user.schoolId
-
-    if (!schoolId && user.role !== 'SUPER_ADMIN') {
-      return err('No school', 400)
-    }
+    if (!schoolId) return err('No school', 400)
 
     const fd = await req.formData()
-    const galleryId = fd.get('galleryId') as string | null
+    const rawGalleryId = fd.get('galleryId')
+    const galleryId = typeof rawGalleryId === 'string' && rawGalleryId ? rawGalleryId : null
+    // Checked before anything is stored: the target folder must belong to the same school.
+    if (galleryId && !(await galleryBelongsToSchool(galleryId, schoolId))) return err('Gallery not found', 400)
     const files = fd.getAll('file').filter(
       (item): item is File => item instanceof File
     )
@@ -187,7 +185,7 @@ export async function POST(req: NextRequest) {
 
       const rec = await db.mediaFile.create({
         data: {
-          schoolId: schoolId!,
+          schoolId,
           filename,
           originalName: file.name,
           mimeType: file.type,

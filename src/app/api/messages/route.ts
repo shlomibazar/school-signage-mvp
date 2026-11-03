@@ -2,24 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
+import { MessageCreateSchema } from '@/lib/messageSchema'
 function err(m:string,s:number){return NextResponse.json({error:m},{status:s})}
-
-const Schema = z.object({
-  title:     z.string().min(1),
-  body:      z.string().min(1),
-  priority:  z.enum(['info','warning','urgent']).default('info'),
-  icon:      z.string().default('📢'),
-  bgColor:   z.string().default('#1e3a5f'),
-  textColor: z.string().default('#ffffff'),
-  active:    z.boolean().default(true),
-})
 
 export async function GET() {
   try {
     const user = await requireRole('VIEWER')
-    const schoolId = user.role === 'SUPER_ADMIN' ? undefined : (user.schoolId ?? undefined)
+    // Non-SUPER_ADMIN users only ever see their own school (none if they have no school).
     const messages = await db.message.findMany({
-      where: schoolId ? { schoolId } : {},
+      where: user.role === 'SUPER_ADMIN' ? {} : { schoolId: user.schoolId ?? '__none__' },
       orderBy: { createdAt: 'desc' },
     })
     return NextResponse.json({ data: messages.map(m => ({ ...m, createdAt: m.createdAt.toISOString(), updatedAt: m.updatedAt.toISOString() })) })
@@ -32,10 +23,12 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireRole('EDITOR')
-    if (!user.schoolId && user.role !== 'SUPER_ADMIN') return err('No school', 400)
-    const body = await req.json()
-    const data = Schema.parse(body)
-    const msg = await db.message.create({ data: { ...data, schoolId: user.schoolId! } })
+    // A message always belongs to the creator's school (never taken from the request).
+    if (!user.schoolId) return err('No school', 400)
+    const body = await req.json().catch(() => null)
+    if (body === null) return err('Invalid JSON', 400)
+    const data = MessageCreateSchema.parse(body)
+    const msg = await db.message.create({ data: { ...data, schoolId: user.schoolId } })
     return NextResponse.json({ data: { ...msg, createdAt: msg.createdAt.toISOString(), updatedAt: msg.updatedAt.toISOString() } }, { status: 201 })
   } catch (e:any) {
     if (e.message === 'Unauthorized') return err('Unauthorized', 401)

@@ -8,6 +8,7 @@ import ShortLinkManager from '@/components/admin/ShortLinkManager'
 import { Plus, Edit, ExternalLink, Monitor } from 'lucide-react'
 import { getCurrentUser } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { homeSchoolWhere } from '@/lib/schoolScope'
 
 export default async function ScreensPage() {
   const user     = await getCurrentUser()
@@ -15,7 +16,8 @@ export default async function ScreensPage() {
   const canEdit = user?.role === 'SCHOOL_ADMIN' || user?.role === 'SUPER_ADMIN'
 
   const screens = await db.screen.findMany({
-    where:   schoolId ? { schoolId } : {},
+    // SUPER_ADMIN without a school sees all screens; any other user without a school sees none.
+    where:   homeSchoolWhere(user),
     orderBy: { createdAt: 'asc' },
     include: {
       layout: { select: { mainSections: true, headerEnabled: true, footerEnabled: true, footerTicker: true, bgColor: true } },

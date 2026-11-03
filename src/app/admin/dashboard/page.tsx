@@ -4,22 +4,23 @@ import Link from 'next/link'
 import { Monitor, Megaphone, ImageIcon, Plus, Edit, ExternalLink } from 'lucide-react'
 import { getCurrentUser } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { homeSchoolWhere } from '@/lib/schoolScope'
 
 export default async function DashboardPage() {
   const user = await getCurrentUser()
-  const schoolId = user?.schoolId
   const canEdit = user?.role === 'SCHOOL_ADMIN' || user?.role === 'SUPER_ADMIN'
 
-  // SUPER_ADMIN with no school: show global stats
+  // SUPER_ADMIN with no school: show global stats. Any other user without a school sees nothing.
+  const scope = homeSchoolWhere(user)
   const [screenCount, activeScreenCount, announcementCount, mediaCount] = await Promise.all([
-    db.screen.count({ where: schoolId ? { schoolId } : {} }),
-    db.screen.count({ where: schoolId ? { schoolId, active: true } : { active: true } }),
-    db.announcement.count({ where: schoolId ? { schoolId } : {} }),
-    db.mediaFile.count({ where: schoolId ? { schoolId } : {} }),
+    db.screen.count({ where: scope }),
+    db.screen.count({ where: { ...scope, active: true } }),
+    db.announcement.count({ where: scope }),
+    db.mediaFile.count({ where: scope }),
   ])
 
   const recentScreens = await db.screen.findMany({
-    where:   schoolId ? { schoolId } : {},
+    where:   scope,
     take:    4,
     orderBy: { updatedAt: 'desc' },
     include: { layout: { select: { mainSections: true, headerEnabled: true, footerEnabled: true } } },
@@ -28,7 +29,7 @@ export default async function DashboardPage() {
   const now = new Date()
   const upcomingAnnouncements = await db.announcement.findMany({
     where: {
-      ...(schoolId ? { schoolId } : {}),
+      ...scope,
       endAt:  { gte: now },
       active: true,
     },

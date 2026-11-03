@@ -2,6 +2,7 @@
 import { notFound, redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { homeSchoolWhere, schoolWhere } from '@/lib/schoolScope'
 import { distributeWidths, toISOStringOrNull } from '@/lib/utils'
 import ScreenLayoutEditor from '@/components/admin/editor/ScreenLayoutEditor'
 import ScreenSelector from '@/components/admin/editor/ScreenSelector'
@@ -16,14 +17,13 @@ export default async function EditorPage({ searchParams: searchParamsPromise }: 
   const user = await getCurrentUser()
   if (!user) redirect('/auth/login')
 
-  const schoolId = user.schoolId
   const screenId = searchParams.screen
 
   // If no screen param, pick the first screen of this school
   let resolvedId = screenId
   if (!resolvedId) {
     const first = await db.screen.findFirst({
-      where: schoolId ? { schoolId } : {},
+      where: homeSchoolWhere(user),
       orderBy: { createdAt: 'asc' },
     })
     if (!first) redirect('/admin/screens/new')
@@ -33,7 +33,7 @@ export default async function EditorPage({ searchParams: searchParamsPromise }: 
   const raw = await db.screen.findFirst({
     where: {
       id: resolvedId,
-      ...(schoolId && user.role !== 'SUPER_ADMIN' ? { schoolId } : {}),
+      ...schoolWhere(user),
     },
     include: {
       layout: true,
@@ -147,7 +147,7 @@ export default async function EditorPage({ searchParams: searchParamsPromise }: 
   }
 
   const availableScreens = await db.screen.findMany({
-    where: schoolId && user.role !== 'SUPER_ADMIN' ? { schoolId } : {},
+    where: schoolWhere(user),
     select: { id: true, name: true }, orderBy: { createdAt: 'asc' },
   })
 

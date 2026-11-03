@@ -4,6 +4,7 @@ import AnnouncementDeleteButton from '@/components/admin/AnnouncementDeleteButto
 import { Plus, Megaphone } from 'lucide-react'
 import { getCurrentUser } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { homeSchoolWhere } from '@/lib/schoolScope'
 
 const PRIORITY_STYLE: Record<string, { label: string; bg: string; text: string; bar: string }> = {
   LOW:       { label: 'רגיל',   bg: 'bg-blue-50',   text: 'text-blue-700',  bar: '#3b82f6' },
@@ -14,10 +15,9 @@ const PRIORITY_STYLE: Record<string, { label: string; bg: string; text: string; 
 
 export default async function AnnouncementsPage() {
   const user     = await getCurrentUser()
-  const schoolId = user?.schoolId
 
   const announcements = await db.announcement.findMany({
-    where:   schoolId ? { schoolId } : {},
+    where:   homeSchoolWhere(user),
     orderBy: [{ priority: 'desc' }, { startAt: 'desc' }],
 
   })

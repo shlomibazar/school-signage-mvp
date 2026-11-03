@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
+import { homeSchoolWhere } from '@/lib/schoolScope'
 import { createHash, randomUUID } from 'crypto'
 import { mkdir, writeFile } from 'fs/promises'
 import path from 'path'
@@ -38,7 +39,7 @@ export async function GET(_req:NextRequest,{ params: paramsPromise }:{params: Pr
   const params = await paramsPromise;
   try{
     const user=await requireRole('VIEWER')
-    const a=await db.announcement.findFirst({where:{id:params.id,...(user.schoolId?{schoolId:user.schoolId}:{})}})
+    const a=await db.announcement.findFirst({where:{id:params.id,...homeSchoolWhere(user)}})
     if(!a)return error('Not found',404)
     return NextResponse.json({data:await db.announcementAttachment.findMany({where:{announcementId:a.id},orderBy:{sortOrder:'asc'}})})
   }catch{return error('Unauthorized',401)}

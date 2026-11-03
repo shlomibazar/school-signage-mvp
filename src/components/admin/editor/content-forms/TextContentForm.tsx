@@ -2,6 +2,7 @@
 // src/components/admin/editor/content-forms/TextContentForm.tsx
 
 import type { ContentItem } from '@/types'
+import { sanitizeHTML } from '@/lib/utils'
 
 interface Props {
   item:     Partial<ContentItem>
@@ -86,7 +87,8 @@ export default function TextContentForm({ item, onChange }: Props) {
               fontWeight: 500,
               lineHeight: 1.4,
             }}
-            dangerouslySetInnerHTML={{ __html: item.textContent }}
+            // Same sanitizer as the TV display, so the preview matches and cannot run script.
+            dangerouslySetInnerHTML={{ __html: sanitizeHTML(item.textContent) }}
           />
         </div>
       )}

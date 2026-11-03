@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { toISOStringOrNull } from '@/lib/utils'
+import { galleryBelongsToSchool, contentSettingsBelongToSchool } from '@/lib/schoolScope'
 
 function apiError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status })
@@ -17,15 +18,17 @@ async function resolveItem(
   schoolId: string | null,
   isSuperAdmin: boolean,
 ) {
+  // Strict school scope: a non-SUPER_ADMIN user without a school matches nothing.
   return db.contentItem.findFirst({
     where: {
       id: itemId,
       sectionId,
       section: {
         screenId,
-        screen: isSuperAdmin || !schoolId ? undefined : { schoolId },
+        screen: isSuperAdmin ? undefined : { schoolId: schoolId ?? '__none__' },
       },
     },
+    include: { section: { select: { screen: { select: { schoolId: true } } } } },
   })
 }
 
@@ -68,8 +71,15 @@ export async function PUT(
     )
     if (!existing) return apiError('Content item not found', 404)
 
-    const body   = await req.json()
+    const body   = await req.json().catch(() => null)
+    if (body === null) return apiError('Invalid JSON', 400)
     const parsed = UpdateSchema.parse(body)
+    // Checked before the update: the gallery must belong to this screen's school.
+    if (parsed.galleryId && !(await galleryBelongsToSchool(parsed.galleryId, existing.section.screen.schoolId)))
+      return apiError('Gallery not found', 400)
+    // Folder, image and announcement ids in settings must also belong to the screen's school.
+    if (!(await contentSettingsBelongToSchool(parsed.settings as Record<string, unknown> | null | undefined, existing.section.screen.schoolId)))
+      return apiError('Invalid content references', 400)
 
     const data: Record<string, unknown> = {}
     if (parsed.active          !== undefined) data.active          = parsed.active

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
+import { schoolWhere } from '@/lib/schoolScope'
 import { toISOStringOrNull } from '@/lib/utils'
 import { getDisplayTemplate, getTemplateWidths } from '@/lib/displayTemplates'
 
@@ -46,7 +47,7 @@ export async function PUT(req: NextRequest, { params: paramsPromise }: { params:
   try {
     const user = await requireRole('EDITOR')
     const screen = await db.screen.findFirst({
-      where: { id: params.id, ...(user.role !== 'SUPER_ADMIN' && user.schoolId ? { schoolId: user.schoolId } : {}) },
+      where: { id: params.id, ...schoolWhere(user) },
     })
     if (!screen) return err('מסך לא נמצא', 404)
 

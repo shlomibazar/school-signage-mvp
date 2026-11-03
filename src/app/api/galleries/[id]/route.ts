@@ -11,7 +11,7 @@ export async function GET(_req: NextRequest, { params: paramsPromise }: { params
     const user = await requireRole('VIEWER')
     const sc = user.schoolId
     const gallery = await db.gallery.findFirst({
-      where: { id: params.id, ...(user.role !== 'SUPER_ADMIN' && sc ? { schoolId: sc } : {}) },
+      where: { id: params.id, ...(user.role !== 'SUPER_ADMIN' ? { schoolId: sc ?? '__none__' } : {}) },
       include: { files: { where: { hidden: false }, orderBy: { uploadedAt: 'desc' } } },
     })
     if (!gallery) return err('Not found', 404)
@@ -33,7 +33,7 @@ export async function PUT(req: NextRequest, { params: paramsPromise }: { params:
   try {
     const user = await requireRole('EDITOR')
     const sc = user.schoolId
-    const gallery = await db.gallery.findFirst({ where: { id: params.id, ...(user.role !== 'SUPER_ADMIN' && sc ? { schoolId: sc } : {}) } })
+    const gallery = await db.gallery.findFirst({ where: { id: params.id, ...(user.role !== 'SUPER_ADMIN' ? { schoolId: sc ?? '__none__' } : {}) } })
     if (!gallery) return err('Not found', 404)
     const { name, description } = await req.json()
     const updated = await db.gallery.update({ where: { id: params.id }, data: { name: name ?? gallery.name, description: description ?? null } })
@@ -49,7 +49,7 @@ export async function DELETE(_req: NextRequest, { params: paramsPromise }: { par
   try {
     const user = await requireRole('EDITOR')
     const sc = user.schoolId
-    const gallery = await db.gallery.findFirst({ where: { id: params.id, ...(user.role !== 'SUPER_ADMIN' && sc ? { schoolId: sc } : {}) } })
+    const gallery = await db.gallery.findFirst({ where: { id: params.id, ...(user.role !== 'SUPER_ADMIN' ? { schoolId: sc ?? '__none__' } : {}) } })
     if (!gallery) return err('Not found', 404)
     // Delete only media records belonging to this folder. Independently uploaded copies remain untouched.
     const files = await db.mediaFile.findMany({ where: { galleryId: params.id, schoolId: gallery.schoolId }, select: { id: true, url: true } })

@@ -6,6 +6,7 @@ import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { toISOStringOrNull } from '@/lib/utils'
 import { Prisma } from '@prisma/client'
+import { galleryBelongsToSchool, contentSettingsBelongToSchool } from '@/lib/schoolScope'
 
 function apiError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status })
@@ -17,12 +18,14 @@ async function resolveSection(
   schoolId: string | null,
   isSuperAdmin: boolean,
 ) {
+  // Strict school scope: a non-SUPER_ADMIN user without a school matches nothing.
   return db.screenSection.findFirst({
     where: {
       id: sectionId,
       screenId,
-      screen: isSuperAdmin || !schoolId ? undefined : { schoolId },
+      screen: isSuperAdmin ? undefined : { schoolId: schoolId ?? '__none__' },
     },
+    include: { screen: { select: { schoolId: true } } },
   })
 }
 
@@ -86,6 +89,8 @@ export async function GET(
     return NextResponse.json({
       data: {
         ...item,
+        // Never return another school's gallery files (defense in depth for older records).
+        gallery: item.gallery && item.gallery.schoolId === section.screen.schoolId ? item.gallery : null,
         startDate: toISOStringOrNull(item.startDate),
         endDate:   toISOStringOrNull(item.endDate),
         createdAt: item.createdAt.toISOString(),
@@ -114,8 +119,15 @@ export async function POST(
     )
     if (!section) return apiError('Section not found', 404)
 
-    const body   = await req.json()
+    const body   = await req.json().catch(() => null)
+    if (body === null) return apiError('Invalid JSON', 400)
     const parsed = ContentSchema.parse(body)
+    // Checked before any mutation: the gallery must belong to this screen's school.
+    if (parsed.galleryId && !(await galleryBelongsToSchool(parsed.galleryId, section.screen.schoolId)))
+      return apiError('Gallery not found', 400)
+    // Folder, image and announcement ids in settings must also belong to the screen's school.
+    if (!(await contentSettingsBelongToSchool(parsed.settings, section.screen.schoolId)))
+      return apiError('Invalid content references', 400)
 
     // One item per section — delete existing first
     await db.contentItem.deleteMany({ where: { sectionId: params.sectionId } })
