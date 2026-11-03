@@ -23,6 +23,8 @@ export default async function AnnouncementsPage() {
   })
 
   const now = new Date()
+  // Creating, editing and deleting announcements needs EDITOR or higher (as in the API).
+  const canEdit = !!user && user.role !== 'VIEWER'
 
   return (
     <div className="max-w-3xl">
@@ -31,22 +33,22 @@ export default async function AnnouncementsPage() {
           <h1 className="text-xl font-semibold text-gray-900">הודעות</h1>
           <p className="text-sm text-gray-500 mt-0.5">{announcements.length} הודעות</p>
         </div>
-        <Link
+        {canEdit && <Link
           href="/admin/announcements/new"
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors"
         >
           <Plus className="w-4 h-4" />
           הודעה חדשה
-        </Link>
+        </Link>}
       </div>
 
       {announcements.length === 0 && (
         <div className="bg-white border border-dashed border-gray-200 rounded-2xl p-16 text-center">
           <Megaphone className="w-10 h-10 text-gray-300 mx-auto mb-4" />
           <p className="text-gray-500 mb-3">אין הודעות עדיין</p>
-          <Link href="/admin/announcements/new" className="text-sm text-blue-600 hover:underline">
+          {canEdit && <Link href="/admin/announcements/new" className="text-sm text-blue-600 hover:underline">
             צור הודעה ראשונה
-          </Link>
+          </Link>}
         </div>
       )}
 
@@ -88,13 +90,13 @@ export default async function AnnouncementsPage() {
                     <span className={`text-[10px] px-2 py-0.5 rounded-full ${isActive ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                       {isActive ? 'פעיל' : 'לא פעיל'}
                     </span>
-                    <Link
+                    {canEdit && <><Link
                       href={`/admin/announcements/${a.id}/edit`}
                       className="text-xs text-blue-600 hover:underline"
                     >
                       ערוך
                     </Link>
-                    <AnnouncementDeleteButton id={a.id} title={a.title}/>
+                    <AnnouncementDeleteButton id={a.id} title={a.title}/></>}
                   </div>
                 </div>
               </div>

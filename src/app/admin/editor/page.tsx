@@ -6,6 +6,7 @@ import { homeSchoolWhere, schoolWhere } from '@/lib/schoolScope'
 import { distributeWidths, toISOStringOrNull } from '@/lib/utils'
 import ScreenLayoutEditor from '@/components/admin/editor/ScreenLayoutEditor'
 import ScreenSelector from '@/components/admin/editor/ScreenSelector'
+import ViewOnlyNotice from '@/components/admin/ViewOnlyNotice'
 import type { Screen, ScreenLayout, ScreenSection, ContentItem } from '@/types'
 
 interface Props {
@@ -16,6 +17,8 @@ export default async function EditorPage({ searchParams: searchParamsPromise }: 
   const searchParams = await searchParamsPromise;
   const user = await getCurrentUser()
   if (!user) redirect('/auth/login')
+  // Layout and content changes need EDITOR or higher (API rule); viewers get a notice.
+  if (user.role === 'VIEWER') return <ViewOnlyNotice title="עורך מסכים" />
 
   const screenId = searchParams.screen
 

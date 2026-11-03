@@ -20,14 +20,18 @@ interface NavItem {
   roles?:   string[]
 }
 
+const HELP_AVAILABLE = false
+
 const NAV: NavItem[] = [
   { href: '/admin/dashboard',     label: 'לוח בקרה',     icon: LayoutDashboard },
   { href: '/admin/screens',       label: 'מסכים',          icon: Monitor },
   { href: '/admin/editor',        label: 'עורך פריסה',    icon: PenSquare },
   { href: '/admin/announcements', label: 'הודעות',         icon: Megaphone,   section: 'תוכן' },
   { href: '/admin/media',         label: 'ספריית מדיה',   icon: ImageIcon },
-  { href: '/admin/users',         label: 'משתמשים',        icon: Users,        section: 'ניהול', roles: ['SCHOOL_ADMIN', 'SUPER_ADMIN'] },
-  { href: '/admin/settings',      label: 'הגדרות',         icon: Settings,     roles: ['SCHOOL_ADMIN', 'SUPER_ADMIN'] },
+  // Users management is not built yet (/admin/users is a "phase 2" placeholder), so it is not
+  // in the menu; add it back here when it exists:
+  // { href: '/admin/users', label: 'משתמשים', icon: Users, section: 'ניהול', roles: ['SCHOOL_ADMIN', 'SUPER_ADMIN'] },
+  { href: '/admin/settings',      label: 'הגדרות',         icon: Settings,     section: 'ניהול', roles: ['SCHOOL_ADMIN', 'SUPER_ADMIN'] },
   { href: '/admin/change-password', label: 'שינוי סיסמה', icon: LockKeyhole },
 ]
 
@@ -116,8 +120,8 @@ export default function AdminSidebar({ user }: { user: AuthUser }) {
 
         {renderNav(collapsed)}
 
-        {/* Help */}
-        <div className="px-2 pb-3 shrink-0">
+        {/* Help: hidden until the /admin/help page exists (the link returned 404). */}
+        {HELP_AVAILABLE && <div className="px-2 pb-3 shrink-0">
           <Link
             href="/admin/help"
             // The Help page is not implemented yet; don't prefetch a route that returns 404.
@@ -127,7 +131,7 @@ export default function AdminSidebar({ user }: { user: AuthUser }) {
             <HelpCircle className="w-4 h-4" />
             {!collapsed && "עזרה"}
           </Link>
-        </div>
+        </div>}
       </aside>
 
       {/* Mobile: hamburger button */}

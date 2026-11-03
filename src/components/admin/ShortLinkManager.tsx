@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 
-export default function ShortLinkManager({ screenId, initialCode }: { screenId: string; initialCode: string | null }) {
+// canCreate: only roles the API allows to create a code (EDITOR and up) get the button.
+export default function ShortLinkManager({ screenId, initialCode, canCreate = true }: { screenId: string; initialCode: string | null; canCreate?: boolean }) {
   const [code, setCode] = useState(initialCode)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -31,7 +32,7 @@ export default function ShortLinkManager({ screenId, initialCode }: { screenId: 
           <a className="font-mono text-blue-700 underline" href={`/s/${code}`} target="_blank" rel="noopener noreferrer" dir="ltr">/s/{code}</a>
           <button type="button" onClick={copy} className="rounded bg-white px-2 py-1 border border-blue-200">{copied ? 'הועתק!' : 'העתק קישור מלא'}</button>
         </div>
-      ) : <button type="button" disabled={busy} onClick={generate} className="rounded bg-blue-600 px-3 py-1.5 text-white disabled:opacity-50">{busy ? 'מייצר...' : 'צור קישור קצר למסך'}</button>}
+      ) : !canCreate ? <span className="text-gray-500">אין קישור קצר למסך</span> : <button type="button" disabled={busy} onClick={generate} className="rounded bg-blue-600 px-3 py-1.5 text-white disabled:opacity-50">{busy ? 'מייצר...' : 'צור קישור קצר למסך'}</button>}
       {error && <p className="mt-1 text-red-700">{error}</p>}
     </div>
   )
