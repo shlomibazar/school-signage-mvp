@@ -1,5 +1,6 @@
 'use client'
 import { Component, type ReactNode } from 'react'
+import { isChunkLoadError } from '@/lib/chunkError'
 
 // Keeps one failing part of the TV (unexpected settings or data) from taking down the whole
 // screen. The fallback is quiet (an empty panel, no error details). The part is rendered again
@@ -18,8 +19,12 @@ export default class PanelBoundary extends Component<Props, State> {
     return { failed: true }
   }
 
+  private chunkError = false
+
   componentDidCatch(error: unknown) {
     console.error(`[tv] ${this.props.name} failed to render`, error)
+    // Files of an older build (after a deploy): re-rendering cannot help, the retry reloads the page.
+    this.chunkError = isChunkLoadError(error)
   }
 
   // The retry is scheduled from the lifecycle (not componentDidCatch) so a remount, e.g. React
@@ -44,7 +49,10 @@ export default class PanelBoundary extends Component<Props, State> {
   private scheduleRetry() {
     if (!this.state.failed) return
     window.clearTimeout(this.timer)
-    this.timer = window.setTimeout(() => this.setState({ failed: false }), RETRY_MS)
+    this.timer = window.setTimeout(() => {
+      if (this.chunkError) window.location.reload()
+      else this.setState({ failed: false })
+    }, RETRY_MS)
   }
 
   render() {
