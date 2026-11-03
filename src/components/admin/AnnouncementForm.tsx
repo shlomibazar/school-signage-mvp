@@ -14,6 +14,8 @@ export default function AnnouncementForm({initial}:{initial?:Announcement}){
   const [showTitle,setShowTitle]=useState(initial?.showTitle??true)
   const [body,setBody]=useState(initial?.body??'')
   const editorRef=useRef<HTMLDivElement>(null)
+  // Fill the editor once per announcement; re-running on body changes would overwrite what the user types.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(()=>{if(editorRef.current)editorRef.current.innerHTML=cleanAnnouncementHtml(initial?.body??'')},[initial?.id])
   const format=(cmd:string)=>{editorRef.current?.focus();document.execCommand(cmd,false);setBody(editorRef.current?.innerHTML||'')}
   const size=(delta:number)=>{

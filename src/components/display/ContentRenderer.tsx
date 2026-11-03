@@ -62,6 +62,7 @@ function shuffled<T>(list:T[]):T[]{
   for(let i=out.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[out[i],out[j]]=[out[j],out[i]]}
   return out
 }
+const isVideo=(f:{mimeType?:string;url:string})=>!!f.mimeType?.startsWith('video/')||/\.(mp4|webm)(?:\?|$)/i.test(f.url)
 function GalleryContent({item}:{item:ContentItem}){
   const s=(item.settings??{}) as Partial<GallerySettings>
   type Photo={id:string;url:string;caption:string|null;originalName?:string;uploadedAt?:string;galleryId?:string|null;mimeType?:string}
@@ -115,6 +116,8 @@ function GalleryContent({item}:{item:ContentItem}){
     }
     load();const timer=setInterval(load,60000)
     return()=>{alive=false;clearInterval(timer)}
+  // folders/ids are JSON keys standing in for s.folderIds/s.imageIds (new arrays every render).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   },[item.id,item.galleryId,folders,ids,s.imageOrder])
   useEffect(()=>{
     const el=host.current;if(!el)return
@@ -124,7 +127,6 @@ function GalleryContent({item}:{item:ContentItem}){
   const preferredCount=s.mosaicCount??6
   const count=mode==='slideshow'?1:dimensions.width<360?Math.min(2,preferredCount):dimensions.width<760?Math.min(4,preferredCount):preferredCount
   const pageSize=Math.min(count,Math.max(1,images.length))
-  const isVideo=(f:Photo)=>f.mimeType?.startsWith('video/')||/\.(mp4|webm)(?:\?|$)/i.test(f.url)
   const shownNow=Array.from({length:pageSize},(_,j)=>images[(index+j)%images.length]).filter(Boolean)
   const hasVideo=shownNow.some(isVideo)
   const nextPage=()=>{
@@ -143,6 +145,8 @@ function GalleryContent({item}:{item:ContentItem}){
     const timeout=hasVideo?Math.max(120000,dur*4):dur
     const t=setTimeout(nextPage,timeout)
     return()=>clearTimeout(t)
+  // nextPage is recreated every render and reads refs; adding it would restart the slide timer.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   },[images.length,pageSize,dur,index,hasVideo])
   // Warm the cache for the next page (same URLs as will be rendered), so the next slide
   // appears without an empty frame. Video is left to the <video> element itself.
@@ -223,9 +227,10 @@ function AnnouncementContent({item,offline,screenId}:{item:ContentItem;offline:b
   const s=(item.settings??{}) as Partial<AnnouncementContentSettings>
   const [remoteItems,setRemoteItems]=useState<SingleAnnouncement[]>([])
   const selectedIds=s.selectedAnnouncementIds??[]
+  const selectedKey=selectedIds.join(',')
   const cacheKey=offlineKey(screenId,'announcements',item.id)
   useEffect(()=>{
-    if(!selectedIds.length){setRemoteItems([]);return}
+    if(!selectedKey){setRemoteItems([]);return}
     let alive=true
     // Stored copy (text only) for a TV that starts without a connection; content already in
     // memory, attachments included, is kept while the connection is down.
@@ -236,7 +241,7 @@ function AnnouncementContent({item,offline,screenId}:{item:ContentItem;offline:b
     void load()
     const timer=setInterval(load,60000)
     return()=>{alive=false;clearInterval(timer)}
-  },[item.id,selectedIds.join(','),offline,cacheKey])
+  },[item.id,selectedKey,offline,cacheKey])
   const items:SingleAnnouncement[]=selectedIds.length?remoteItems:[]
   const rot=Math.max(3,s.rotationSecs??10)
   const [idx,setIdx]=useState(0)
@@ -305,6 +310,8 @@ function AnnouncementContent({item,offline,screenId}:{item:ContentItem;offline:b
   useEffect(()=>{
     if(!nextGroup.length)return
     preloadImages(nextGroup.map(a=>displayImageUrl(a.url,box.width/(displayMode==='together'?nextGroup.length:1),box.height,{dpr:clientDpr()})))
+  // nextGroupKey stands in for nextGroup (a new array every render).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   },[nextGroupKey,box.width,box.height,displayMode])
   const isPdfPage=visibleAttachments.length===1&&visibleAttachments[0]?.kind==='PDF_PAGE'
   // Standard announcements inherit the active screen theme. Priority notices retain
@@ -427,7 +434,8 @@ function TimetableContent({item,offline,screenId}:{item:ContentItem;offline:bool
 function ManualTimetableContent({item}:{item:ContentItem}){
   const s=(item.settings??{}) as Partial<TimetableSettings>
   const longMode=s.displayMode==='long'
-  const lines=useMemo(()=>[...(s.menuText??'').split(/\r?\n/),...(s.items??[])].flatMap(x=>x.split(/\r?\n/)).map(x=>x.trim()).filter(Boolean),[s.menuText,JSON.stringify(s.items??[])])
+  const itemsKey=JSON.stringify(s.items??[])
+  const lines=useMemo(()=>[...(s.menuText??'').split(/\r?\n/),...(JSON.parse(itemsKey) as string[])].flatMap(x=>x.split(/\r?\n/)).map(x=>x.trim()).filter(Boolean),[s.menuText,itemsKey])
   const [page,setPage]=useState(0)
   const [dimensions,setDimensions]=useState({width:580,height:600})
   const container=useRef<HTMLDivElement>(null)

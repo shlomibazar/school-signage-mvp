@@ -1,5 +1,5 @@
 'use client'
-import { useEffect,useMemo,useRef,useState } from 'react'
+import { useCallback,useEffect,useMemo,useRef,useState } from 'react'
 import type { ContentItem,TimetableSettings } from '@/types'
 
 type Change={id?:number;changeType?:number|null;type?:string|null;definition?:string|null;content?:string|null;note?:string|null;room?:string|null;privateName?:string|null;lastName?:string|null;group?:string|null;hour?:number|null;original_hour?:number|null;hourName?:string|null;originalHourName?:string|null;fillUpType?:string|null;isClassCancel?:boolean|null;isRoomChange?:boolean|null;isFillUp?:boolean|null}
@@ -89,7 +89,7 @@ export default function WebtopTimetable({item,settings,offline=false,screenId}:{
   const classes=useMemo(()=>Object.entries(data?.grades??{}).flatMap(([grade,v])=>(v.classes??[]).map(c=>({key:`${grade}-${c.classNum}`,name:`${letters[Number(grade)]??grade}׳${c.classNum}`,grade:Number(grade),num:c.classNum,hours:c.hours??[]}))).sort((a,b)=>a.grade-b.grade||a.num-b.num),[data])
   const isGrid=settings.displayMode==='webtop-grid'
   const showChanges=settings.showChanges!==false,showExams=settings.showExams!==false,showEvents=settings.showEvents!==false,showMessages=settings.showMessages!==false
-  const inRange=(h:Hour)=>{const n=h.hour?.hour??0;return n>=0&&n<=(settings.hourTo??24)&&(n>=(settings.hourFrom??1)||n===0)}
+  const inRange=useCallback((h:Hour)=>{const n=h.hour?.hour??0;return n>=0&&n<=(settings.hourTo??24)&&(n>=(settings.hourFrom??1)||n===0)},[settings.hourFrom,settings.hourTo])
   const autoColumns=Math.max(1,Math.floor(Math.max(0,width-64)/Math.max(90,settings.minColumnWidth??140)))
   const perPage=isGrid?(settings.columnsPerPage&&settings.columnsPerPage>0?Math.max(1,Math.min(20,settings.columnsPerPage)):autoColumns):Math.max(3,Math.floor(Math.max(250,width)/260))
   const gridPages=useMemo(()=>{const p:ClassRow[][]=[];for(const grade of [...new Set(classes.map(c=>c.grade))]){const group=classes.filter(c=>c.grade===grade);for(let i=0;i<group.length;i+=perPage)p.push(group.slice(i,i+perPage));}return p.length?p:[[]]},[classes,perPage])
@@ -113,7 +113,7 @@ export default function WebtopTimetable({item,settings,offline=false,screenId}:{
       return [{key:`${prefix}-${kind}-${i}`,name:c.name,grade:c.grade,hour,kind,text:lines.join(' · '),event} as Entry]
     })
     return [...(showChanges?changes(h).map((ch,i)=>({key:`${prefix}-change-${i}`,name:c.name,grade:c.grade,hour,kind:'change' as const,text:description(ch,hour),change:ch})):[]),...(showExams?make('exam',h.exams??[]):[]),...(showEvents?make('event',h.events??[]):[]),...(showMessages?make('message',h.messages??[]):[])]
-  })),[classes,showChanges,showExams,showEvents,showMessages,settings.hourFrom,settings.hourTo])
+  })),[classes,showChanges,showExams,showEvents,showMessages,inRange])
   // Event IDs are stable across hours and participating classes. Never use
   // accompaniers or rendered text as the identity of an event.
   // The grid deliberately remains class-specific.
@@ -177,6 +177,7 @@ export default function WebtopTimetable({item,settings,offline=false,screenId}:{
   const pages=isGrid?gridPages:listPages
   useEffect(()=>setPage(0),[isGrid,classes.length,perPage,listPerPage,entries.length])
   // Grid pages with long content scroll to the bottom before advancing to the next class group.
+  const currentPageKey=shownPageKey(gridPages,page)
   useEffect(()=>{
     if(!isGrid){if(pages.length<=1)return;const t=setInterval(()=>setPage(p=>(p+1)%pages.length),Math.max(5,Math.min(120,settings.pageSeconds??12))*1000);return()=>clearInterval(t)}
     const el=gridScroll.current
@@ -201,9 +202,9 @@ export default function WebtopTimetable({item,settings,offline=false,screenId}:{
     }
     frame=requestAnimationFrame(step)
     return()=>{cancelAnimationFrame(frame);observer.disconnect()}
-  },[isGrid,shownPageKey(gridPages,page),pages.length,settings.pageSeconds,settings.scrollSpeed,settings.scrollDelaySeconds])
+  },[isGrid,currentPageKey,pages.length,settings.pageSeconds,settings.scrollSpeed,settings.scrollDelaySeconds])
   const shown=Math.min(page,pages.length-1)
-  const hourNums=useMemo<number[]>(()=>[...new Set(classes.flatMap(c=>c.hours.filter(h=>inRange(h)&&(settings.showEmptyHours!==false||(h.scheduale?.length??0)>0||(showChanges&&changes(h).length>0)||(showExams&&(h.exams?.length??0)>0)||(showEvents&&(h.events?.length??0)>0)||(showMessages&&(h.messages?.length??0)>0))).map(h=>h.hour?.hour??0)))].filter(n=>n>=0).sort((a,b)=>a-b),[classes,settings.hourFrom,settings.hourTo,settings.showEmptyHours,showChanges,showExams,showEvents,showMessages])
+  const hourNums=useMemo<number[]>(()=>[...new Set(classes.flatMap(c=>c.hours.filter(h=>inRange(h)&&(settings.showEmptyHours!==false||(h.scheduale?.length??0)>0||(showChanges&&changes(h).length>0)||(showExams&&(h.exams?.length??0)>0)||(showEvents&&(h.events?.length??0)>0)||(showMessages&&(h.messages?.length??0)>0))).map(h=>h.hour?.hour??0)))].filter(n=>n>=0).sort((a,b)=>a-b),[classes,inRange,settings.showEmptyHours,showChanges,showExams,showEvents,showMessages])
   const clock=updated?new Date(updated).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Jerusalem'}):''
   return <div ref={host} dir="rtl" className="w-full h-full flex flex-col min-h-0 overflow-hidden" style={{background:'var(--tv-panel,#172c48)',color:'var(--tv-ink,#edf5ff)'}}>
     <header className="tv-section-heading"><h2 className="tv-section-heading-label">📋 {settings.title||'שינויי מערכת'}</h2><span className="tv-section-heading-aside">{(() => {

@@ -37,9 +37,12 @@ export default function SectionEditor({ screenId, section, index, isTemp, onUpda
   const [editorOpen,    setEditorOpen]    = useState(false)
   const [selectedType,  setSelectedType]  = useState<ContentType>(section.contentItems[0]?.contentType ?? 'EMPTY')
 
+  // Re-sync only when the section or its saved items change, not for every new section object
+  // (that would drop the local, unsaved choice of content type).
   useEffect(() => {
     setLocalSection(section)
     setSelectedType(section.contentItems[0]?.contentType ?? 'EMPTY')
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section.id, section.contentItems])
 
   function handleTypeClick(type: ContentType) {
