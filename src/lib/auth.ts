@@ -22,7 +22,9 @@ function getJwtSecret(): Uint8Array {
 }
 
 export async function signJWT(payload: Omit<JWTPayload, 'iat' | 'exp'>): Promise<string> {
-  return new SignJWT(payload as any)
+  // iatMs: issue time in milliseconds (iat has whole seconds only), so a change to the user
+  // in the same second as a login is still detected by getSession.
+  return new SignJWT({ ...payload, iatMs: Date.now() } as any)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('7d')
@@ -54,7 +56,11 @@ export const getSession = cache(async (): Promise<AuthUser | null> => {
       select: { id: true, email: true, name: true, role: true, schoolId: true, updatedAt: true },
     })
     if (!user) return null
-    if (typeof payload.iat !== 'number' || payload.iat < Math.floor(user.updatedAt.getTime() / 1000)) return null
+    // Tokens from before this change carry only iat (seconds); they are compared at that precision.
+    const issuedAtMs = (payload as { iatMs?: unknown }).iatMs
+    if (typeof issuedAtMs === 'number') {
+      if (issuedAtMs < user.updatedAt.getTime()) return null
+    } else if (typeof payload.iat !== 'number' || payload.iat < Math.floor(user.updatedAt.getTime() / 1000)) return null
     return { id: user.id, email: user.email, name: user.name, role: user.role, schoolId: user.schoolId }
   } catch { return null }
 })

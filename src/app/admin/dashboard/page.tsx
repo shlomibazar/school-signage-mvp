@@ -50,8 +50,8 @@ export default async function DashboardPage() {
         <StatCard label="קבצי מדיה"      value={mediaCount}         icon={ImageIcon}  color="purple" />
       </div>
 
-      {/* Quick actions */}
-      <section className="mb-8">
+      {/* Quick actions: all of them create or change content (EDITOR or higher), so viewers don't get them. */}
+      {user?.role !== 'VIEWER' && <section className="mb-8">
         <h2 className="text-sm font-semibold text-gray-700 mb-3">פעולות מהירות</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <QuickAction href="/admin/announcements/new" icon="📢" label="הודעה חדשה" />
@@ -59,7 +59,7 @@ export default async function DashboardPage() {
           <QuickAction href="/admin/screens/new"       icon="📺" label="מסך חדש"    />
           <QuickAction href="/admin/screens"           icon="✏️" label="עריכת מסכים" />
         </div>
-      </section>
+      </section>}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent screens */}
