@@ -1,4 +1,4 @@
-import { getDisplayTemplate, getTemplateWidths } from '@/lib/displayTemplates'
+import { getDisplayTemplate, getTemplateWidths, isStackedLayout } from '@/lib/displayTemplates'
 import { resolveScreenTheme } from '@/lib/screenThemes'
 
 type Item = { contentType: string; active: boolean; textContent: string | null; settings: unknown; galleryId: string | null; bgColor: string | null }
@@ -32,7 +32,7 @@ export default function ScreenSnapshot({ screen, media, announcements }: { scree
     <div className="h-40 flex items-center justify-center overflow-hidden p-2" style={{ background: '#e5e7eb' }}>
       <div dir="rtl" className="h-full flex flex-col overflow-hidden rounded-sm shadow-sm" style={{ width: screen.orientation === 'PORTRAIT' ? '30%' : '100%', background: theme.bg, color: theme.panelText }}>
         {layout?.headerEnabled !== false && <div className="px-2 py-1 text-[9px] font-semibold truncate" style={{ background: theme.header, color: theme.headerText }}>{screen.name}</div>}
-        <div className="flex flex-1 min-h-0 gap-1 p-1">
+        <div className={`flex ${isStackedLayout(screen.orientation) ? 'flex-col' : ''} flex-1 min-h-0 gap-1 p-1`}>
           {Array.from({ length: count }, (_, i) => {
             const section = screen.sections.find(s => s.position === i)
             const item = section?.contentItems.find(x => x.active && x.contentType !== 'EMPTY')
@@ -43,7 +43,7 @@ export default function ScreenSnapshot({ screen, media, announcements }: { scree
             const text = plain(notice?.body ?? item?.textContent)
             const heading = notice?.title ?? (typeof cfg.title === 'string' ? cfg.title : '') ?? ''
             const priorityColor = notice?.priority === 'HIGH' || notice?.priority === 'EMERGENCY' ? '#b91c1c' : notice?.priority === 'MEDIUM' ? '#b45309' : undefined
-            return <div key={i} className="min-w-0 rounded-sm p-1 flex flex-col justify-center items-center text-center overflow-hidden" style={{ flex: `${widths[i] ?? 100 / count} ${widths[i] ?? 100 / count} 0%`, background: priorityColor ?? theme.panel, color: priorityColor ? '#fff' : theme.panelText, border: `1px solid ${theme.border}` }}>
+            return <div key={i} className="min-w-0 min-h-0 rounded-sm p-1 flex flex-col justify-center items-center text-center overflow-hidden" style={{ flex: `${widths[i] ?? 100 / count} ${widths[i] ?? 100 / count} 0%`, background: priorityColor ?? theme.panel, color: priorityColor ? '#fff' : theme.panelText, border: `1px solid ${theme.border}` }}>
               {photo && (photo.url.startsWith('/') && !photo.url.startsWith('//') || /^https?:\/\//i.test(photo.url)) ? <img src={photo.url} alt="תמונת גלריה" loading="lazy" className="w-full h-full object-cover" /> : <>
               <span className="text-[9px] font-semibold leading-tight break-words">{heading || (item ? (labels[item.contentType] ?? item.contentType.replace(/_/g,' ')) : 'אזור ריק')}</span>
               {text && <span className="mt-1 text-[8px] leading-tight opacity-75 line-clamp-3 break-words">{text.slice(0, 110)}</span>}

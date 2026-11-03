@@ -36,6 +36,11 @@ export function withDisplayTheme(value:string|null|undefined,theme:string):strin
   const next=withDisplayTemplate(theme,template) || theme
   return withDisplaySurface(next,getDisplaySurface(value)) || next
 }
+// Sections sit side by side on landscape screens and stack top-to-bottom on portrait screens.
+// Template weights (70/30, 20/60/20, equal) apply along this axis: widths or heights.
+export function isStackedLayout(orientation:string|null|undefined):boolean {
+  return orientation === 'PORTRAIT'
+}
 export function getTemplateWidths(template:DisplayTemplate,count:number):number[] {
   if(template === 'classic') return distributeWidths(count)
   if(template === 'information') return count===2 ? [70,30] : distributeWidths(count)

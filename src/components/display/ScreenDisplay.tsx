@@ -11,7 +11,7 @@ import EmergencyOverlay from './EmergencyOverlay'
 import ContentRenderer from './ContentRenderer'
 import { resolveScreenTheme, screenStageBackground } from '@/lib/screenThemes'
 import { unifiedPalette } from '@/lib/unifiedPalette'
-import { getDisplayTemplate, getTemplateWidths, getDisplaySurface } from '@/lib/displayTemplates'
+import { getDisplayTemplate, getTemplateWidths, getDisplaySurface, isStackedLayout } from '@/lib/displayTemplates'
 
 interface Props { data: PublicScreenData; refreshSecs: number; schedule: ScreenSchedule }
 
@@ -69,6 +69,7 @@ export default function ScreenDisplay({ data, refreshSecs, schedule }: Props) {
 
   const template = getDisplayTemplate(layout?.bgColor)
   const widths = getTemplateWidths(template,sections.length)
+  const stacked = isStackedLayout(screen.orientation)
   const theme = resolveScreenTheme(layout?.bgColor)
   const palette = unifiedPalette(theme.bg)
   const themeStyle = {
@@ -102,11 +103,11 @@ export default function ScreenDisplay({ data, refreshSecs, schedule }: Props) {
       )}
 
       {/* Main sections */}
-      <div className="flex flex-1 min-h-0 overflow-hidden tv-content-grid">
+      <div className={`flex ${stacked ? 'flex-col' : ''} flex-1 min-h-0 overflow-hidden tv-content-grid`} data-orientation={screen.orientation}>
         {sections.map((section, i) => (
           <div
             key={i}
-            className="h-full min-w-0 overflow-hidden tv-content-panel"
+            className={`${stacked ? 'w-full min-h-0' : 'h-full min-w-0'} overflow-hidden tv-content-panel`}
             style={{ flex: `${widths[i] ?? section.widthPct} ${widths[i] ?? section.widthPct} 0%` }}
           >
             {section.activeContent ? (
