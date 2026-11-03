@@ -24,6 +24,11 @@ function contrastText(background: string): string {
   const luminance = rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722
   return luminance > 0.179 ? '#142033' : '#ffffff'
 }
+// Stage background shared by the public screen and the editor preview. Broadcast templates
+// replace it with the theme base color in CSS, which applies to both in the same way.
+export function screenStageBackground(bgImageUrl:string|null|undefined, base:string):string {
+  return bgImageUrl ? `url(${JSON.stringify(bgImageUrl)}) center/cover no-repeat` : base
+}
 export function resolveScreenTheme(value:string|null|undefined) {
   value = getDisplayThemeValue(value)
   const id=value?.startsWith('theme:')?value.slice(6):'classic'

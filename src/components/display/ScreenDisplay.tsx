@@ -9,7 +9,7 @@ import DisplayHeader from './DisplayHeader'
 import DisplayFooter from './DisplayFooter'
 import EmergencyOverlay from './EmergencyOverlay'
 import ContentRenderer from './ContentRenderer'
-import { resolveScreenTheme } from '@/lib/screenThemes'
+import { resolveScreenTheme, screenStageBackground } from '@/lib/screenThemes'
 import { unifiedPalette } from '@/lib/unifiedPalette'
 import { getDisplayTemplate, getTemplateWidths, getDisplaySurface } from '@/lib/displayTemplates'
 
@@ -73,7 +73,7 @@ export default function ScreenDisplay({ data, refreshSecs, schedule }: Props) {
   const palette = unifiedPalette(theme.bg)
   const themeStyle = {
     fontFamily:screenFont(layout?.fontFamily),
-    background: layout?.bgImageUrl ? `url(${layout.bgImageUrl}) center/cover no-repeat` : theme.bg,
+    background: screenStageBackground(layout?.bgImageUrl, theme.bg),
     '--tv-base':theme.bg, '--tv-panel':theme.panel, '--tv-header':theme.header, '--tv-footer':theme.footer,
     '--tv-ink':theme.panelText, '--tv-header-ink':theme.headerText, '--tv-footer-ink':theme.footerText, '--tv-panel-ink':theme.panelText, '--tv-accent':theme.accent, '--tv-border':theme.border,
     '--tv-radius':theme.radius,

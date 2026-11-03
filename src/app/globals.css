@@ -667,20 +667,25 @@ html, body {
   font-size:26px !important;
 }
 .tv-display-premium.tv-broadcast-preview[data-display-template="visual"] .tv-content-panel:first-child > .tv-preview-panel-title {display:none !important}
+/* Sizes come from ScreenPreview, computed from the same clamp() rules as the TV at the
+   reference resolution (vw/vh here would measure the admin window instead). */
 .tv-display-premium.tv-broadcast-preview .tv-preview-broadcast-header {
-  height:94px !important;
+  height:var(--broadcast-preview-header, 76px) !important;
   padding-inline:45px !important;
   border:0 !important;
 }
 .tv-display-premium.tv-broadcast-preview .tv-preview-broadcast-footer {
-  height:44px !important;
+  height:var(--broadcast-preview-footer, 45px) !important;
   padding-inline:38px !important;
   border:0 !important;
 }
 .tv-display-premium.tv-broadcast-preview .tv-preview-broadcast-main {
   height:calc(100% - var(--broadcast-preview-header, 0px) - var(--broadcast-preview-footer, 0px)) !important;
-  gap:20px !important;
-  padding:20px !important;
+  gap:var(--broadcast-preview-gap, 22px) !important;
+  padding:var(--broadcast-preview-gap, 22px) !important;
+}
+.tv-display-premium.tv-broadcast-preview:not([data-surface-style="unified"]) .tv-preview-broadcast-main .tv-content-panel {
+  border-radius:var(--broadcast-preview-radius, 26px) !important;
 }
 
 /* SchoolScreen 2.0.3 — Unified surface. Only opt-in for new templates. */
