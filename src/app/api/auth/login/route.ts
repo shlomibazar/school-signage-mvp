@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { db } from '@/lib/db'
 import { signJWT, setAuthCookie } from '@/lib/auth'
-import { isLoginLocked, recordLoginFailure, clearLoginFailures } from '@/lib/loginRateLimit'
+import { loginAttemptBlocked, clearLoginAttempts } from '@/lib/loginRateLimit'
 
 // Compared against when the e-mail is unknown, so both cases take the same bcrypt time and the
 // response time does not reveal which addresses have accounts. (Hash of a random string.)
@@ -19,18 +19,16 @@ export async function POST(req: NextRequest) {
     }
     const normalized = email.toLowerCase().trim()
 
-    if (await isLoginLocked(normalized)) {
+    // Counted before the password check, so parallel attempts cannot exceed the limit.
+    if (await loginAttemptBlocked(normalized)) {
       return NextResponse.json({ error: 'יותר מדי ניסיונות התחברות. נסה שוב בעוד מספר דקות' }, { status: 429 })
     }
 
     const user = await db.user.findUnique({ where: { email: normalized } })
     const valid = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH)
-    if (!user || !valid) {
-      await recordLoginFailure(normalized)
-      return NextResponse.json({ error: INVALID }, { status: 401 })
-    }
+    if (!user || !valid) return NextResponse.json({ error: INVALID }, { status: 401 })
 
-    await clearLoginFailures(normalized)
+    await clearLoginAttempts(normalized)
     const token = await signJWT({ sub: user.id, email: user.email, name: user.name, role: user.role, schoolId: user.schoolId })
     await setAuthCookie(token)
 

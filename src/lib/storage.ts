@@ -34,7 +34,9 @@ export async function storeUpload(file: File, { folder, name, mime }: { folder: 
   const timestamp = Math.floor(Date.now() / 1000)
   const signature = createHash('sha1').update(`public_id=${publicId}&timestamp=${timestamp}${secret}`).digest('hex')
   const form = new FormData()
-  form.append('file', new Blob([await file.arrayBuffer()], { type: mime }), name)
+  // The File is passed as is (no extra in-memory copy: videos may be up to 100 MB).
+  // Cloudinary reads the type from the content; `mime` only selects the endpoint below.
+  form.append('file', file, name)
   form.append('api_key', key)
   form.append('timestamp', String(timestamp))
   form.append('public_id', publicId)

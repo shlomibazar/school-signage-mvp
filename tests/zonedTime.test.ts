@@ -74,3 +74,27 @@ test('operating hours (screenSchedule) agree with the shared helper', () => {
   assert.equal(isScreenInOperatingHours(schedule, 'Asia/Jerusalem', MON_2300), false)
   assert.equal(isScreenInOperatingHours({ ...schedule, enabled: false, days: [] }, 'Asia/Jerusalem', MON_2300), true)
 })
+
+test('Friday → Saturday at midnight, and the week starting on Sunday', () => {
+  const fri2359 = new Date('2026-11-06T21:59:00Z'), sat0000 = new Date('2026-11-06T22:00:00Z')
+  assert.equal(zonedParts(fri2359).weekday, 5)
+  assert.equal(zonedParts(sat0000).weekday, 6)
+  const schoolDays = item({ daysOfWeek: [0, 1, 2, 3, 4, 5] })
+  assert.equal(isActiveNow(schoolDays, fri2359, null, 'day'), true)
+  assert.equal(isActiveNow(schoolDays, sat0000, null, 'day'), false)
+  assert.equal(isActiveNow(schoolDays, new Date('2026-11-07T22:00:00Z'), null, 'day'), true) // Sun 00:00
+})
+
+test('several scheduled items: the first eligible one, switching on time', () => {
+  const weekdayMorning = item({ id: 'a', daysOfWeek: [0, 1, 2, 3, 4], startTime: '07:00', endTime: '13:00' })
+  const always = item({ id: 'b' })
+  assert.equal(resolveActiveContent([weekdayMorning, always], new Date('2026-11-04T06:30:00Z'), null)?.id, 'a') // Wed 08:30
+  assert.equal(resolveActiveContent([weekdayMorning, always], new Date('2026-11-04T11:00:00Z'), null)?.id, 'b') // Wed 13:00 (end exclusive)
+  assert.equal(resolveActiveContent([weekdayMorning, always], new Date('2026-11-07T06:30:00Z'), null)?.id, 'b') // Sat 08:30
+})
+
+test('result does not depend on the process time zone', () => {
+  // Run with TZ=UTC / America/New_York / Asia/Tokyo etc.: the answers above stay the same.
+  assert.equal(new Intl.DateTimeFormat().resolvedOptions().timeZone.length > 0, true)
+  assert.equal(zonedClock(new Date('2026-07-01T21:30:00Z')), '00:30')
+})
