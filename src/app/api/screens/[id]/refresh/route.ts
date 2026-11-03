@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { errorResponse } from '@/lib/apiErrors'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
@@ -14,8 +15,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!existing) return NextResponse.json({ error: 'Screen not found' }, { status: 404 })
     const updated = await db.screen.update({ where: { id }, data: { refreshSecs: parsed.data.refreshSecs }, select: { id: true, refreshSecs: true } })
     return NextResponse.json({ data: updated })
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : ''
-    return NextResponse.json({ error: message === 'Unauthorized' ? 'Unauthorized' : message === 'Forbidden' ? 'Forbidden' : 'Server error' }, { status: message === 'Unauthorized' ? 401 : message === 'Forbidden' ? 403 : 500 })
+  } catch (e) {
+    return errorResponse(e, 'Screen refresh interval')
   }
 }

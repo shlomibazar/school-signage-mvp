@@ -4,7 +4,8 @@ export const dynamic = 'force-dynamic'
 export async function GET(_req:Request,{ params: paramsPromise }:{params: Promise<{itemId:string}>}){
   const params = await paramsPromise;
   const item=await db.contentItem.findUnique({where:{id:params.itemId},include:{section:{include:{screen:true}}}})
-  if(!item||item.contentType!=='ANNOUNCEMENT'||!item.section.screen.active)return NextResponse.json({data:[]})
+  // A disabled item or screen is not public, even by its id.
+  if(!item||item.contentType!=='ANNOUNCEMENT'||!item.active||!item.section.screen.active)return NextResponse.json({data:[]})
   const settings=(item.settings??{}) as {selectedAnnouncementIds?:string[]}
   const ids=settings.selectedAnnouncementIds??[]
   if(!ids.length)return NextResponse.json({data:[]})

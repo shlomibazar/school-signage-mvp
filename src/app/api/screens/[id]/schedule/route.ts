@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { errorResponse } from '@/lib/apiErrors'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
@@ -7,9 +8,11 @@ const schema = z.object({
   enabled: z.boolean(),
   startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
   endTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
-  days: z.array(z.number().int().min(0).max(6)).min(1).max(7).refine(v => new Set(v).size === v.length),
+  days: z.array(z.number().int().min(0).max(6)).max(7).refine(v => new Set(v).size === v.length),
   standbyMode: z.enum(['clock', 'message', 'logo']),
 })
+  // Days are required only while the schedule is on; a disabled schedule may keep an empty list.
+  .refine(s => !s.enabled || s.days.length > 0, { message: 'יש לבחור לפחות יום פעילות אחד', path: ['days'] })
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -31,8 +34,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         "standbyMode" = EXCLUDED."standbyMode", "updatedAt" = NOW()
     `
     return NextResponse.json({ data: parsed.data })
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : ''
-    return NextResponse.json({ error: message === 'Unauthorized' ? 'נדרשת התחברות' : message === 'Forbidden' ? 'אין הרשאה' : 'שגיאת שרת' }, { status: message === 'Unauthorized' ? 401 : message === 'Forbidden' ? 403 : 500 })
+  } catch (e) {
+    return errorResponse(e, 'Screen schedule', 'שגיאת שרת')
   }
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { errorResponse } from '@/lib/apiErrors'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { MessageUpdateSchema } from '@/lib/messageSchema'
@@ -17,9 +18,8 @@ export async function PUT(req: NextRequest, { params: paramsPromise }: { params:
     if (!parsed.success) return NextResponse.json({ error: 'Invalid message data', issues: parsed.error.issues.map(i => ({ path: i.path.join('.'), code: i.code })) }, { status: 400 })
     const updated = await db.message.update({ where: { id: msg.id }, data: parsed.data })
     return NextResponse.json({ data: { ...updated, createdAt: updated.createdAt.toISOString(), updatedAt: updated.updatedAt.toISOString() } })
-  } catch (e:any) {
-    if (e.message === 'Unauthorized') return err('Unauthorized', 401)
-    return err('Server error', 500)
+  } catch (e) {
+    return errorResponse(e, 'messages/[id]')
   }
 }
 
@@ -32,8 +32,7 @@ export async function DELETE(_req: NextRequest, { params: paramsPromise }: { par
     if (!msg) return err('Not found', 404)
     await db.message.delete({ where: { id: params.id } })
     return NextResponse.json({ ok: true })
-  } catch (e:any) {
-    if (e.message === 'Unauthorized') return err('Unauthorized', 401)
-    return err('Server error', 500)
+  } catch (e) {
+    return errorResponse(e, 'messages/[id]')
   }
 }

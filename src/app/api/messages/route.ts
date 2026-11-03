@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { errorResponse } from '@/lib/apiErrors'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { MessageCreateSchema } from '@/lib/messageSchema'
@@ -14,9 +14,8 @@ export async function GET() {
       orderBy: { createdAt: 'desc' },
     })
     return NextResponse.json({ data: messages.map(m => ({ ...m, createdAt: m.createdAt.toISOString(), updatedAt: m.updatedAt.toISOString() })) })
-  } catch (e:any) {
-    if (e.message === 'Unauthorized') return err('Unauthorized', 401)
-    return err('Server error', 500)
+  } catch (e) {
+    return errorResponse(e, 'messages')
   }
 }
 
@@ -30,9 +29,7 @@ export async function POST(req: NextRequest) {
     const data = MessageCreateSchema.parse(body)
     const msg = await db.message.create({ data: { ...data, schoolId: user.schoolId } })
     return NextResponse.json({ data: { ...msg, createdAt: msg.createdAt.toISOString(), updatedAt: msg.updatedAt.toISOString() } }, { status: 201 })
-  } catch (e:any) {
-    if (e.message === 'Unauthorized') return err('Unauthorized', 401)
-    if (e instanceof z.ZodError) return NextResponse.json({ error: e.issues }, { status: 400 })
-    return err('Server error', 500)
+  } catch (e) {
+    return errorResponse(e, 'messages')
   }
 }

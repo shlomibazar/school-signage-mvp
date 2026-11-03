@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { errorResponse } from '@/lib/apiErrors'
 import { randomInt } from 'node:crypto'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
@@ -16,10 +17,7 @@ async function authorizedScreen(id: string) {
   return screen
 }
 function failure(error: unknown) {
-  if (error instanceof Error && error.message === 'Unauthorized') return NextResponse.json({ error: 'נדרשת התחברות' }, { status: 401 })
-  if (error instanceof Error && error.message === 'Forbidden') return NextResponse.json({ error: 'אין הרשאה' }, { status: 403 })
-  console.error('pairing admin', error)
-  return NextResponse.json({ error: 'שגיאת שרת' }, { status: 500 })
+  return errorResponse(error, 'Pairing admin', 'שגיאת שרת')
 }
 export async function POST(_req: NextRequest, { params }: Context) {
   try {

@@ -10,7 +10,8 @@ type WebtopSettings = {institutionCode?:string; grades?:number[]; refreshSeconds
 export async function GET(_req:Request,{ params: paramsPromise }:{params: Promise<{itemId:string}>}){
   const params = await paramsPromise;
   const item=await db.contentItem.findUnique({where:{id:params.itemId},include:{section:{include:{screen:true}}}})
-  if(!item||item.contentType!=='TIMETABLE'||!item.section.screen.active)return NextResponse.json({error:'Not found'},{status:404})
+  // A disabled item or screen is not public, even by its id.
+  if(!item||item.contentType!=='TIMETABLE'||!item.active||!item.section.screen.active)return NextResponse.json({error:'Not found'},{status:404})
   const s=(item.settings??{}) as WebtopSettings & {displayMode?:string}
   if(s.displayMode!=='webtop-list'&&s.displayMode!=='webtop-grid')return NextResponse.json({error:'Not configured'},{status:400})
   const institutionCode=Number(s.institutionCode)

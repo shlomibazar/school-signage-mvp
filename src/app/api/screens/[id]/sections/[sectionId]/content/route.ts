@@ -1,6 +1,7 @@
 // src/app/api/screens/[id]/sections/[sectionId]/content/route.ts
 
 import { NextRequest, NextResponse } from 'next/server'
+import { errorResponse } from '@/lib/apiErrors'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
@@ -29,6 +30,10 @@ async function resolveSection(
   })
 }
 
+// Scheduling fields: HH:mm times and parseable dates; empty values mean "not set".
+const timeField = z.string().regex(/^([01][0-9]|2[0-3]):[0-5][0-9]$/).or(z.literal("")).transform(v => v || null).nullable().optional()
+const dateField = z.string().refine(v => !v || !Number.isNaN(Date.parse(v)), 'Invalid date').transform(v => v || null).nullable().optional()
+
 const ContentSchema = z.object({
   contentType: z.enum([
     'TEXT', 'IMAGE_GALLERY', 'VIDEO', 'CLOCK', 'DATE',
@@ -36,10 +41,10 @@ const ContentSchema = z.object({
     'BIRTHDAYS', 'ANNOUNCEMENT', 'EMPTY',
   ]),
   active:          z.boolean().default(true),
-  startDate:       z.string().nullable().optional(),
-  endDate:         z.string().nullable().optional(),
-  startTime:       z.string().nullable().optional(),
-  endTime:         z.string().nullable().optional(),
+  startDate:       dateField,
+  endDate:         dateField,
+  startTime:       timeField,
+  endTime:         timeField,
   daysOfWeek:      z.array(z.number().int().min(0).max(6)).default([]),
   // Text / shared display
   textContent:     z.string().nullable().optional(),
@@ -97,11 +102,8 @@ export async function GET(
         updatedAt: item.updatedAt.toISOString(),
       },
     })
-  } catch (err: any) {
-    if (err.message === 'Unauthorized') return apiError('Unauthorized', 401)
-    if (err.message === 'Forbidden')    return apiError('Forbidden', 403)
-    console.error('GET content', err)
-    return apiError('Server error', 500)
+  } catch (e) {
+    return errorResponse(e, 'GET content')
   }
 }
 
@@ -172,11 +174,7 @@ export async function POST(
         updatedAt: item.updatedAt.toISOString(),
       },
     }, { status: 201 })
-  } catch (err: any) {
-    if (err.message === 'Unauthorized') return apiError('Unauthorized', 401)
-    if (err.message === 'Forbidden')    return apiError('Forbidden', 403)
-    if (err instanceof z.ZodError)      return NextResponse.json({ error: err.issues }, { status: 400 })
-    console.error('POST content', err)
-    return apiError('Server error', 500)
+  } catch (e) {
+    return errorResponse(e, 'POST content')
   }
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { errorResponse } from '@/lib/apiErrors'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
@@ -88,11 +89,7 @@ export async function PUT(req: NextRequest, { params: paramsPromise }: { params:
         })),
       })),
     })
-  } catch (e: any) {
-    if (e.message === 'Unauthorized') return err('Unauthorized', 401)
-    if (e.message === 'Forbidden')    return err('Forbidden', 403)
-    if (e instanceof z.ZodError)      return NextResponse.json({ error: e.issues }, { status: 400 })
-    console.error('PUT layout', e)
-    return err('Server error', 500)
+  } catch (e) {
+    return errorResponse(e, 'PUT layout')
   }
 }

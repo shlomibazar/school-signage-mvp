@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { errorResponse } from '@/lib/apiErrors'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 
@@ -21,8 +22,6 @@ export async function PUT(req: NextRequest, { params: paramsPromise }: {params: 
     const school = await db.school.update({where:{id:params.id},data:{weatherCity:city || null},select:{weatherCity:true}})
     return NextResponse.json(school)
   } catch (e) {
-    if (e instanceof Error && e.message === 'Unauthorized') return NextResponse.json({error:'Unauthorized'}, {status:401})
-    if (e instanceof Error && e.message === 'Forbidden') return NextResponse.json({error:'Forbidden'}, {status:403})
-    return NextResponse.json({error:'Server error'}, {status:500})
+    return errorResponse(e, 'School weather city')
   }
 }

@@ -1,4 +1,5 @@
 import { NextRequest,NextResponse } from 'next/server'
+import { errorResponse } from '@/lib/apiErrors'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { unlink } from 'fs/promises'
@@ -20,5 +21,5 @@ export async function POST(req:NextRequest){
  for(const f of files)if(/^\/uploads\/[a-zA-Z0-9._-]+$/.test(f.url)){try{await unlink(path.join(process.cwd(),'public',f.url.slice(1)))}catch{}}
  }
  return NextResponse.json({ok:true,count:files.length})
- }catch(e:any){return NextResponse.json({error:e.message==='Unauthorized'?'Unauthorized':'Server error'},{status:e.message==='Unauthorized'?401:500})}
+ }catch(e){return errorResponse(e,'Media bulk action')}
 }

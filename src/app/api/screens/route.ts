@@ -4,9 +4,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
+import { errorResponse } from '@/lib/apiErrors'
 
 const CreateScreenSchema = z.object({
-  name:        z.string().min(2).max(100),
+  // Trimmed first, so a name of spaces only is rejected (the admin form applies the same rule).
+  name:        z.string().trim().min(2, 'שם המסך חייב להכיל לפחות 2 תווים').max(100),
   // Optional: the admin form no longer sends it, and a unique one is generated instead.
   slug:        z.string().min(2).max(50).regex(/^[a-z0-9-]+$/, 'Slug חייב להכיל רק אותיות לועזיות קטנות, מספרים ומקף').optional(),
   orientation: z.enum(['LANDSCAPE', 'PORTRAIT']).default('LANDSCAPE'),
@@ -76,12 +78,20 @@ export async function POST(req: NextRequest) {
     const body      = await req.json()
     const validated = CreateScreenSchema.parse(body)
 
+    const requested = body && typeof body === 'object' ? (body as { schoolId?: unknown }).schoolId : undefined
+    if (user.role === 'SUPER_ADMIN' && requested !== undefined && requested !== null && typeof requested !== 'string') {
+      return apiError('מזהה בית ספר לא תקין', 400)
+    }
     const schoolId =
       user.role === 'SUPER_ADMIN'
-        ? (body.schoolId ?? user.schoolId)
+        ? ((requested as string | null | undefined) || user.schoolId)
         : user.schoolId
 
     if (!schoolId) return apiError('משתמש לא שייך לבית ספר', 400)
+    // A SUPER_ADMIN may name any school: it must exist (instead of a foreign-key error later).
+    if (user.role === 'SUPER_ADMIN' && !(await db.school.findUnique({ where: { id: schoolId }, select: { id: true } }))) {
+      return apiError('בית הספר לא נמצא', 400)
+    }
 
     // An explicitly requested slug must be free (unchanged behavior for API callers).
     if (validated.slug) {
@@ -130,10 +140,8 @@ export async function POST(req: NextRequest) {
     }
     return apiError('לא ניתן ליצור כתובת למסך כעת, נסה שוב', 503)
   } catch (err: any) {
-    if (err.message === 'Unauthorized') return apiError('נדרשת כניסה למערכת', 401)
-    if (err.message === 'Forbidden')    return apiError('אין הרשאה',          403)
-    if (err instanceof z.ZodError)      return NextResponse.json({ error: err.issues }, { status: 400 })
-    console.error('POST /api/screens', err)
-    return apiError('שגיאת שרת', 500)
+    if (err?.message === 'Unauthorized') return apiError('נדרשת כניסה למערכת', 401)
+    if (err?.message === 'Forbidden')    return apiError('אין הרשאה',          403)
+    return errorResponse(err, 'POST /api/screens', 'שגיאת שרת')
   }
 }

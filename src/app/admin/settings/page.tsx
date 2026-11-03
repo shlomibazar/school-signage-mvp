@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { Prisma } from '@prisma/client'
 import { getCurrentUser } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import ScreenRefreshSettings from '@/components/admin/ScreenRefreshSettings'
@@ -14,11 +15,12 @@ export default async function SettingsPage() {
   const where = user.role === 'SUPER_ADMIN' ? {} : { schoolId: user.schoolId ?? '__none__' }
   const screens = await db.screen.findMany({ where, select: { id: true, name: true, school: { select: { name: true } }, refreshSecs: true }, orderBy: { name: 'asc' } })
   // The migration must be applied before deploying this page.
-  const schedules = await db.$queryRaw<ScheduleRow[]>`
+  // Only the schedules of the screens this user may see are read (filtered in the database).
+  const schedules = screens.length ? await db.$queryRaw<ScheduleRow[]>`
     SELECT "screenId", "enabled", "startTime", "endTime", "days", "standbyMode"
     FROM "ScreenOperatingSchedule"
-    WHERE "screenId" IN (SELECT id FROM "screens")
-  `
+    WHERE "screenId" IN (${Prisma.join(screens.map(s => s.id))})
+  ` : []
   const byId = new Map(schedules.map(s => [s.screenId, s]))
   const screenSchedules = screens.map(s => {
     const stored = byId.get(s.id)

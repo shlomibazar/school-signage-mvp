@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { errorResponse } from '@/lib/apiErrors'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
@@ -14,9 +15,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const result = await db.screen.updateMany({ where, data: { active: parsed.data.active } })
     if (!result.count) return NextResponse.json({ error: 'המסך לא נמצא' }, { status: 404 })
     return NextResponse.json({ ok: true, active: parsed.data.active })
-  } catch (error) {
-    const message = error instanceof Error ? error.message : ''
-    const status = message === 'Unauthorized' ? 401 : message === 'Forbidden' ? 403 : 500
-    return NextResponse.json({ error: status === 500 ? 'עדכון מצב המסך נכשל' : 'אין הרשאה' }, { status })
+  } catch (e) {
+    return errorResponse(e, 'Screen active', 'עדכון מצב המסך נכשל')
   }
 }

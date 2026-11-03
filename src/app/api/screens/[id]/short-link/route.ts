@@ -1,4 +1,5 @@
 import { randomBytes } from 'crypto'
+import { errorResponse } from '@/lib/apiErrors'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
@@ -29,10 +30,7 @@ export async function POST(_req: NextRequest, { params: paramsPromise }: { param
       }
     }
     return NextResponse.json({ error: 'לא ניתן להפיק קוד כעת' }, { status: 503 })
-  } catch (e: any) {
-    if (e?.message === 'Unauthorized') return NextResponse.json({ error: 'נדרשת התחברות' }, { status: 401 })
-    if (e?.message === 'Forbidden') return NextResponse.json({ error: 'אין הרשאה' }, { status: 403 })
-    console.error('short-link', e)
-    return NextResponse.json({ error: 'שגיאה ביצירת הקישור' }, { status: 500 })
+  } catch (e) {
+    return errorResponse(e, 'Short link', 'שגיאה ביצירת הקישור')
   }
 }
