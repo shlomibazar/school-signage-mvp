@@ -1,8 +1,8 @@
 'use client'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { thumbnailImageUrl } from '@/lib/imageDelivery'
+import { thumbnailImageUrl, isImageMedia } from '@/lib/imageDelivery'
 
-export type PendingMedia = { id:string; url:string; originalName:string }
+export type PendingMedia = { id:string; url:string; originalName:string; mimeType?:string }
 export type PendingAttachment = { key:string; file?:File; media?:PendingMedia; preview:string }
 type MediaResponse = {data?:PendingMedia[];error?:string}
 // disabled: locks adding/removing while the form is uploading these items.
@@ -11,7 +11,7 @@ export default function PendingAnnouncementAttachments({items,onChange,disabled=
   const [picker,setPicker]=useState(false)
   const [error,setError]=useState('')
   const fileRef=useRef<HTMLInputElement>(null)
-  useEffect(()=>{fetch('/api/media',{cache:'no-store'}).then(async r=>{const d=await r.json() as MediaResponse;if(!r.ok)throw Error(d.error||'שגיאה בטעינת הגלריה');setMedia(d.data??[])}).catch(e=>setError(e.message))},[])
+  useEffect(()=>{fetch('/api/media',{cache:'no-store'}).then(async r=>{const d=await r.json() as MediaResponse;if(!r.ok)throw Error(d.error||'שגיאה בטעינת הגלריה');setMedia((d.data??[]).filter(isImageMedia))}).catch(e=>setError(e.message))},[])
   const previewsRef=useRef<string[]>([])
   useEffect(()=>()=>{for(const url of previewsRef.current)URL.revokeObjectURL(url)},[])
   const selected=useMemo(()=>new Set(items.map(a=>a.media?.id).filter(Boolean)),[items])

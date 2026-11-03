@@ -26,7 +26,7 @@ export default async function ScreensPage() {
     },
   })
 
-  const media = schoolId ? await db.mediaFile.findMany({where:{schoolId,mediaType:'IMAGE',hidden:false},select:{id:true,url:true,galleryId:true},orderBy:{uploadedAt:'desc'}}) : []
+  const media = schoolId ? await db.mediaFile.findMany({where:{schoolId,mediaType:'IMAGE',mimeType:{startsWith:'image/'},hidden:false},select:{id:true,url:true,galleryId:true},orderBy:{uploadedAt:'desc'}}) : []
   const announcements = schoolId ? await db.announcement.findMany({where:{schoolId,active:true},select:{id:true,title:true,body:true,priority:true,bgColor:true},orderBy:{createdAt:'desc'}}) : []
   return (
     <div className="max-w-4xl">

@@ -139,7 +139,7 @@ function GalleryContent({item}:{item:ContentItem}){
     const next=Array.from({length:pageSize},(_,j)=>images[(index+pageSize+j)%images.length]).filter(f=>f&&!isVideo(f))
     preloadImages(next.flatMap((f,i)=>{
       const span=mode==='collage'&&pageSize>2&&i===0?2:1
-      const main=displayImageUrl(f.url,dimensions.width/cols*span,dimensions.height/r*span,{dpr:clientDpr()})
+      const main=displayImageUrl(f.url,dimensions.width/cols*span,dimensions.height/r*span,{dpr:clientDpr(),fit:fitNext==='cover'?'cover':'contain'})
       return fitNext==='contain'?[main,backdropImageUrl(f.url)]:[main]
     }))
   },[index,images,pageSize,mode,dimensions.width,dimensions.height,s.imageFit])
@@ -152,7 +152,7 @@ function GalleryContent({item}:{item:ContentItem}){
   // Request each image at the size of its tile (the big collage tile spans two cells).
   const rows=Math.max(1,Math.ceil(pageSize/columns))
   const dpr=clientDpr()
-  const tileSrc=(img:Photo,i:number)=>{const span=mode==='collage'&&pageSize>2&&i===0?2:1;return displayImageUrl(img.url,dimensions.width/columns*span,dimensions.height/rows*span,{dpr})}
+  const tileSrc=(img:Photo,i:number)=>{const span=mode==='collage'&&pageSize>2&&i===0?2:1;return displayImageUrl(img.url,dimensions.width/columns*span,dimensions.height/rows*span,{dpr,fit:fit==='cover'?'cover':'contain'})}
   return <div className="tv-gallery flex flex-col w-full h-full min-h-0 overflow-hidden" dir="rtl" style={{background:'var(--tv-panel, #172c48)',color:'var(--tv-ink, #ffffff)'}}>
     {heading&&<SectionHeading>{heading}</SectionHeading>}
     <div ref={host} className="relative flex-1 min-h-0 overflow-hidden" style={{background:'var(--tv-base, #081323)'}}>

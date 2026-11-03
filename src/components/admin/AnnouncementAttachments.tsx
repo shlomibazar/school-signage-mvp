@@ -2,10 +2,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { pdfPages } from '@/lib/pdfPages'
-import { thumbnailImageUrl } from '@/lib/imageDelivery'
+import { thumbnailImageUrl, isImageMedia } from '@/lib/imageDelivery'
 
 type Attachment = {id:string;kind:string;url:string;originalName:string}
-type Media = {id:string;originalName:string;url:string}
+type Media = {id:string;originalName:string;url:string;mimeType?:string}
 // refreshToken: bump to re-fetch saved attachments (e.g. after the form uploaded pending files).
 // disabled: locks the controls while the parent form is saving. onBusyChange: reports own uploads to the form.
 export default function AnnouncementAttachments({announcementId,refreshToken=0,disabled=false,onBusyChange}:{announcementId:string;refreshToken?:number;disabled?:boolean;onBusyChange?:(busy:boolean)=>void}) {
@@ -29,7 +29,7 @@ export default function AnnouncementAttachments({announcementId,refreshToken=0,d
   useEffect(()=>()=>onBusyChange?.(false),[onBusyChange])
   useEffect(()=>{void reload().catch(e=>setError(e.message))},[reload,refreshToken])
   useEffect(()=>{
-    fetch('/api/media',{cache:'no-store'}).then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d.error||'שגיאה בטעינת הגלריה');return d}).then(d=>setMedia(d.data??[])).catch(e=>setError(e.message))
+    fetch('/api/media',{cache:'no-store'}).then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d.error||'שגיאה בטעינת הגלריה');return d}).then(d=>setMedia((d.data??[]).filter(isImageMedia))).catch(e=>setError(e.message))
   },[])
   const post=async(form:FormData)=>{
     const response=await fetch(endpoint,{method:'POST',body:form})
