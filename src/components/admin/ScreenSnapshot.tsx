@@ -1,5 +1,6 @@
 import { getDisplayTemplate, getTemplateWidths, isStackedLayout } from '@/lib/displayTemplates'
 import { resolveScreenTheme } from '@/lib/screenThemes'
+import { thumbnailImageUrl } from '@/lib/imageDelivery'
 
 type Item = { contentType: string; active: boolean; textContent: string | null; settings: unknown; galleryId: string | null; bgColor: string | null }
 type Section = { position: number; contentItems: Item[] }
@@ -44,7 +45,7 @@ export default function ScreenSnapshot({ screen, media, announcements }: { scree
             const heading = notice?.title ?? (typeof cfg.title === 'string' ? cfg.title : '') ?? ''
             const priorityColor = notice?.priority === 'HIGH' || notice?.priority === 'EMERGENCY' ? '#b91c1c' : notice?.priority === 'MEDIUM' ? '#b45309' : undefined
             return <div key={i} className="min-w-0 min-h-0 rounded-sm p-1 flex flex-col justify-center items-center text-center overflow-hidden" style={{ flex: `${widths[i] ?? 100 / count} ${widths[i] ?? 100 / count} 0%`, background: priorityColor ?? theme.panel, color: priorityColor ? '#fff' : theme.panelText, border: `1px solid ${theme.border}` }}>
-              {photo && (photo.url.startsWith('/') && !photo.url.startsWith('//') || /^https?:\/\//i.test(photo.url)) ? <img src={photo.url} alt="תמונת גלריה" loading="lazy" className="w-full h-full object-cover" /> : <>
+              {photo && (photo.url.startsWith('/') && !photo.url.startsWith('//') || /^https?:\/\//i.test(photo.url)) ? <img src={thumbnailImageUrl(photo.url)} alt="תמונת גלריה" loading="lazy" className="w-full h-full object-cover" /> : <>
               <span className="text-[9px] font-semibold leading-tight break-words">{heading || (item ? (labels[item.contentType] ?? item.contentType.replace(/_/g,' ')) : 'אזור ריק')}</span>
               {text && <span className="mt-1 text-[8px] leading-tight opacity-75 line-clamp-3 break-words">{text.slice(0, 110)}</span>}
               </>}

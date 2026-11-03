@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { pdfPages } from '@/lib/pdfPages'
+import { thumbnailImageUrl } from '@/lib/imageDelivery'
 
 type Attachment = {id:string;kind:string;url:string;originalName:string}
 type Media = {id:string;originalName:string;url:string}
@@ -91,7 +92,7 @@ export default function AnnouncementAttachments({announcementId,refreshToken=0,d
       <div className="flex justify-between items-center gap-2"><p className="text-sm">בחר תמונות בלחיצה על התמונה ({selected.length} נבחרו)</p><button type="button" className="text-xs text-blue-700" onClick={()=>setSelected([])}>נקה בחירה</button></div>
       {media.length===0?<p className="text-sm text-gray-500">לא נמצאו תמונות בגלריה</p>:<div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-64 overflow-y-auto overscroll-contain">
         {media.map(m=>{const active=selected.includes(m.id);return <button key={m.id} type="button" disabled={locked} aria-pressed={active} title={m.originalName} className={`relative rounded-lg overflow-hidden border-2 text-right bg-white ${active?'border-blue-600 ring-2 ring-blue-200':'border-transparent'}`} onClick={()=>setSelected(v=>active?v.filter(id=>id!==m.id):[...v,m.id])}>
-          <img src={m.url} alt={m.originalName} loading="lazy" className="w-full h-24 object-contain bg-gray-100"/><span className="block truncate text-xs p-1">{m.originalName}</span>{active&&<span className="absolute top-1 right-1 bg-blue-600 text-white rounded-full px-1.5 text-xs">✓</span>}
+          <img src={thumbnailImageUrl(m.url)} alt={m.originalName} loading="lazy" className="w-full h-24 object-contain bg-gray-100"/><span className="block truncate text-xs p-1">{m.originalName}</span>{active&&<span className="absolute top-1 right-1 bg-blue-600 text-white rounded-full px-1.5 text-xs">✓</span>}
         </button>})}
       </div>}
       <button type="button" disabled={locked||selected.length===0} onClick={()=>void attachSelected()} className="rounded-lg bg-blue-600 text-white px-4 py-2 text-sm disabled:opacity-50">צרף {selected.length} תמונות להודעה</button>
@@ -101,7 +102,7 @@ export default function AnnouncementAttachments({announcementId,refreshToken=0,d
     {notice&&<p role="status" className="text-sm text-green-700 bg-green-50 p-2 rounded">✓ {notice}</p>}
     {items.length>0&&<div className="grid grid-cols-2 sm:grid-cols-3 gap-3 min-w-0 max-h-[360px] overflow-y-auto overscroll-contain">
       {items.map(a=><div key={a.id} className="border rounded-lg p-2 space-y-2 min-w-0">
-        {a.kind==='IMAGE'||a.kind==='PDF_PAGE'?<img src={a.url} alt={a.originalName} className="w-full h-28 object-contain bg-gray-50 rounded"/>:<div className="h-28 bg-red-50 rounded flex items-center justify-center text-red-700 font-semibold">PDF</div>}
+        {a.kind==='IMAGE'||a.kind==='PDF_PAGE'?<img src={thumbnailImageUrl(a.url)} alt={a.originalName} className="w-full h-28 object-contain bg-gray-50 rounded"/>:<div className="h-28 bg-red-50 rounded flex items-center justify-center text-red-700 font-semibold">PDF</div>}
         <div className="text-xs truncate" title={a.originalName}>{a.originalName}</div>
         <div className="flex justify-between items-center"><span className="text-xs text-green-700">✓ נשמר</span><button type="button" disabled={locked} className="text-red-600 text-xs disabled:opacity-50" onClick={()=>void remove(a.id)}>הסר</button></div>
       </div>)}

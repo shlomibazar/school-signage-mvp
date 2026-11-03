@@ -5,6 +5,7 @@ import { cleanAnnouncementHtml } from '@/lib/announcementRichText'
 import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from 'react'
 import type { ContentItem,ClockSettings,DateSettings,AnnouncementContentSettings,SingleAnnouncement,BirthdaySettings,EventSettings,TimetableSettings,RssSettings,GallerySettings,RssFeedItem } from '@/types'
 import { sanitizeHTML, formatHebrewDate, formatGregorianDate } from '@/lib/utils'
+import { displayImageUrl, backdropImageUrl, clientDpr, preloadImages } from '@/lib/imageDelivery'
 export default function ContentRenderer({item,offline=false,screenId}:{item:ContentItem;offline?:boolean;screenId?:string}){
   switch(item.contentType){
     case 'TEXT':          return <TextContent item={item}/>
@@ -129,20 +130,37 @@ function GalleryContent({item}:{item:ContentItem}){
     const t=setTimeout(nextPage,timeout)
     return()=>clearTimeout(t)
   },[images.length,pageSize,dur,index,hasVideo])
+  // Warm the cache for the next page (same URLs as will be rendered), so the next slide
+  // appears without an empty frame. Video is left to the <video> element itself.
+  useEffect(()=>{
+    if(images.length<2)return
+    const cols=mode==='slideshow'?1:mode==='collage'?(pageSize>2?3:2):pageSize<=2?1:pageSize<=4?2:3
+    const r=Math.max(1,Math.ceil(pageSize/cols)),fitNext=s.imageFit??(mode==='slideshow'?'contain':'cover')
+    const next=Array.from({length:pageSize},(_,j)=>images[(index+pageSize+j)%images.length]).filter(f=>f&&!isVideo(f))
+    preloadImages(next.flatMap((f,i)=>{
+      const span=mode==='collage'&&pageSize>2&&i===0?2:1
+      const main=displayImageUrl(f.url,dimensions.width/cols*span,dimensions.height/r*span,{dpr:clientDpr()})
+      return fitNext==='contain'?[main,backdropImageUrl(f.url)]:[main]
+    }))
+  },[index,images,pageSize,mode,dimensions.width,dimensions.height,s.imageFit])
   if(s.showGallery===false)return <div className="w-full h-full" aria-label="הגלריה מוסתרת" />
   const heading=s.showSectionTitle!==false ? (s.sectionTitle??'גלריית תמונות').trim() : ''
   const shown=Array.from({length:pageSize},(_,j)=>images[(index+j)%images.length]).filter(Boolean)
   // For mosaic/collage, fill each tile by default; slideshows preserve the full image.
   const fit=s.imageFit??(mode==='slideshow'?'contain':'cover')
   const columns=mode==='slideshow'?1:mode==='collage'?(pageSize>2?3:2):pageSize<=2?1:pageSize<=4?2:3
+  // Request each image at the size of its tile (the big collage tile spans two cells).
+  const rows=Math.max(1,Math.ceil(pageSize/columns))
+  const dpr=clientDpr()
+  const tileSrc=(img:Photo,i:number)=>{const span=mode==='collage'&&pageSize>2&&i===0?2:1;return displayImageUrl(img.url,dimensions.width/columns*span,dimensions.height/rows*span,{dpr})}
   return <div className="tv-gallery flex flex-col w-full h-full min-h-0 overflow-hidden" dir="rtl" style={{background:'var(--tv-panel, #172c48)',color:'var(--tv-ink, #ffffff)'}}>
     {heading&&<SectionHeading>{heading}</SectionHeading>}
     <div ref={host} className="relative flex-1 min-h-0 overflow-hidden" style={{background:'var(--tv-base, #081323)'}}>
       {!images.length?<div className="w-full h-full flex items-center justify-center opacity-50 flex-col gap-2"><span style={{fontSize:32}}>🖼</span><span className="text-sm">אין פריטים בגלריה</span></div>:
       <div key={index} className="w-full h-full grid" style={{gridTemplateColumns:`repeat(${columns},minmax(0,1fr))`,gridAutoRows:'minmax(0,1fr)',gap:mode==='slideshow'?0:4,animation:item.transitionStyle==='instant'?undefined:'galleryV16Fade .55s ease-out'}}>
         {shown.map((img,i)=><div key={`${img.id}-${i}`} className="relative min-w-0 min-h-0 overflow-hidden" style={{gridColumn:mode==='collage'&&shown.length>2&&i===0?'span 2':undefined,gridRow:mode==='collage'&&shown.length>2&&i===0?'span 2':undefined}}>
-          {!isVideo(img)&&fit==='contain'&&<img src={img.url} alt='' aria-hidden='true' className='absolute inset-0 w-full h-full object-cover blur-xl opacity-25 scale-110'/>}
-          {isVideo(img)?<video key={img.id} src={img.url} autoPlay muted playsInline preload='metadata' className={`relative w-full h-full ${fit==='cover'?'object-cover':'object-contain'} bg-black`} onEnded={()=>finishVideo(img.id)} onError={()=>finishVideo(img.id)}/>:<img src={img.url} alt={img.caption??''} className={`relative w-full h-full ${fit==='cover'?'object-cover':'object-contain'}`}/>}
+          {!isVideo(img)&&fit==='contain'&&<img src={backdropImageUrl(img.url)} alt='' aria-hidden='true' className='absolute inset-0 w-full h-full object-cover blur-xl opacity-25 scale-110'/>}
+          {isVideo(img)?<video key={img.id} src={img.url} autoPlay muted playsInline preload='metadata' className={`relative w-full h-full ${fit==='cover'?'object-cover':'object-contain'} bg-black`} onEnded={()=>finishVideo(img.id)} onError={()=>finishVideo(img.id)}/>:<img src={tileSrc(img,i)} alt={img.caption??''} className={`relative w-full h-full ${fit==='cover'?'object-cover':'object-contain'}`}/>}
           {s.showCaptions!==false&&img.caption&&<div className="absolute bottom-0 inset-x-0 p-2 bg-black/50 text-white text-center text-sm">{img.caption}</div>}
         </div>)}
       </div>}
@@ -260,6 +278,15 @@ function AnnouncementContent({item,offline,screenId}:{item:ContentItem;offline:b
     return()=>clearInterval(timer)
   },[cur?.id,attachmentPages,slideSeconds,imagesPerPage])
   const visibleAttachments=attachmentGroups[attachmentIndex%Math.max(1,attachmentPages)]??[]
+  // Attachments are requested at the size of the announcement panel (split when shown together).
+  const attachmentSrc=(url:string,perRow:number)=>displayImageUrl(url,box.width/Math.max(1,perRow),box.height,{dpr:clientDpr()})
+  const nextGroup=attachmentPages>1?attachmentGroups[(attachmentIndex+1)%attachmentPages]??[]:[]
+  const nextGroupKey=nextGroup.map(a=>a.url).join('|')
+  // Preload the next attachment slide (e.g. the next PDF page) so it shows without a gap.
+  useEffect(()=>{
+    if(!nextGroup.length)return
+    preloadImages(nextGroup.map(a=>displayImageUrl(a.url,box.width/(displayMode==='together'?nextGroup.length:1),box.height,{dpr:clientDpr()})))
+  },[nextGroupKey,box.width,box.height,displayMode])
   const isPdfPage=visibleAttachments.length===1&&visibleAttachments[0]?.kind==='PDF_PAGE'
   // Standard announcements inherit the active screen theme. Priority notices retain
   // their warning colors; an explicitly chosen custom color is still respected.
@@ -326,9 +353,9 @@ function AnnouncementContent({item,offline,screenId}:{item:ContentItem;offline:b
       {attachments.length>0&&<div className={`w-full flex-1 min-h-0 overflow-hidden flex items-center justify-center ${isPdfPage?'':'mb-2'}`}>
         {displayMode==='together'
           ? <div className="w-full h-full min-h-0 flex items-center justify-center gap-3 overflow-hidden">
-              {visibleAttachments.map(a=><div key={a.id} className="h-full min-h-0 min-w-0 flex items-center justify-center overflow-hidden" style={{width:`${100/visibleAttachments.length}%`,maxWidth:visibleAttachments.length===1?'100%':'min(33%, 560px)'}}><img src={a.url} alt={title} className={isPdfPage?"block w-full h-full object-contain":"block max-w-full max-h-full object-contain"} /></div>)}
+              {visibleAttachments.map(a=><div key={a.id} className="h-full min-h-0 min-w-0 flex items-center justify-center overflow-hidden" style={{width:`${100/visibleAttachments.length}%`,maxWidth:visibleAttachments.length===1?'100%':'min(33%, 560px)'}}><img src={attachmentSrc(a.url,visibleAttachments.length)} alt={title} className={isPdfPage?"block w-full h-full object-contain":"block max-w-full max-h-full object-contain"} /></div>)}
             </div>
-          : <img src={visibleAttachments[0]?.url} alt={title} className="w-full h-full object-contain" />}
+          : visibleAttachments[0]&&<img src={attachmentSrc(visibleAttachments[0].url,1)} alt={title} className="w-full h-full object-contain" />}
       </div>}
       {body&&<div ref={viewportRef} className={`w-full min-h-0 overflow-hidden ${attachments.length?'shrink-0':'flex-1'}`} style={{height:attachments.length?bodyHeight:undefined,maxHeight:bodyHeight}}>
         <div ref={textRef} style={{fontSize:bodySize,lineHeight:1.45,whiteSpace:'pre-wrap',overflowWrap:'anywhere',opacity:.9,transform:`translateY(-${scroll.started?scroll.distance:0}px)`,transition:scroll.started&&scroll.distance>0?`transform ${scroll.duration}s linear`:'none'}} dangerouslySetInnerHTML={{__html:cleanAnnouncementHtml(body)}} />
