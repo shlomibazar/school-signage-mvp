@@ -5,7 +5,7 @@ import { sniffMime, checkUpload } from '@/lib/uploadValidation'
 const bytes = (...b: number[]) => new Uint8Array(b)
 const text = (s: string) => new TextEncoder().encode(s)
 const file = (content: Uint8Array | string, name: string, type = 'application/octet-stream') =>
-  new File([typeof content === 'string' ? text(content) : content], name, { type })
+  new File([(typeof content === 'string' ? text(content) : content) as BlobPart], name, { type })
 const PNG = bytes(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0)
 const MP4 = bytes(0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d)
 const IMAGES_AND_VIDEO = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'video/mp4', 'video/webm']
