@@ -19,6 +19,18 @@ const TYPES: Record<string, DetectedType & { extensions: string[] }> = {
 const MB = 1024 * 1024
 export const MAX_BYTES: Record<UploadKind, number> = { image: 10 * MB, video: 100 * MB, pdf: 20 * MB }
 
+// One upload request is read into memory whole (formData), so its total size is capped before
+// the body is read: the largest single file plus room for multipart overhead. The admin UI
+// splits bigger selections into several requests (UPLOAD_BATCH_BYTES each).
+export const MAX_REQUEST_BYTES = 110 * MB
+export const UPLOAD_BATCH_BYTES = 40 * MB
+
+/** True when the declared request size is over MAX_REQUEST_BYTES (checked before reading the body). */
+export function requestTooLarge(req: Request): boolean {
+  const length = Number(req.headers.get('content-length'))
+  return Number.isFinite(length) && length > MAX_REQUEST_BYTES
+}
+
 const NOT_MP4_BRANDS = new Set(['heic', 'heix', 'hevc', 'hevx', 'heim', 'heis', 'mif1', 'msf1', 'avif', 'avis', 'qt  '])
 const ascii = (bytes: Uint8Array, from: number, to: number) => String.fromCharCode(...bytes.subarray(from, to))
 

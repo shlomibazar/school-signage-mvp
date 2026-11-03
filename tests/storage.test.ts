@@ -48,3 +48,12 @@ test('cloudinary: failures throw (routes answer with a generic message)', async 
   process.env.STORAGE_PROVIDER = 's3'
   await assert.rejects(storeUpload(new File(['x'], 'a.png'), { folder: '', name: 'a.png', mime: 'image/png' }), /Unsupported STORAGE_PROVIDER/)
 })
+
+test('cloudinary: the upload request has a timeout signal', async () => {
+  Object.assign(process.env, { STORAGE_PROVIDER: 'cloudinary', CLOUDINARY_CLOUD_NAME: 'demo', CLOUDINARY_API_KEY: 'key', CLOUDINARY_API_SECRET: 'secret' })
+  let signal: AbortSignal | undefined
+  globalThis.fetch = (async (_url: string, init: RequestInit) => { signal = init.signal ?? undefined; return new Response(JSON.stringify({ secure_url: 'https://res.cloudinary.com/demo/x' }), { status: 200 }) }) as typeof fetch
+  await storeUpload(new File(['x'], 'a.png'), { folder: '', name: 'a.png', mime: 'image/png' })
+  assert.ok(signal instanceof AbortSignal)
+  assert.equal(signal!.aborted, false)
+})

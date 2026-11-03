@@ -43,3 +43,11 @@ test('allowed list and size limits per type', async () => {
   const bigVideo = new Uint8Array(10 * 1024 * 1024 + 1); bigVideo.set(MP4)
   assert.equal((await checkUpload(file(bigVideo, 'v.mp4'), IMAGES_AND_VIDEO)).ok, true) // videos may be up to 100 MB
 })
+
+test('request size cap is checked from Content-Length, before the body is read', async () => {
+  const { requestTooLarge, MAX_REQUEST_BYTES } = await import('@/lib/uploadValidation')
+  const req = (length?: number) => new Request('http://x/api/media', { method: 'POST', headers: length === undefined ? {} : { 'content-length': String(length) } })
+  assert.equal(requestTooLarge(req(MAX_REQUEST_BYTES)), false)
+  assert.equal(requestTooLarge(req(MAX_REQUEST_BYTES + 1)), true)
+  assert.equal(requestTooLarge(req()), false)
+})

@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef, useCallback, memo } from 'react'
 import toast from 'react-hot-toast'
+import { UPLOAD_BATCH_BYTES } from '@/lib/uploadValidation'
 import { Upload, Trash2, Loader2, ImageIcon, Edit2, Check, X, Plus, FolderOpen, Folder } from 'lucide-react'
 import type { MediaLibraryImage, Gallery } from '@/types'
 
@@ -137,13 +138,27 @@ export default function MediaLibrary({ canEdit }: { canEdit: boolean }) {
     if (!files.length) return
     setUploading(true)
     try {
-      const fd = new FormData()
-      files.forEach(f => fd.append('file', f))
-      if (activeGallery) fd.append('galleryId', activeGallery)
-      const r = await fetch('/api/media', { method: 'POST', body: fd })
-      const d = await r.json().catch(() => ({})) as { data?: MediaLibraryImage[]; results?: { name: string; ok: boolean; error?: string }[]; error?: string }
-      const failed = (d.results ?? []).filter(x => !x.ok)
-      const stored = d.data ?? []
+      // Large selections go in several requests (the server caps the size of one request, since
+      // it reads it into memory). Results are combined, so the messages match a single request.
+      const batches: File[][] = []
+      let batch: File[] = [], bytes = 0
+      for (const f of files) {
+        if (batch.length && bytes + f.size > UPLOAD_BATCH_BYTES) { batches.push(batch); batch = []; bytes = 0 }
+        batch.push(f); bytes += f.size
+      }
+      if (batch.length) batches.push(batch)
+      const stored: MediaLibraryImage[] = []
+      const failed: { name: string; error?: string }[] = []
+      for (const group of batches) {
+        const fd = new FormData()
+        group.forEach(f => fd.append('file', f))
+        if (activeGallery) fd.append('galleryId', activeGallery)
+        const r = await fetch('/api/media', { method: 'POST', body: fd })
+        const d = await r.json().catch(() => ({})) as { data?: MediaLibraryImage[]; results?: { name: string; ok: boolean; error?: string }[]; error?: string }
+        stored.push(...(d.data ?? []))
+        if (d.results) failed.push(...d.results.filter(x => !x.ok))
+        else if (!r.ok) failed.push(...group.map(f => ({ name: f.name, error: r.status === 413 ? 'הקובץ גדול מדי' : d.error || 'ההעלאה נכשלה' })))
+      }
       if (stored.length) {
         setImages(prev => [...stored, ...prev])
         await loadGalleries() // refresh counts
@@ -151,7 +166,7 @@ export default function MediaLibrary({ canEdit }: { canEdit: boolean }) {
       }
       // Every rejected file is named with its reason; nothing is reported as uploaded unless it was stored.
       if (failed.length) toast.error(failed.map(x => `${x.name}: ${x.error}`).join('\n'), { duration: 8000, style: { whiteSpace: 'pre-line' } })
-      else if (!stored.length) toast.error(r.status === 413 ? 'הקבצים גדולים מדי' : d.error || 'העלאת הקבצים נכשלה')
+      else if (!stored.length) toast.error('העלאת הקבצים נכשלה')
     } catch { toast.error('העלאת הקבצים נכשלה') } finally {
       setUploading(false)
       if (fileRef.current) fileRef.current.value = ''

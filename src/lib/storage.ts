@@ -7,6 +7,8 @@ import path from 'path'
 // leaves the server); "local" writes under public/uploads, served by src/app/uploads/[...path].
 // Errors thrown here are for the server log only; routes answer with a generic message.
 
+const CLOUDINARY_TIMEOUT_MS = 120_000
+
 export function storageProvider(): 'local' | 'cloudinary' {
   const provider = process.env.STORAGE_PROVIDER || 'local'
   if (provider !== 'local' && provider !== 'cloudinary') throw new Error(`Unsupported STORAGE_PROVIDER: ${provider}`)
@@ -42,7 +44,8 @@ export async function storeUpload(file: File, { folder, name, mime }: { folder: 
   form.append('public_id', publicId)
   form.append('signature', signature)
   const resource = mime.startsWith('video/') ? 'video' : mime === 'application/pdf' ? 'raw' : 'image'
-  const response = await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(cloud)}/${resource}/upload`, { method: 'POST', body: form })
+  // A stuck upload must not hold the request forever; a timeout fails this file only.
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(cloud)}/${resource}/upload`, { method: 'POST', body: form, signal: AbortSignal.timeout(CLOUDINARY_TIMEOUT_MS) })
   const result = await response.json().catch(() => ({})) as { secure_url?: string; error?: { message?: string } }
   if (!response.ok || !result.secure_url) throw new Error(`Cloudinary upload failed (${response.status}): ${result.error?.message || 'unknown error'}`)
   return result.secure_url

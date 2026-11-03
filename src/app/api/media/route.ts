@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { schoolWhere, galleryBelongsToSchool } from '@/lib/schoolScope'
-import { checkUpload } from '@/lib/uploadValidation'
+import { checkUpload, requestTooLarge } from '@/lib/uploadValidation'
 import { storeUpload } from '@/lib/storage'
 import { errorResponse } from '@/lib/apiErrors'
 
@@ -64,6 +64,7 @@ export async function POST(req: NextRequest) {
     // Media always belongs to the uploader's school (a SUPER_ADMIN without one cannot upload).
     const schoolId = user.schoolId
     if (!schoolId) return err('No school', 400)
+    if (requestTooLarge(req)) return err('הבקשה גדולה מדי. יש להעלות פחות קבצים בכל פעם', 413)
 
     const fd = await req.formData()
     const rawGalleryId = fd.get('galleryId')

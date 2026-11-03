@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { homeSchoolWhere } from '@/lib/schoolScope'
 import { randomUUID } from 'crypto'
-import { checkUpload } from '@/lib/uploadValidation'
+import { checkUpload, requestTooLarge } from '@/lib/uploadValidation'
 import { storeUpload } from '@/lib/storage'
 import { errorResponse } from '@/lib/apiErrors'
 
@@ -32,6 +32,7 @@ export async function POST(req:NextRequest,{ params: paramsPromise }:{params: Pr
     // Checked before anything is stored, so a full announcement leaves no orphan files.
     const count=await db.announcementAttachment.count({where:{announcementId:a.id}})
     if(count>=MAX_ATTACHMENTS)return error('ניתן לצרף עד 30 קבצים להודעה',400)
+    if(requestTooLarge(req))return error('הבקשה גדולה מדי',413)
     const form=await req.formData()
     const existingId=form.get('mediaId')
     let url:string, originalName:string, mimeType:string, kind:string
