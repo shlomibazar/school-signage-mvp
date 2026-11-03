@@ -12,7 +12,7 @@ import FooterEditor from './FooterEditor'
 import SectionEditor from './SectionEditor'
 import { Switch } from '@/components/ui/Switch'
 import { SCREEN_THEMES } from '@/lib/screenThemes'
-import { DISPLAY_TEMPLATES, getDisplayTemplate, getDisplayThemeValue, withDisplayTemplate, withDisplayTheme, getTemplateWidths, getDisplaySurface, withDisplaySurface } from '@/lib/displayTemplates'
+import { DISPLAY_TEMPLATES, getDisplayTemplate, getDisplayThemeValue, withDisplayTemplate, withDisplayTheme, getTemplateWidths, getDisplaySurface, withDisplaySurface, isStackedLayout } from '@/lib/displayTemplates'
 
 interface Props { screen: Screen; layout: ScreenLayout; sections: ScreenSection[]; screenSelector?: React.ReactNode; schoolId: string; initialLogoUrl?: string | null; initialWeatherCity?: string | null }
 type Tab = 'header' | 'main' | 'footer' | 'design'
@@ -26,8 +26,19 @@ export default function ScreenLayoutEditor({ screen, layout: initLayout, section
   const [isDirty,  setIsDirty]  = useState(false)
   const [saving,   setSaving]   = useState(false)
   const [tab,      setTab]      = useState<Tab>('header')
-  const [previewZoom, setPreviewZoom] = useState<'fit' | 'large'>('fit')
+  // Preview zoom: 'fit' (default) or a manual scale; the % label shows the scale in use.
+  const [previewZoom, setPreviewZoom] = useState<'fit' | number>('fit')
+  const [previewScale, setPreviewScale] = useState(0.5)
+  const [previewEnlarged, setPreviewEnlarged] = useState(false)
   const [settingsVisible, setSettingsVisible] = useState(true)
+  const stackedSections = isStackedLayout(screen.orientation)
+  const zoomBy = (factor: number) => setPreviewZoom(Math.round(Math.min(2, Math.max(0.1, previewScale * factor)) * 100) / 100)
+  useEffect(() => {
+    if (!previewEnlarged) return
+    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setPreviewEnlarged(false) }
+    window.addEventListener('keydown', close)
+    return () => window.removeEventListener('keydown', close)
+  }, [previewEnlarged])
 
   // Expose the dirty flag to the screen selector, which lives above this editor.
   useEffect(() => {
@@ -173,11 +184,12 @@ export default function ScreenLayoutEditor({ screen, layout: initLayout, section
                 <div className="px-3 py-2.5 bg-gray-50 text-xs font-medium text-gray-500 border-b border-gray-100">מספר אזורי תוכן</div>
                 <div className="p-3 flex gap-2">
                   {([1,2,3] as const).map(n=>(
-                    <button key={n} onClick={()=>handleSectionCount(n)}
-                      className={`flex-1 h-12 border rounded-lg flex items-center justify-center gap-1 transition-colors ${layout.mainSections===n?'border-blue-500 bg-blue-50':'border-gray-200 hover:border-gray-300'}`}>
+                    // Icons follow the saved orientation: columns on landscape, rows on portrait.
+                    <button key={n} onClick={()=>handleSectionCount(n)} aria-label={`${n} אזורים`} aria-pressed={layout.mainSections===n}
+                      className={`flex-1 h-12 border rounded-lg flex items-center justify-center transition-colors ${stackedSections?'flex-col gap-0.5':'gap-1'} ${layout.mainSections===n?'border-blue-500 bg-blue-50':'border-gray-200 hover:border-gray-300'}`}>
                       {Array.from({length:n}).map((_,i)=>(
-                        <span key={i} className={`block rounded-sm h-6 ${layout.mainSections===n?'bg-blue-400':'bg-gray-300'}`}
-                          style={{width:n===1?28:n===2?12:8}}/>
+                        <span key={i} className={`block rounded-sm ${stackedSections?'w-4':'h-6'} ${layout.mainSections===n?'bg-blue-400':'bg-gray-300'}`}
+                          style={stackedSections?{height:n===1?28:n===2?13:8}:{width:n===1?28:n===2?12:8}}/>
                       ))}
                     </button>
                   ))}
@@ -277,10 +289,25 @@ export default function ScreenLayoutEditor({ screen, layout: initLayout, section
             </button>
           </div>
         </div>}
-        <div className="flex-1 flex flex-col min-w-0 min-h-0 w-full lg:overflow-hidden">
-          <div className="flex items-center justify-between mb-2 px-1 gap-2"><p className="text-sm font-semibold text-gray-700">תצוגה מקדימה חיה <span className="font-normal text-xs text-gray-400">· עדכון בזמן אמת</span></p><div className="flex items-center gap-2"><span className="text-xs text-gray-400">{screen.orientation === "LANDSCAPE" ? "16:9" : "9:16"}</span><button type="button" onClick={()=>setPreviewZoom(v=>v==='fit'?'large':'fit')} className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 bg-white hover:bg-gray-50">{previewZoom==='fit'?'הגדל תצוגה':'התאם לחלון'}</button></div></div>
-          <div className={`flex items-center ${previewZoom==='large'?'justify-start overflow-auto':'justify-center overflow-hidden'} bg-slate-100 border border-slate-200 rounded-xl p-2 lg:p-3 min-h-[260px] lg:min-h-0 lg:flex-1 lg:overflow-auto`}>
-            <ScreenPreview layout={layout} sections={sections} screen={screen} logoUrl={logoUrl} weatherCity={weatherCity} enlarged={previewZoom==='large'}/>
+        {previewEnlarged && <div className="fixed inset-0 z-40 bg-black/40" onClick={() => setPreviewEnlarged(false)} aria-hidden="true"/>}
+        {/* Enlarged: the same panel becomes a large overlay; fit and zoom keep working inside it. */}
+        <div className={previewEnlarged
+          ? 'fixed inset-3 sm:inset-6 z-50 flex flex-col rounded-2xl bg-white p-3 shadow-2xl'
+          : 'flex-1 flex flex-col min-w-0 min-h-0 w-full lg:overflow-hidden'}
+          role={previewEnlarged ? 'dialog' : undefined} aria-modal={previewEnlarged || undefined} aria-label={previewEnlarged ? 'תצוגה מקדימה מוגדלת' : undefined}>
+          <div className="flex items-center justify-between flex-wrap mb-2 px-1 gap-2"><p className="text-sm font-semibold text-gray-700">תצוגה מקדימה חיה <span className="font-normal text-xs text-gray-400">· עדכון בזמן אמת</span></p>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-gray-400 me-1">{screen.orientation === "LANDSCAPE" ? "16:9" : "9:16"}</span>
+              <button type="button" onClick={() => zoomBy(1 / 1.25)} title="התרחק (זום החוצה)" aria-label="התרחק" className="w-7 h-7 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-sm leading-none">−</button>
+              <span className="w-12 text-center text-xs tabular-nums text-gray-600" aria-live="polite">{Math.round(previewScale * 100)}%</span>
+              <button type="button" onClick={() => zoomBy(1.25)} title="התקרב (זום פנימה)" aria-label="התקרב" className="w-7 h-7 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-sm leading-none">+</button>
+              <button type="button" onClick={() => setPreviewZoom('fit')} aria-pressed={previewZoom === 'fit'}
+                className={`text-xs px-2.5 py-1 rounded-lg border ${previewZoom === 'fit' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white hover:bg-gray-50'}`}>התאם לחלון</button>
+              <button type="button" onClick={() => setPreviewEnlarged(v => !v)} className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 bg-white hover:bg-gray-50">{previewEnlarged ? 'סגור תצוגה מוגדלת' : 'הגדל תצוגה'}</button>
+            </div>
+          </div>
+          <div className={`relative bg-slate-100 border border-slate-200 rounded-xl overflow-hidden min-h-[260px] ${previewEnlarged ? 'flex-1 min-h-0' : 'h-[60vh] lg:h-auto lg:min-h-0 lg:flex-1'}`}>
+            <ScreenPreview layout={layout} sections={sections} screen={screen} logoUrl={logoUrl} weatherCity={weatherCity} zoom={previewZoom} onScaleChange={setPreviewScale}/>
           </div>
         </div>
       </div>

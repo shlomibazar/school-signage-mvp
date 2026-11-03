@@ -9,7 +9,7 @@ import HeaderWeather from '@/components/display/HeaderWeather'
 import WeeklyParasha from '@/components/display/WeeklyParasha'
 import { resolveScreenTheme, screenStageBackground } from '@/lib/screenThemes'
 import { unifiedPalette } from '@/lib/unifiedPalette'
-import { getDisplayTemplate, getTemplateWidths, getDisplaySurface } from '@/lib/displayTemplates'
+import { getDisplayTemplate, getTemplateWidths, getDisplaySurface, isStackedLayout } from '@/lib/displayTemplates'
 import { resolveActiveContent } from '@/lib/scheduling'
 import ContentRenderer from '@/components/display/ContentRenderer'
 
@@ -17,28 +17,32 @@ import ContentRenderer from '@/components/display/ContentRenderer'
 // admin window. These mirror those clamp() rules for the preview's real reference canvas.
 const clampPx=(min:number,value:number,max:number)=>Math.min(max,Math.max(min,value))
 
-interface Props { screen: Screen; layout: ScreenLayout; sections: ScreenSection[]; enlarged?: boolean; logoUrl?: string | null; weatherCity?: string | null }
+// zoom: 'fit' scales the whole screen into the available area (width AND height);
+// a number is a manual scale. onScaleChange reports the scale in use (for the % label).
+interface Props { screen: Screen; layout: ScreenLayout; sections: ScreenSection[]; zoom?: 'fit' | number; onScaleChange?: (scale: number) => void; logoUrl?: string | null; weatherCity?: string | null }
 
-export default function ScreenPreview({ screen, layout, sections, enlarged = false, logoUrl, weatherCity }: Props) {
+export default function ScreenPreview({ screen, layout, sections, zoom = 'fit', onScaleChange, logoUrl, weatherCity }: Props) {
   const isLandscape = screen.orientation !== 'PORTRAIT'
-  const holderRef = useRef<HTMLDivElement>(null)
-  const [holderWidth, setHolderWidth] = useState(960)
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const [available, setAvailable] = useState({ width: 960, height: 540 })
   const [now, setNow] = useState(() => new Date())
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 15000)
     return () => window.clearInterval(timer)
   }, [])
+  // Measure the scroll viewport's content box (excludes padding), never the browser viewport.
   useEffect(() => {
-    const node = holderRef.current
+    const node = viewportRef.current
     if (!node) return
-    const observer = new ResizeObserver(([entry]) => setHolderWidth(entry.contentRect.width))
+    const observer = new ResizeObserver(([entry]) => setAvailable({ width: entry.contentRect.width, height: entry.contentRect.height }))
     observer.observe(node)
-    setHolderWidth(node.getBoundingClientRect().width)
     return () => observer.disconnect()
   }, [])
   const baseWidth = isLandscape ? 1920 : 1080
   const baseHeight = isLandscape ? 1080 : 1920
-  const scale = Math.max(.05, Math.min(1, (enlarged ? Math.max(holderWidth, 1250) : holderWidth) / baseWidth))
+  const fitScale = Math.max(.05, Math.min(1, available.width / baseWidth, available.height / baseHeight))
+  const scale = zoom === 'fit' ? fitScale : zoom
+  useEffect(() => { onScaleChange?.(scale) }, [scale, onScaleChange])
   const hh  = now.getHours().toString().padStart(2,'0')
   const mm  = now.getMinutes().toString().padStart(2,'0')
   const heb  = formatHebrewDateLetters(now)
@@ -61,6 +65,7 @@ export default function ScreenPreview({ screen, layout, sections, enlarged = fal
   const visibleSections = sections.slice(0,layout.mainSections)
   // Same count as the public screen, which sizes columns by the sections it actually renders.
   const templateWidths = getTemplateWidths(displayTemplate,visibleSections.length)
+  const stacked = isStackedLayout(screen.orientation)
   const selectedTheme = resolveScreenTheme(layout.bgColor)
   const palette = unifiedPalette(selectedTheme.bg)
   const theme = selectedTheme.bg
@@ -89,10 +94,13 @@ export default function ScreenPreview({ screen, layout, sections, enlarged = fal
   } as React.CSSProperties
 
   return (
-    <div ref={holderRef} className="w-full min-w-0" style={{ width: enlarged ? (isLandscape ? 1250 : 700) : '100%', maxWidth: enlarged ? undefined : (isLandscape ? 1100 : 550), marginInline: enlarged ? undefined : 'auto', flexShrink:0 }}>
-      <div className="relative w-full" style={{ aspectRatio: `${baseWidth} / ${baseHeight}` }}>
-        <div dir="rtl" className={`absolute top-0 right-0 overflow-hidden shadow-xl border tv-display-premium tv-screen-stage ${broadcast ? 'tv-broadcast-preview' : ''}`} data-display-template={displayTemplate} data-surface-style={getDisplaySurface(layout.bgColor)}
-          style={{ width:baseWidth, height:baseHeight, transform:`scale(${scale})`, transformOrigin:'top right', background:screenStageBackground(layout.bgImageUrl, theme), fontFamily:screenFont(layout.fontFamily), borderColor:selectedTheme.border, borderRadius:22, color:selectedTheme.panelText, boxSizing:'border-box', ...themeVars, ...(broadcast ? broadcastVars : {}) }}>
+    // Scroll viewport: fills the parent; scrolls only when a manual zoom is larger than it.
+    <div ref={viewportRef} className="absolute inset-0 overflow-auto overscroll-contain p-2 lg:p-3 flex">
+      {/* Sizer has the scaled dimensions, so layout and scrollbars match what is drawn.
+          margin:auto centers it when smaller without cutting it off when larger. */}
+      <div className="relative shrink-0" style={{ width: baseWidth * scale, height: baseHeight * scale, margin: 'auto' }}>
+        <div dir="rtl" className={`absolute top-0 left-0 overflow-hidden shadow-xl border tv-display-premium tv-screen-stage ${broadcast ? 'tv-broadcast-preview' : ''}`} data-display-template={displayTemplate} data-surface-style={getDisplaySurface(layout.bgColor)}
+          style={{ width:baseWidth, height:baseHeight, transform:`scale(${scale})`, transformOrigin:'top left', background:screenStageBackground(layout.bgImageUrl, theme), fontFamily:screenFont(layout.fontFamily), borderColor:selectedTheme.border, borderRadius:22, color:selectedTheme.panelText, boxSizing:'border-box', ...themeVars, ...(broadcast ? broadcastVars : {}) }}>
           {layout.headerEnabled && (
             <div className={`flex items-center justify-between border-b ${broadcast ? 'tv-preview-broadcast-header' : ''}`} style={{height:headerPx, paddingInline:58, gap:40, background:headerBg,color:headerInk,borderColor:unified ? 'transparent' : selectedTheme.border,position:'relative'}}>
               <div className="min-w-0 text-right" style={{maxWidth:'32%',display:'flex',alignItems:'center',gap:14}}>
@@ -116,12 +124,12 @@ export default function ScreenPreview({ screen, layout, sections, enlarged = fal
               </div>
             </div>
           )}
-          <div className={`flex tv-content-grid ${broadcast ? 'tv-preview-broadcast-main' : ''}`} style={{height:baseHeight-(layout.headerEnabled?headerPx:0)-(layout.footerEnabled?footerPx:0),gap:classicGap,padding:classicGap,boxSizing:'border-box'}}>
+          <div className={`flex ${stacked ? 'flex-col' : ''} tv-content-grid ${broadcast ? 'tv-preview-broadcast-main' : ''}`} data-orientation={screen.orientation} style={{height:baseHeight-(layout.headerEnabled?headerPx:0)-(layout.footerEnabled?footerPx:0),gap:classicGap,padding:classicGap,boxSizing:'border-box'}}>
             {visibleSections.map((section,i)=>{
               // Same choice as the public screen (active and in schedule now, else first active).
               // An inactive item is still shown as a last resort so the editor is never blank.
               const item=resolveActiveContent(section.contentItems.filter(ci=>ci.active),0,now) ?? section.contentItems[0]
-              return <div key={section.id} className="h-full min-w-0 overflow-hidden tv-content-panel" style={{flex:`${templateWidths[i] ?? section.widthPct} ${templateWidths[i] ?? section.widthPct} 0%`}}>
+              return <div key={section.id} className={`${stacked ? 'w-full min-h-0' : 'h-full min-w-0'} overflow-hidden tv-content-panel`} style={{flex:`${templateWidths[i] ?? section.widthPct} ${templateWidths[i] ?? section.widthPct} 0%`}}>
                 {item && item.contentType !== 'EMPTY' ? (
                   <ContentRenderer key={`${section.id}-${item.id}-${item.contentType}`} item={item} />
                 ) : (
