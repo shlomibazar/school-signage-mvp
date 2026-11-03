@@ -27,7 +27,7 @@ export default function DisplayHeader({ screen, layout, school }: Props) {
   return <header className={`tv-premium-header tv-chrome-header tv-header-v2${compact ? ' tv-header-compact' : ''}`} dir="rtl"
     style={{height, minHeight:height, background:'var(--tv-header,#183452)', color:'var(--tv-header-ink,#edf5ff)', borderBottom:'1px solid var(--tv-border,#45617e)'}}>
     <div className="tv-v2-brand">
-      {layout.headerShowLogo && school.logoUrl && <img className="tv-v2-logo" src={school.logoUrl} alt="" />}
+      {layout.headerShowLogo && school.logoUrl && <img className="tv-v2-logo" src={school.logoUrl} alt="" onError={e=>{e.currentTarget.style.display="none"}} />}
       {layout.headerShowTitle && <div className="tv-v2-brand-text">
         <strong className="tv-v2-school-name">{screen.name}</strong>
       </div>}

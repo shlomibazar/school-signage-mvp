@@ -2,7 +2,7 @@
 
 import { screenFont } from '@/lib/screenFont'
 import { isScreenInOperatingHours, type ScreenSchedule } from '@/lib/screenSchedule'
-import { useEffect, useCallback, useState } from 'react'
+import { useEffect, useCallback, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { PublicScreenData } from '@/types'
 import DisplayHeader from './DisplayHeader'
@@ -12,6 +12,12 @@ import ContentRenderer from './ContentRenderer'
 import { resolveScreenTheme, screenStageBackground } from '@/lib/screenThemes'
 import { unifiedPalette } from '@/lib/unifiedPalette'
 import { getDisplayTemplate, getTemplateWidths, getDisplaySurface, isStackedLayout } from '@/lib/displayTemplates'
+import PanelBoundary from './PanelBoundary'
+
+const PROBE_MS = 30_000
+const RETRY_PROBE_MS = 10_000
+const PROBE_TIMEOUT_MS = 8_000
+const OFFLINE_AFTER = 3
 
 interface Props { data: PublicScreenData; refreshSecs: number; schedule: ScreenSchedule }
 
@@ -31,23 +37,34 @@ export default function ScreenDisplay({ data, refreshSecs, schedule }: Props) {
   const [offline, setOffline] = useState(false)
   useEffect(() => {
     let mounted = true
-    let controller: AbortController | null = null
+    let running = false
+    let failures = 0
+    let next: number | undefined
+    const plan = (ms: number) => { window.clearTimeout(next); next = window.setTimeout(() => void check(), ms) }
+    // One failed probe (a server restart, a Render cold start, a slow network moment) must not
+    // switch the TV to offline mode: it takes OFFLINE_AFTER failures in a row. After a failure
+    // the next probe comes sooner, so a real outage is still noticed within about half a minute.
     const check = async () => {
-      controller?.abort()
-      controller = new AbortController()
-      const timeout = window.setTimeout(() => controller?.abort(), 8000)
+      if (running) return
+      running = true
+      const controller = new AbortController()
+      const timeout = window.setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS)
+      let ok = false
       try {
         const response = await fetch('/api/public/connection?ts=' + Date.now(), { cache: 'no-store', signal: controller.signal })
-        if (mounted) setOffline(!response.ok)
-      } catch { if (mounted) setOffline(true) }
-      finally { window.clearTimeout(timeout) }
+        ok = response.ok
+      } catch { /* counted as a failure below */ }
+      finally { window.clearTimeout(timeout); running = false }
+      if (!mounted) return
+      failures = ok ? 0 : failures + 1
+      setOffline(failures >= OFFLINE_AFTER)
+      plan(failures > 0 && failures < OFFLINE_AFTER ? RETRY_PROBE_MS : PROBE_MS)
     }
     void check()
-    const timer = window.setInterval(check, 30000)
-    const onOnline = () => { void check() }
-    window.addEventListener('online', onOnline)
-    window.addEventListener('offline', onOnline)
-    return () => { mounted = false; controller?.abort(); window.clearInterval(timer); window.removeEventListener('online', onOnline); window.removeEventListener('offline', onOnline) }
+    const onNetworkChange = () => plan(0)
+    window.addEventListener('online', onNetworkChange)
+    window.addEventListener('offline', onNetworkChange)
+    return () => { mounted = false; window.clearTimeout(next); window.removeEventListener('online', onNetworkChange); window.removeEventListener('offline', onNetworkChange) }
   }, [])
   const layout = screen.layout
   const refresh = useCallback(() => router.refresh(), [router])
@@ -57,6 +74,14 @@ export default function ScreenDisplay({ data, refreshSecs, schedule }: Props) {
     const t = setInterval(refresh, (refreshSecs || 600) * 1000)
     return () => clearInterval(t)
   }, [refresh, refreshSecs, offline])
+
+  // Back online after an outage: load the current content right away instead of waiting for
+  // the next scheduled refresh (content may have changed while the TV was offline).
+  const wasOffline = useRef(false)
+  useEffect(() => {
+    if (wasOffline.current && !offline) refresh()
+    wasOffline.current = offline
+  }, [offline, refresh])
 
   // Collect birthdays from content items for footer ticker
   const birthdays: { name: string; grade?: string }[] = []
@@ -95,11 +120,13 @@ export default function ScreenDisplay({ data, refreshSecs, schedule }: Props) {
   return (
     <div className="w-screen h-screen flex flex-col overflow-hidden tv-display tv-display-premium tv-screen-stage" data-display-template={template} data-surface-style={getDisplaySurface(layout?.bgColor)} data-screen-theme={theme.id} style={themeStyle}>
       {/* Emergency overlay */}
-      {emergencyAlert && <EmergencyOverlay announcement={emergencyAlert} />}
+      {emergencyAlert && <PanelBoundary name="emergency" fallback={null}><EmergencyOverlay announcement={emergencyAlert} /></PanelBoundary>}
 
       {/* Header */}
       {layout?.headerEnabled && (
-        <DisplayHeader screen={screen} layout={layout} school={school} />
+        <PanelBoundary name="header" resetKey={JSON.stringify(layout)} fallback={<div style={{ height: layout.headerHeight ?? 80, background: 'var(--tv-header, #183452)' }} />}>
+          <DisplayHeader screen={screen} layout={layout} school={school} />
+        </PanelBoundary>
       )}
 
       {/* Main sections */}
@@ -111,7 +138,9 @@ export default function ScreenDisplay({ data, refreshSecs, schedule }: Props) {
             style={{ flex: `${widths[i] ?? section.widthPct} ${widths[i] ?? section.widthPct} 0%` }}
           >
             {section.activeContent ? (
-              <ContentRenderer item={section.activeContent} offline={offline} screenId={screen.id} />
+              <PanelBoundary name={`section ${i + 1}`} resetKey={JSON.stringify(section.activeContent)}>
+                <ContentRenderer item={section.activeContent} offline={offline} screenId={screen.id} />
+              </PanelBoundary>
             ) : (
               <div className="w-full h-full" />
             )}
@@ -122,7 +151,9 @@ export default function ScreenDisplay({ data, refreshSecs, schedule }: Props) {
       {offline && <div dir="rtl" className="absolute bottom-1 left-2 z-20 rounded bg-black/70 px-2 py-1 text-xs text-white/80 pointer-events-none">אין חיבור לאינטרנט · מוצג תוכן שמור</div>}
       {/* Footer */}
       {layout?.footerEnabled && (
-        <DisplayFooter layout={layout} school={school} screenName={screen.name} birthdays={birthdays} />
+        <PanelBoundary name="footer" resetKey={JSON.stringify(layout)} fallback={<div style={{ height: layout.footerHeight ?? 48, background: 'var(--tv-header, #183452)' }} />}>
+          <DisplayFooter layout={layout} school={school} screenName={screen.name} birthdays={birthdays} />
+        </PanelBoundary>
       )}
     </div>
   )

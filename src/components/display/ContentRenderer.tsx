@@ -9,7 +9,9 @@ import { displayImageUrl, backdropImageUrl, clientDpr, preloadImages } from '@/l
 export default function ContentRenderer({item,offline=false,screenId}:{item:ContentItem;offline?:boolean;screenId?:string}){
   switch(item.contentType){
     case 'TEXT':          return <TextContent item={item}/>
-    case 'IMAGE_GALLERY': return offline ? <OfflineMedia /> : <GalleryContent item={item}/>
+    // The gallery keeps rotating the images it already has (they are in the browser cache);
+    // images that fail to load fall back quietly (FailSafeImage).
+    case 'IMAGE_GALLERY': return <GalleryContent item={item}/>
     case 'CLOCK':         return <ClockContent item={item}/>
     case 'DATE':          return <DateContent item={item}/>
     case 'WEATHER':       return <WeatherContent item={item}/>
@@ -27,6 +29,14 @@ function OfflineMedia(){
     <span aria-hidden="true" style={{fontSize:34}}>⌁</span>
     <span style={{fontSize:'clamp(16px,2vw,28px)'}}>ממתינים לחיבור לאינטרנט</span>
   </div>
+}
+// An image that fails to load (deleted file, network outage) shows the panel colour instead of a
+// broken-image icon and is not requested again while it stays on screen. The layout and slide
+// rotation are unaffected: the next slide simply renders its own images.
+function FailSafeImage({src,alt,className}:{src:string;alt:string;className?:string}){
+  const [failedSrc,setFailedSrc]=useState<string|null>(null)
+  if(failedSrc===src)return <div className={className} role="img" aria-label={alt} style={{background:'var(--tv-panel, #172c48)'}}/>
+  return <img src={src} alt={alt} className={className} onError={()=>setFailedSrc(src)}/>
 }
 const offlineKey = (screenId:string|undefined, kind:string, itemId:string) => `schoolscreen:offline:v1:${screenId ?? 'unknown'}:${kind}:${itemId}`
 function readOffline<T>(key:string):T|null {
@@ -75,6 +85,9 @@ function GalleryContent({item}:{item:ContentItem}){
       try{
         // The public endpoint only exposes images used by active public screens.
         const r=await fetch(`/api/public/gallery/${encodeURIComponent(item.id)}`,{cache:'no-store'})
+        // 404 = the item or screen was disabled or deleted: stop showing it. Any other failure
+        // (network, 5xx) keeps the images already on screen.
+        if(r.status===404){if(alive){setImages([]);setIndex(0)}return}
         if(!r.ok)return
         const d=await r.json()
         const all:Photo[]=d.data??[]
@@ -159,8 +172,8 @@ function GalleryContent({item}:{item:ContentItem}){
       {!images.length?<div className="w-full h-full flex items-center justify-center opacity-50 flex-col gap-2"><span style={{fontSize:32}}>🖼</span><span className="text-sm">אין פריטים בגלריה</span></div>:
       <div key={index} className="w-full h-full grid" style={{gridTemplateColumns:`repeat(${columns},minmax(0,1fr))`,gridAutoRows:'minmax(0,1fr)',gap:mode==='slideshow'?0:4,animation:item.transitionStyle==='instant'?undefined:'galleryV16Fade .55s ease-out'}}>
         {shown.map((img,i)=><div key={`${img.id}-${i}`} className="relative min-w-0 min-h-0 overflow-hidden" style={{gridColumn:mode==='collage'&&shown.length>2&&i===0?'span 2':undefined,gridRow:mode==='collage'&&shown.length>2&&i===0?'span 2':undefined}}>
-          {!isVideo(img)&&fit==='contain'&&<img src={backdropImageUrl(img.url)} alt='' aria-hidden='true' className='absolute inset-0 w-full h-full object-cover blur-xl opacity-25 scale-110'/>}
-          {isVideo(img)?<video key={img.id} src={img.url} autoPlay muted playsInline preload='metadata' className={`relative w-full h-full ${fit==='cover'?'object-cover':'object-contain'} bg-black`} onEnded={()=>finishVideo(img.id)} onError={()=>finishVideo(img.id)}/>:<img src={tileSrc(img,i)} alt={img.caption??''} className={`relative w-full h-full ${fit==='cover'?'object-cover':'object-contain'}`}/>}
+          {!isVideo(img)&&fit==='contain'&&<img src={backdropImageUrl(img.url)} alt="" aria-hidden="true" onError={e=>{e.currentTarget.style.display="none"}} className='absolute inset-0 w-full h-full object-cover blur-xl opacity-25 scale-110'/>}
+          {isVideo(img)?<video key={img.id} src={img.url} autoPlay muted playsInline preload='metadata' className={`relative w-full h-full ${fit==='cover'?'object-cover':'object-contain'} bg-black`} onEnded={()=>finishVideo(img.id)} onError={()=>finishVideo(img.id)}/>:<FailSafeImage src={tileSrc(img,i)} alt={img.caption??''} className={`relative w-full h-full ${fit==='cover'?'object-cover':'object-contain'}`}/>}
           {s.showCaptions!==false&&img.caption&&<div className="absolute bottom-0 inset-x-0 p-2 bg-black/50 text-white text-center text-sm">{img.caption}</div>}
         </div>)}
       </div>}
@@ -210,8 +223,10 @@ function AnnouncementContent({item,offline,screenId}:{item:ContentItem;offline:b
   useEffect(()=>{
     if(!selectedIds.length){setRemoteItems([]);return}
     let alive=true
+    // Stored copy (text only) for a TV that starts without a connection; content already in
+    // memory, attachments included, is kept while the connection is down.
     const saved=readOffline<SingleAnnouncement[]>(cacheKey)
-    if(saved && alive)setRemoteItems(saved)
+    if(saved && alive)setRemoteItems(prev=>prev.length?prev:saved)
     if(offline)return () => {alive=false}
     const load=()=>fetch(`/api/public/announcements/${item.id}`,{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Failed to load announcements');return r.json()}).then(d=>{if(alive){const list=(d.data??[]) as SingleAnnouncement[];setRemoteItems(list);saveOffline(cacheKey,list.map(a=>({...a,attachments:[]})))}}).catch(()=>{ /* Preserve last successful content */ })
     void load()
@@ -242,7 +257,7 @@ function AnnouncementContent({item,offline,screenId}:{item:ContentItem;offline:b
   const body=cur?.body??item.textContent??''
   // Icons are kept in admin data but intentionally hidden on TV.
   const priority=cur?.priority??s.priority
-  const attachments=offline?[]:(cur?.attachments??[])
+  const attachments=cur?.attachments??[]
   const displayMode=cur?.attachmentDisplayMode??'slideshow'
   const slideSeconds=Math.max(3,Math.min(30,cur?.attachmentSlideSeconds??8))
   // Calculate capacity from the actual announcement panel (not window width).
@@ -353,9 +368,9 @@ function AnnouncementContent({item,offline,screenId}:{item:ContentItem;offline:b
       {attachments.length>0&&<div className={`w-full flex-1 min-h-0 overflow-hidden flex items-center justify-center ${isPdfPage?'':'mb-2'}`}>
         {displayMode==='together'
           ? <div className="w-full h-full min-h-0 flex items-center justify-center gap-3 overflow-hidden">
-              {visibleAttachments.map(a=><div key={a.id} className="h-full min-h-0 min-w-0 flex items-center justify-center overflow-hidden" style={{width:`${100/visibleAttachments.length}%`,maxWidth:visibleAttachments.length===1?'100%':'min(33%, 560px)'}}><img src={attachmentSrc(a.url,visibleAttachments.length)} alt={title} className={isPdfPage?"block w-full h-full object-contain":"block max-w-full max-h-full object-contain"} /></div>)}
+              {visibleAttachments.map(a=><div key={a.id} className="h-full min-h-0 min-w-0 flex items-center justify-center overflow-hidden" style={{width:`${100/visibleAttachments.length}%`,maxWidth:visibleAttachments.length===1?'100%':'min(33%, 560px)'}}><FailSafeImage src={attachmentSrc(a.url,visibleAttachments.length)} alt={title} className={isPdfPage?"block w-full h-full object-contain":"block max-w-full max-h-full object-contain"} /></div>)}
             </div>
-          : visibleAttachments[0]&&<img src={attachmentSrc(visibleAttachments[0].url,1)} alt={title} className="w-full h-full object-contain" />}
+          : visibleAttachments[0]&&<FailSafeImage src={attachmentSrc(visibleAttachments[0].url,1)} alt={title} className="w-full h-full object-contain" />}
       </div>}
       {body&&<div ref={viewportRef} className={`w-full min-h-0 overflow-hidden ${attachments.length?'shrink-0':'flex-1'}`} style={{height:attachments.length?bodyHeight:undefined,maxHeight:bodyHeight}}>
         <div ref={textRef} style={{fontSize:bodySize,lineHeight:1.45,whiteSpace:'pre-wrap',overflowWrap:'anywhere',opacity:.9,transform:`translateY(-${scroll.started?scroll.distance:0}px)`,transition:scroll.started&&scroll.distance>0?`transform ${scroll.duration}s linear`:'none'}} dangerouslySetInnerHTML={{__html:cleanAnnouncementHtml(body)}} />

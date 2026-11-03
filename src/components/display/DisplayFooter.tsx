@@ -13,10 +13,12 @@ export default function DisplayFooter({ layout, school, screenName, birthdays=[]
   useEffect(()=>{
     if(mode==='manual'||!rssUrl){setHeadlines([]);return}
     let alive=true
+    // A failed refresh keeps the last headlines for up to 2 hours instead of emptying the ticker.
+    let loadedAt=0
     const load=async()=>{
       // `screen` scopes the public request to this screen's footer (required without a login).
-      try{const r=await fetch(`/api/rss?url=${encodeURIComponent(rssUrl)}&max=100&screen=${encodeURIComponent(layout.screenId)}`,{cache:'no-store'});if(!r.ok)throw new Error('RSS error');const d=await r.json();if(alive)setHeadlines((d.items??[]).map((x:{title:string})=>x.title).filter(Boolean))}
-      catch{if(alive)setHeadlines([])}
+      try{const r=await fetch(`/api/rss?url=${encodeURIComponent(rssUrl)}&max=100&screen=${encodeURIComponent(layout.screenId)}`,{cache:'no-store'});if(!r.ok)throw new Error('RSS error');const d=await r.json();if(alive){loadedAt=Date.now();setHeadlines((d.items??[]).map((x:{title:string})=>x.title).filter(Boolean))}}
+      catch{if(alive&&Date.now()-loadedAt>2*60*60*1000)setHeadlines([])}
     }
     void load();const t=setInterval(load,Math.max(5,refresh)*60000)
     return()=>{alive=false;clearInterval(t)}
