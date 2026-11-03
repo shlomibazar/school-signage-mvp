@@ -10,8 +10,9 @@ const CreateScreenSchema = z.object({
   // Optional: the admin form no longer sends it, and a unique one is generated instead.
   slug:        z.string().min(2).max(50).regex(/^[a-z0-9-]+$/, 'Slug חייב להכיל רק אותיות לועזיות קטנות, מספרים ומקף').optional(),
   orientation: z.enum(['LANDSCAPE', 'PORTRAIT']).default('LANDSCAPE'),
-  width:       z.number().int().default(1920),
-  height:      z.number().int().default(1080),
+  // Optional: derived from the orientation when omitted (see screenDimensions).
+  width:       z.number().int().min(1).max(10000).optional(),
+  height:      z.number().int().min(1).max(10000).optional(),
   refreshSecs: z.number().int().min(300).max(900).default(600),
 })
 
@@ -25,6 +26,14 @@ function generateSlug(name: string): string {
   const base = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
     .replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 30).replace(/-$/, '')
   return `${base.length >= 2 ? base : 'screen'}-${randomBytes(4).toString('hex')}`
+}
+
+// Landscape 1920×1080, portrait 1080×1920 by default. Explicit sizes from API clients are
+// kept, but oriented to match: the longer side is the width on landscape, the height on portrait.
+function screenDimensions(orientation: 'LANDSCAPE' | 'PORTRAIT', width?: number, height?: number) {
+  const long = Math.max(width ?? 1920, height ?? 1080)
+  const short = Math.min(width ?? 1920, height ?? 1080)
+  return orientation === 'PORTRAIT' ? { width: short, height: long } : { width: long, height: short }
 }
 
 const isSlugConflict = (err: any) =>
@@ -80,9 +89,11 @@ export async function POST(req: NextRequest) {
       if (existing) return apiError('כתובת ה-URL כבר בשימוש, בחר אחרת', 409)
     }
 
+    const dimensions = screenDimensions(validated.orientation, validated.width, validated.height)
     const create = (slug: string) => db.screen.create({
       data: {
         ...validated,
+        ...dimensions,
         slug,
         schoolId,
         layout: {

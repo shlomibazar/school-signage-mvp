@@ -25,9 +25,13 @@ export default function ScreenPreview({ screen, layout, sections, zoom = 'fit', 
   const isLandscape = screen.orientation !== 'PORTRAIT'
   const viewportRef = useRef<HTMLDivElement>(null)
   const [available, setAvailable] = useState({ width: 960, height: 540 })
-  const [now, setNow] = useState(() => new Date())
+  // Starts empty so the server HTML (UTC on Render) matches the first client render;
+  // the browser's local time is set after hydration, as in DisplayHeader.
+  const [now, setNow] = useState<Date | null>(null)
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 15000)
+    const update = () => setNow(new Date())
+    update()
+    const timer = window.setInterval(update, 15000)
     return () => window.clearInterval(timer)
   }, [])
   // Measure the scroll viewport's content box (excludes padding), never the browser viewport.
@@ -43,10 +47,10 @@ export default function ScreenPreview({ screen, layout, sections, zoom = 'fit', 
   const fitScale = Math.max(.05, Math.min(1, available.width / baseWidth, available.height / baseHeight))
   const scale = zoom === 'fit' ? fitScale : zoom
   useEffect(() => { onScaleChange?.(scale) }, [scale, onScaleChange])
-  const hh  = now.getHours().toString().padStart(2,'0')
-  const mm  = now.getMinutes().toString().padStart(2,'0')
-  const heb  = formatHebrewDateLetters(now)
-  const greg = formatGregorianDate(now)
+  const hh  = now ? now.getHours().toString().padStart(2,'0') : '--'
+  const mm  = now ? now.getMinutes().toString().padStart(2,'0') : '--'
+  const heb  = now ? formatHebrewDateLetters(now) : ''
+  const greg = now ? formatGregorianDate(now) : ''
 
   const headerH = layout.headerHeight ?? 80
   const footerH = layout.footerHeight ?? 48
@@ -113,9 +117,9 @@ export default function ScreenPreview({ screen, layout, sections, zoom = 'fit', 
                 <div className="tv-preview-clock-dates" style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center',flexShrink:0,maxHeight:headerPx-6,gap:0}}>
                   {layout.headerShowClock && <div className="font-bold tabular-nums" style={{fontSize:clockSize,lineHeight:1,color:headerInk}}>{hh}:{mm}</div>}
                   {(showGreg || showHeb || layout.headerShowParasha) && <div className="tv-preview-date-stack tv-header-date-rows" style={{fontSize:dateSize,lineHeight:1.1,opacity:.95,gap:1,marginTop:1}} dir="rtl">
-                    {showGreg && <span>{greg}</span>}
+                    {showGreg && greg && <span>{greg}</span>}
                     {(showHeb || layout.headerShowParasha) && <div className="tv-hebrew-parasha-row" style={{display:'flex',alignItems:'center',justifyContent:'center',gap:5,whiteSpace:'nowrap'}}>
-                      {showHeb && <span>{heb}</span>}
+                      {showHeb && heb && <span>{heb}</span>}
                       {layout.headerShowParasha && <WeeklyParasha />}
                     </div>}
                   </div>}
@@ -128,7 +132,9 @@ export default function ScreenPreview({ screen, layout, sections, zoom = 'fit', 
             {visibleSections.map((section,i)=>{
               // Same choice as the public screen (active and in schedule now, else first active).
               // An inactive item is still shown as a last resort so the editor is never blank.
-              const item=resolveActiveContent(section.contentItems.filter(ci=>ci.active),0,now) ?? section.contentItems[0]
+              // Before hydration there is no local time yet, so take the first active item.
+              const activeItems=section.contentItems.filter(ci=>ci.active)
+              const item=(now ? resolveActiveContent(activeItems,0,now) : activeItems[0]) ?? section.contentItems[0]
               return <div key={section.id} className={`${stacked ? 'w-full min-h-0' : 'h-full min-w-0'} overflow-hidden tv-content-panel`} style={{flex:`${templateWidths[i] ?? section.widthPct} ${templateWidths[i] ?? section.widthPct} 0%`}}>
                 {item && item.contentType !== 'EMPTY' ? (
                   <ContentRenderer key={`${section.id}-${item.id}-${item.contentType}`} item={item} />
