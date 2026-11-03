@@ -54,5 +54,5 @@ export interface Gallery { id:string; schoolId:string; name:string; description?
 
 export interface ApiResponse<T=unknown> { data?:T; error?:string; message?:string }
 export interface PublicScreenData { screen:Screen; school:School; activeAnnouncements:Announcement[]; emergencyAlert:Announcement|null; sections:PublicSection[] }
-export interface PublicSection { position:number; widthPct:number; activeContent:ContentItem|null }
+export interface PublicSection { position:number; widthPct:number; activeContent:ContentItem|null; items?:ContentItem[] }
 export interface RssFeedItem { title:string; link:string; description:string; pubDate:string }

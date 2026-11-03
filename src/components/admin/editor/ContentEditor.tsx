@@ -21,6 +21,7 @@ import AnnouncementContentForm from './content-forms/AnnouncementContentForm'
 import BirthdayContentForm     from './content-forms/BirthdayContentForm'
 import EventsContentForm       from './content-forms/EventsContentForm'
 import TimetableContentForm    from './content-forms/TimetableContentForm'
+import { setDraftDirty, DISCARD_DRAFT_MESSAGE } from '@/lib/unsavedChanges'
 
 const DEFAULT_CLOCK:        ClockSettings               = { hourFormat: '24', showSeconds: false }
 const DEFAULT_DATE:         DateSettings                = { dateFormat: 'full', locale: 'he' }
@@ -95,6 +96,7 @@ export default function ContentEditor({ screenId, section, selectedType, onClose
         if (data.data) {
           const d = data.data
           const typeMatches = d.contentType === selectedType
+          setUnsavedType(!typeMatches)
           setExistingId(d.id)
           setItem({
             contentType: selectedType, active: d.active,
@@ -117,6 +119,7 @@ export default function ContentEditor({ screenId, section, selectedType, onClose
             settings:        typeMatches ? ((d.settings as ContentSettings) ?? defaultSettingsFor(selectedType)) : defaultSettingsFor(selectedType),
           })
         } else {
+          setUnsavedType(true)
           setExistingId(null); setItem(makeDefault(selectedType))
         }
       } catch { if (!cancelled) toast.error('שגיאה בטעינת התוכן') }
@@ -130,6 +133,29 @@ export default function ContentEditor({ screenId, section, selectedType, onClose
   const draftCallback = useRef(onDraftChange)
   draftCallback.current = onDraftChange
   useEffect(() => { if (!loading) draftCallback.current?.(item) }, [item, loading])
+
+  // Unsaved draft tracking. The baseline is taken shortly after loading, once the content forms
+  // have applied their own defaults, so opening a form never counts as a change. A content type
+  // that differs from the saved one (or new content) is unsaved until it is saved.
+  const [unsavedType, setUnsavedType] = useState(false)
+  const [baseline, setBaseline] = useState<string | null>(null)
+  const itemRef = useRef(item)
+  itemRef.current = item
+  useEffect(() => {
+    if (loading) { setBaseline(null); return }
+    const t = window.setTimeout(() => setBaseline(JSON.stringify(itemRef.current)), 50)
+    return () => window.clearTimeout(t)
+  }, [loading])
+  const dirty = !loading && baseline !== null && (unsavedType || JSON.stringify(item) !== baseline)
+  useEffect(() => {
+    setDraftDirty(section.id, dirty)
+    if (!dirty) return
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [dirty, section.id])
+  useEffect(() => () => setDraftDirty(section.id, false), [section.id])
+  const requestClose = () => { if (!dirty || window.confirm(DISCARD_DRAFT_MESSAGE)) onClose() }
 
   const patchItem     = useCallback((patch: Partial<ContentItem>) => setItem(prev => ({ ...prev, ...patch })), [])
   const patchSchedule = useCallback((patch: Partial<SchedulingValues>) => setItem(prev => ({ ...prev, ...patch })), [])
@@ -160,7 +186,7 @@ export default function ContentEditor({ screenId, section, selectedType, onClose
         { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? 'שגיאה') }
       const saved = await res.json()
-      setExistingId(saved.data.id); toast.success('התוכן נשמר'); onSaved(saved.data)
+      setExistingId(saved.data.id); setUnsavedType(false); setBaseline(JSON.stringify(item)); toast.success('התוכן נשמר'); onSaved(saved.data)
     } catch (err: any) { toast.error(err.message ?? 'שגיאה') }
     finally { setSaving(false) }
   }
@@ -187,7 +213,7 @@ export default function ContentEditor({ screenId, section, selectedType, onClose
             {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Save className="w-3.5 h-3.5"/>}
             {saving ? 'שומר...' : 'שמור'}
           </button>
-          <button type="button" onClick={onClose} title="סגור עריכה" className="p-1 rounded hover:bg-blue-100 text-blue-400 hover:text-blue-700 transition-colors">
+          <button type="button" onClick={requestClose} title="סגור עריכה" className="p-1 rounded hover:bg-blue-100 text-blue-400 hover:text-blue-700 transition-colors">
             <X className="w-3.5 h-3.5"/>
           </button>
         </div>
@@ -228,7 +254,7 @@ export default function ContentEditor({ screenId, section, selectedType, onClose
             </button>
           )}
           <div className="flex-1"/>
-          <button onClick={onClose} className="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors">ביטול</button>
+          <button onClick={requestClose} className="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors">ביטול</button>
           <button onClick={handleSave} disabled={saving}
             className={cn('flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors disabled:opacity-50',
               selectedType==='EMPTY' ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-blue-600 text-white hover:bg-blue-700')}>

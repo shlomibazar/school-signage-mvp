@@ -13,6 +13,7 @@ import { resolveScreenTheme, screenStageBackground } from '@/lib/screenThemes'
 import { unifiedPalette } from '@/lib/unifiedPalette'
 import { getDisplayTemplate, getTemplateWidths, getDisplaySurface, isStackedLayout } from '@/lib/displayTemplates'
 import PanelBoundary from './PanelBoundary'
+import { resolveActiveContent } from '@/lib/scheduling'
 
 const PROBE_MS = 30_000
 const RETRY_PROBE_MS = 10_000
@@ -137,11 +138,16 @@ export default function ScreenDisplay({ data, refreshSecs, schedule }: Props) {
             className={`${stacked ? 'w-full min-h-0' : 'h-full min-w-0'} overflow-hidden tv-content-panel`}
             style={{ flex: `${widths[i] ?? section.widthPct} ${widths[i] ?? section.widthPct} 0%` }}
           >
-            {section.activeContent ? (
-              <PanelBoundary name={`section ${i + 1}`} resetKey={JSON.stringify(section.activeContent)}>
-                <ContentRenderer item={section.activeContent} offline={offline} screenId={screen.id} />
-              </PanelBoundary>
-            ) : (
+            {(() => {
+              // Scheduled sections are re-checked with the local 30 s clock in the school's time
+              // zone; until the clock starts (hydration) the server's choice is used.
+              const content = section.items && now ? resolveActiveContent(section.items, now, school.timezone) : section.activeContent
+              return content ? (
+                <PanelBoundary name={`section ${i + 1}`} resetKey={JSON.stringify(content)}>
+                  <ContentRenderer item={content} offline={offline} screenId={screen.id} />
+                </PanelBoundary>
+              ) : null
+            })() ?? (
               <div className="w-full h-full" />
             )}
           </div>

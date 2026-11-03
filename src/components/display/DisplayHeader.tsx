@@ -5,6 +5,7 @@ import { formatGregorianDate } from '@/lib/utils'
 import { formatHebrewDateLetters } from '@/lib/hebrew-date-display'
 import HeaderWeather from './HeaderWeather'
 import WeeklyParasha from './WeeklyParasha'
+import { zonedClock, zonedCalendarDate } from '@/lib/zonedTime'
 
 interface Props { screen: Screen; layout: ScreenLayout; school: School }
 export default function DisplayHeader({ screen, layout, school }: Props) {
@@ -23,7 +24,9 @@ export default function DisplayHeader({ screen, layout, school }: Props) {
   const hasDate = showGregorian || showHebrew
   const clockSize = height <= 60 ? 25 : height <= 80 ? 34 : height <= 100 ? 43 : 51
   const dateSize = height <= 60 ? 10 : height <= 80 ? 12 : height <= 100 ? 14 : 16
-  const clock = now ? `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}` : '--:--'
+  // Time and date of the school (its time zone), whatever the TV device is set to.
+  const clock = now ? zonedClock(now, school.timezone) : '--:--'
+  const today = now ? zonedCalendarDate(now, school.timezone) : null
   return <header className={`tv-premium-header tv-chrome-header tv-header-v2${compact ? ' tv-header-compact' : ''}`} dir="rtl"
     style={{height, minHeight:height, background:'var(--tv-header,#183452)', color:'var(--tv-header-ink,#edf5ff)', borderBottom:'1px solid var(--tv-border,#45617e)'}}>
     <div className="tv-v2-brand">
@@ -40,9 +43,9 @@ export default function DisplayHeader({ screen, layout, school }: Props) {
         <div className="tv-v2-clock-dates" style={{maxHeight:height-6,justifyContent:"center",minHeight:0,gap:0,'--clock-font-size':`${clockSize}px`,'--date-font-size':`${dateSize}px`} as React.CSSProperties}>
           {layout.headerShowClock && <time className="tv-v2-clock" dir="ltr" style={{fontSize:clockSize,lineHeight:1,flexShrink:0}} suppressHydrationWarning>{clock}</time>}
           {now && (hasDate || layout.headerShowParasha) && <div className="tv-v2-dates tv-header-date-rows" dir="rtl" style={{fontSize:dateSize,lineHeight:1.1,marginTop:1,gap:1,display:'flex',flexDirection:'column',alignItems:'center',flexWrap:'nowrap',opacity:.95}}>
-            {showGregorian && <span>{formatGregorianDate(now)}</span>}
+            {showGregorian && today && <span>{formatGregorianDate(today)}</span>}
             {(showHebrew || layout.headerShowParasha) && <div className="tv-hebrew-parasha-row" style={{display:'flex',flexDirection:'row',alignItems:'center',justifyContent:'center',gap:5,whiteSpace:'nowrap'}}>
-              {showHebrew && <span>{formatHebrewDateLetters(now)}</span>}
+              {showHebrew && today && <span>{formatHebrewDateLetters(today)}</span>}
               {layout.headerShowParasha && <WeeklyParasha />}
             </div>}
           </div>}

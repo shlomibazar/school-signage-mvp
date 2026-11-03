@@ -130,11 +130,11 @@ export default function ScreenPreview({ screen, layout, sections, zoom = 'fit', 
           )}
           <div className={`flex ${stacked ? 'flex-col' : ''} tv-content-grid ${broadcast ? 'tv-preview-broadcast-main' : ''}`} data-orientation={screen.orientation} style={{height:baseHeight-(layout.headerEnabled?headerPx:0)-(layout.footerEnabled?footerPx:0),gap:classicGap,padding:classicGap,boxSizing:'border-box'}}>
             {visibleSections.map((section,i)=>{
-              // Same choice as the public screen (active and in schedule now, else first active).
-              // An inactive item is still shown as a last resort so the editor is never blank.
+              // Same choice as the public screen (active and in schedule now). Unlike the TV, the
+              // editor falls back to the first item even outside its schedule so it can be edited.
               // Before hydration there is no local time yet, so take the first active item.
               const activeItems=section.contentItems.filter(ci=>ci.active)
-              const item=(now ? resolveActiveContent(activeItems,0,now) : activeItems[0]) ?? section.contentItems[0]
+              const item=(now ? resolveActiveContent(activeItems,now) : activeItems[0]) ?? section.contentItems[0]
               return <div key={section.id} className={`${stacked ? 'w-full min-h-0' : 'h-full min-w-0'} overflow-hidden tv-content-panel`} style={{flex:`${templateWidths[i] ?? section.widthPct} ${templateWidths[i] ?? section.widthPct} 0%`}}>
                 {item && item.contentType !== 'EMPTY' ? (
                   <ContentRenderer key={`${section.id}-${item.id}-${item.contentType}`} item={item} />

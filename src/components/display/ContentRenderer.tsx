@@ -6,6 +6,7 @@ import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } fr
 import type { ContentItem,ClockSettings,DateSettings,AnnouncementContentSettings,SingleAnnouncement,BirthdaySettings,EventSettings,TimetableSettings,RssSettings,GallerySettings,RssFeedItem } from '@/types'
 import { sanitizeHTML, formatHebrewDate, formatGregorianDate } from '@/lib/utils'
 import { displayImageUrl, backdropImageUrl, clientDpr, preloadImages } from '@/lib/imageDelivery'
+import { zonedParts, zonedCalendarDate, DEFAULT_TIME_ZONE } from '@/lib/zonedTime'
 export default function ContentRenderer({item,offline=false,screenId}:{item:ContentItem;offline?:boolean;screenId?:string}){
   switch(item.contentType){
     case 'TEXT':          return <TextContent item={item}/>
@@ -186,9 +187,11 @@ function ClockContent({item}:{item:ContentItem}){
   const [time,setTime]=useState<Date|null>(null)
   useEffect(()=>{setTime(new Date());const t=setInterval(()=>setTime(new Date()),1000);return()=>clearInterval(t)},[])
   if(!time)return null
+  // Israeli time (DEFAULT_TIME_ZONE), not the TV device's time zone.
+  const z=zonedParts(time)
   let d:string
-  if(fmt==='12'){const h=time.getHours()%12||12,ap=time.getHours()>=12?'PM':'AM',m=time.getMinutes().toString().padStart(2,'0'),s2=time.getSeconds().toString().padStart(2,'0');d=`${h}:${m}${secs?`:${s2}`:''}${ap}`}
-  else{const h=time.getHours().toString().padStart(2,'0'),m=time.getMinutes().toString().padStart(2,'0'),s2=time.getSeconds().toString().padStart(2,'0');d=`${h}:${m}${secs?`:${s2}`:''}`}
+  if(fmt==='12'){const h=z.hour%12||12,ap=z.hour>=12?'PM':'AM',m=z.minute.toString().padStart(2,'0'),s2=z.second.toString().padStart(2,'0');d=`${h}:${m}${secs?`:${s2}`:''}${ap}`}
+  else{const h=z.hour.toString().padStart(2,'0'),m=z.minute.toString().padStart(2,'0'),s2=z.second.toString().padStart(2,'0');d=`${h}:${m}${secs?`:${s2}`:''}`}
   return <div className="w-full h-full flex items-center justify-center"><div className="text-white font-light tabular-nums" style={{fontSize:'clamp(40px,8vw,120px)',letterSpacing:'-0.02em'}}>{d}</div></div>
 }
 function DateContent({item}:{item:ContentItem}){
@@ -198,12 +201,13 @@ function DateContent({item}:{item:ContentItem}){
   useEffect(()=>{setNow(new Date());const t=setInterval(()=>setNow(new Date()),60000);return()=>clearInterval(t)},[])
   if(!now)return null
   const l=loc==='he'?'he-IL':'en-US'
+  const tz=DEFAULT_TIME_ZONE
   let d=''
-  if(fmt==='full')d=now.toLocaleDateString(l,{weekday:'long',year:'numeric',month:'long',day:'numeric'})
-  else if(fmt==='short')d=now.toLocaleDateString(l)
-  else if(fmt==='daymonth')d=now.toLocaleDateString(l,{day:'numeric',month:'long'})
-  else d=formatGregorianDate(now)
-  return <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-white"><div style={{fontSize:'clamp(18px,2.5vw,36px)'}}>{d}</div><div className="text-white/50" style={{fontSize:'clamp(14px,2vw,28px)'}}>{formatHebrewDate(now)}</div></div>
+  if(fmt==='full')d=now.toLocaleDateString(l,{timeZone:tz,weekday:'long',year:'numeric',month:'long',day:'numeric'})
+  else if(fmt==='short')d=now.toLocaleDateString(l,{timeZone:tz})
+  else if(fmt==='daymonth')d=now.toLocaleDateString(l,{timeZone:tz,day:'numeric',month:'long'})
+  else d=formatGregorianDate(zonedCalendarDate(now))
+  return <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-white"><div style={{fontSize:'clamp(18px,2.5vw,36px)'}}>{d}</div><div className="text-white/50" style={{fontSize:'clamp(14px,2vw,28px)'}}>{formatHebrewDate(zonedCalendarDate(now))}</div></div>
 }
 function WeatherContent({item}:{item:ContentItem}){
   const s=(item.settings??{}) as Record<string,string>

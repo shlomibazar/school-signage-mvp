@@ -2,6 +2,7 @@
 // src/components/admin/layout/AdminSidebar.tsx
 
 import { useState, useEffect } from 'react'
+import { confirmLeaveEditor as confirmLeave } from '@/lib/unsavedChanges'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -35,9 +36,9 @@ export function adminPageLabel(pathname: string): string {
   return NAV.find(item => pathname.startsWith(item.href))?.label ?? 'SchoolScreen'
 }
 
-// The layout editor flags unsaved changes on <body>; client-side links skip beforeunload.
+// Unsaved layout or content drafts in the editor (client-side links skip beforeunload).
 function confirmLeaveEditor(e: React.MouseEvent) {
-  if (document.body.dataset.screenEditorDirty === 'true' && !window.confirm('יש שינויים שלא נשמרו. לעזוב את העורך ולבטל אותם?')) {
+  if (!confirmLeave('יש שינויים שלא נשמרו. לעזוב את העורך ולבטל אותם?')) {
     e.preventDefault()
     return false
   }

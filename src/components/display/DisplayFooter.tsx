@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useMemo, useState, useRef } from 'react'
+import { zonedClock } from '@/lib/zonedTime'
 import type { ScreenLayout, School, Screen } from '@/types'
 interface Birthday { name:string; grade?:string }
 interface Props { layout:ScreenLayout; school:School; screenName?:string; birthdays?:Birthday[] }
@@ -45,7 +46,7 @@ export default function DisplayFooter({ layout, school, screenName, birthdays=[]
     if(tickerTextRef.current)observer.observe(tickerTextRef.current)
     return()=>observer.disconnect()
   },[ticker,speed])
-  const clock=now?`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`:'--:--'
+  const clock=now?zonedClock(now,school.timezone):'--:--'
   const height=layout.footerHeight??48
   return <footer className="tv-premium-footer tv-chrome-footer tv-footer-v2" dir="rtl" style={{height,minHeight:height,background:'var(--tv-header,#183452)',color:'var(--tv-footer-ink,#edf5ff)',borderTop:'1px solid var(--tv-border,#45617e)'}}>
     {layout.footerShowSchoolName&&<div className="tv-v2-footer-brand"><span className="tv-v2-footer-mark" aria-hidden="true"/><span className="tv-v2-footer-school-name" title={screenName??school.name}>{screenName??school.name}</span></div>}

@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { isDraftDirty, DISCARD_DRAFT_MESSAGE } from '@/lib/unsavedChanges'
 import { cn } from '@/lib/utils'
 import type { ContentItem, ContentType, ScreenSection } from '@/types'
 import ContentEditor from './ContentEditor'
@@ -42,6 +43,8 @@ export default function SectionEditor({ screenId, section, index, isTemp, onUpda
   }, [section.id, section.contentItems])
 
   function handleTypeClick(type: ContentType) {
+    // Switching the type replaces the open form: ask first if it has unsaved changes.
+    if (type !== selectedType && isDraftDirty(localSection.id) && !window.confirm(DISCARD_DRAFT_MESSAGE)) return
     setSelectedType(type)
     const patched: ScreenSection = {
       ...localSection,
@@ -66,7 +69,11 @@ export default function SectionEditor({ screenId, section, index, isTemp, onUpda
       <div className="px-3 py-2.5 bg-gray-50 text-xs font-medium text-gray-500 border-b border-gray-100 flex items-center justify-between">
         <span>אזור {index + 1}</span>
         {!isTemp && selectedType !== 'EMPTY' && (
-          <button onClick={() => setEditorOpen(v => !v)}
+          <button onClick={() => {
+            if (editorOpen && isDraftDirty(localSection.id) && !window.confirm(DISCARD_DRAFT_MESSAGE)) return
+            if (editorOpen) onUpdate(localSection) // closing drops the unsaved draft from the preview
+            setEditorOpen(v => !v)
+          }}
             className={cn('text-[10px] px-2 py-0.5 rounded-full transition-colors',
               editorOpen ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500 hover:bg-blue-50 hover:text-blue-600')}>
             {editorOpen ? 'סגור' : 'ערוך תוכן'}

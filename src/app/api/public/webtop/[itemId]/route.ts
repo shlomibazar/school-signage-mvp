@@ -19,7 +19,8 @@ export async function GET(_req:Request,{ params: paramsPromise }:{params: Promis
   const grades=[...new Set((s.grades??[7,8,9,10,11,12]).filter(g=>Number.isInteger(g)&&g>=7&&g<=12))].sort((a,b)=>a-b)
   if(!grades.length)return NextResponse.json({error:'לא נבחרו שכבות'},{status:400})
   const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Jerusalem',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())
-  const selectedDay=s.dateMode==='tomorrow'?new Date(Date.now()+86400000).toISOString().slice(0,10):s.dateMode==='specific'&&/^\d{4}-\d{2}-\d{2}$/.test(s.specificDate??'')?s.specificDate!:today
+  // "Tomorrow" is the next Israeli calendar day (noon UTC avoids any DST edge when adding a day).
+  const selectedDay=s.dateMode==='tomorrow'?new Date(Date.parse(today+'T12:00:00Z')+86400000).toISOString().slice(0,10):s.dateMode==='specific'&&/^\d{4}-\d{2}-\d{2}$/.test(s.specificDate??'')?s.specificDate!:today
   const key=`${institutionCode}:${grades.join(',')}:${selectedDay}`
   const ttl=Math.max(30,Math.min(600,Number(s.refreshSeconds)||60))*1000
   const cached=cache.get(key)

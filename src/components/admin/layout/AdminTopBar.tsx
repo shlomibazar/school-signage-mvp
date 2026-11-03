@@ -2,6 +2,7 @@
 // src/components/admin/layout/AdminTopBar.tsx
 
 import { useState } from 'react'
+import { confirmLeaveEditor } from '@/lib/unsavedChanges'
 import { useRouter, usePathname } from 'next/navigation'
 import { LogOut, ChevronDown, School } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -22,6 +23,7 @@ export default function AdminTopBar({ user }: { user: AuthUser }) {
   const [loading, setLoading] = useState(false)
 
   async function handleLogout() {
+    if (!confirmLeaveEditor()) return
     setLoading(true)
     await fetch('/api/auth/logout', { method: 'POST' })
     router.push('/auth/login')

@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { confirmLeaveEditor } from '@/lib/unsavedChanges'
 
 export default function ScreenSelector({ currentId, screens }: { currentId: string; screens: { id: string; name: string }[] }) {
   const router = useRouter()
@@ -10,7 +11,7 @@ export default function ScreenSelector({ currentId, screens }: { currentId: stri
       <select aria-label="מסך לעריכה" value={currentId} onChange={event => {
         const next = event.target.value
         if (next !== currentId) {
-          if (document.body.dataset.screenEditorDirty === 'true' && !window.confirm('יש שינויים שלא נשמרו. לעבור למסך אחר ולבטל אותם?')) { event.target.value = currentId; return }
+          if (!confirmLeaveEditor('יש שינויים שלא נשמרו. לעבור למסך אחר ולבטל אותם?')) { event.target.value = currentId; return }
           router.push(`/admin/editor?screen=${encodeURIComponent(next)}`)
           router.refresh()
         }
