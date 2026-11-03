@@ -14,12 +14,13 @@ export default function DisplayFooter({ layout, school, screenName, birthdays=[]
     if(mode==='manual'||!rssUrl){setHeadlines([]);return}
     let alive=true
     const load=async()=>{
-      try{const r=await fetch(`/api/rss?url=${encodeURIComponent(rssUrl)}&max=100`,{cache:'no-store'});if(!r.ok)throw new Error('RSS error');const d=await r.json();if(alive)setHeadlines((d.items??[]).map((x:{title:string})=>x.title).filter(Boolean))}
+      // `screen` scopes the public request to this screen's footer (required without a login).
+      try{const r=await fetch(`/api/rss?url=${encodeURIComponent(rssUrl)}&max=100&screen=${encodeURIComponent(layout.screenId)}`,{cache:'no-store'});if(!r.ok)throw new Error('RSS error');const d=await r.json();if(alive)setHeadlines((d.items??[]).map((x:{title:string})=>x.title).filter(Boolean))}
       catch{if(alive)setHeadlines([])}
     }
     void load();const t=setInterval(load,Math.max(5,refresh)*60000)
     return()=>{alive=false;clearInterval(t)}
-  },[mode,rssUrl,refresh])
+  },[mode,rssUrl,refresh,layout.screenId])
   const birthdayText=layout.footerShowBirthdays && birthdays.length ? birthdays.map(b=>`🎂 יום הולדת שמח ${b.name}${b.grade?` (${b.grade})`:''}!`).join(' • ') : ''
   const manual=[layout.footerTicker?.trim(),birthdayText].filter(Boolean).join('   ✦   ')
   const ticker=useMemo(()=>[...(mode!=='rss'&&manual?[manual]:[]),...(mode!=='manual'?headlines:[])].join('   ✦   '),[mode,manual,headlines])

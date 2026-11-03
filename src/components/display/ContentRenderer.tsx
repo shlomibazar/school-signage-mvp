@@ -448,11 +448,12 @@ function RssContent({item}:{item:ContentItem}){
     if(!item.rssUrl)return
     setLoading(true);setError(false)
     try{
-      const r=await fetch(`/api/rss?url=${encodeURIComponent(item.rssUrl)}&max=100`)
+      // `item` scopes the public request to this content item (required without a login).
+      const r=await fetch(`/api/rss?url=${encodeURIComponent(item.rssUrl)}&max=100&item=${encodeURIComponent(item.id)}`)
       const d=await r.json()
       if(r.ok)setFeed(d.items??[]);else setError(true)
     }catch{setError(true)}finally{setLoading(false)}
-  },[item.rssUrl])
+  },[item.rssUrl,item.id])
   useEffect(()=>{void fetchFeed();const t=setInterval(fetchFeed,Math.max(5,ref)*60000);return()=>clearInterval(t)},[fetchFeed,ref])
   useEffect(()=>{
     if(style==='ticker'||!feed.length)return

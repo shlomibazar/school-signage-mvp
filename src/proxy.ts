@@ -3,6 +3,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyJWT } from '@/lib/auth'
 
 const PUBLIC_PATHS = ['/auth/login', '/auth/logout', '/screen/', '/api/auth/', '/api/public/']
+// Read-only services used by public TV screens. Exact paths, GET/HEAD only;
+// any other method still requires a login (and the routes only implement GET).
+const PUBLIC_READ_ONLY_PATHS = new Set(['/api/header-weather', '/api/weekly-parasha', '/api/rss'])
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
@@ -10,6 +13,7 @@ export async function proxy(req: NextRequest) {
   // Allow public paths
   const isPublic = PUBLIC_PATHS.some(p => pathname.startsWith(p))
   if (isPublic) return NextResponse.next()
+  if (PUBLIC_READ_ONLY_PATHS.has(pathname) && (req.method === 'GET' || req.method === 'HEAD')) return NextResponse.next()
 
   // Only protect /admin/* and /api/* (except public above)
   const isProtected = pathname.startsWith('/admin') || pathname.startsWith('/api')
