@@ -41,6 +41,10 @@ export async function proxy(req: NextRequest) {
   return NextResponse.next()
 }
 
+// The upload endpoints (POST /api/media, announcement attachments) are excluded from the
+// matcher: Next buffers the body of every request that passes through the proxy and cuts it at
+// 10 MB (proxyClientMaxBodySize), which broke video and PDF uploads. Both routes call
+// requireRole() before reading the body, so they stay authenticated.
 export const config = {
-  matcher: ['/admin/:path*', '/api/:path*'],
+  matcher: ['/admin/:path*', '/api/((?!media$|announcements/[^/]+/attachments$).*)'],
 }

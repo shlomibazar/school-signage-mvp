@@ -140,13 +140,18 @@ export default function MediaPage() {
       files.forEach(f => fd.append('file', f))
       if (activeGallery) fd.append('galleryId', activeGallery)
       const r = await fetch('/api/media', { method: 'POST', body: fd })
-      const d = await r.json()
-      if (r.ok) {
-        setImages(prev => [...(d.data ?? []), ...prev])
+      const d = await r.json().catch(() => ({})) as { data?: MediaLibraryImage[]; results?: { name: string; ok: boolean; error?: string }[]; error?: string }
+      const failed = (d.results ?? []).filter(x => !x.ok)
+      const stored = d.data ?? []
+      if (stored.length) {
+        setImages(prev => [...stored, ...prev])
         await loadGalleries() // refresh counts
-        toast.success('הקבצים הועלו בהצלחה')
-      } else { toast.error('העלאת התמונות נכשלה') }
-    } catch { toast.error('העלאת התמונות נכשלה') } finally {
+        toast.success(failed.length ? `${stored.length} מתוך ${files.length} קבצים הועלו` : stored.length === 1 ? 'הקובץ הועלה בהצלחה' : `${stored.length} קבצים הועלו בהצלחה`)
+      }
+      // Every rejected file is named with its reason; nothing is reported as uploaded unless it was stored.
+      if (failed.length) toast.error(failed.map(x => `${x.name}: ${x.error}`).join('\n'), { duration: 8000, style: { whiteSpace: 'pre-line' } })
+      else if (!stored.length) toast.error(r.status === 413 ? 'הקבצים גדולים מדי' : d.error || 'העלאת הקבצים נכשלה')
+    } catch { toast.error('העלאת הקבצים נכשלה') } finally {
       setUploading(false)
       if (fileRef.current) fileRef.current.value = ''
     }

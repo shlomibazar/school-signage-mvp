@@ -37,7 +37,8 @@ export async function GET(_request: Request, { params: paramsPromise }: { params
     where: {
       schoolId: item.section.screen.schoolId,
       ...selection,
-      mediaType: 'IMAGE',
+      // New uploads store videos as VIDEO; older ones were stored as IMAGE (MIME tells them apart).
+      mediaType: { in: ['IMAGE', 'VIDEO'] },
       hidden: false,
     },
     select: {
