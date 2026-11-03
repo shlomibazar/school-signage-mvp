@@ -2,18 +2,35 @@ import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { db } from '@/lib/db'
 import { signJWT, setAuthCookie } from '@/lib/auth'
+import { isLoginLocked, recordLoginFailure, clearLoginFailures } from '@/lib/loginRateLimit'
+
+// Compared against when the e-mail is unknown, so both cases take the same bcrypt time and the
+// response time does not reveal which addresses have accounts. (Hash of a random string.)
+const DUMMY_HASH = '$2a$12$Z.C9uVYzOTbxXlGdNdQtrOeIBId4PhLu03a05IX7wxzAofFUgBs4W'
+const INVALID = 'אימייל או סיסמה שגויים'
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, password } = await req.json()
-    if (!email || !password) return NextResponse.json({ error: 'נדרש אימייל וסיסמה' }, { status: 400 })
+    let body: unknown
+    try { body = await req.json() } catch { return NextResponse.json({ error: 'נדרש אימייל וסיסמה' }, { status: 400 }) }
+    const { email, password } = (body ?? {}) as { email?: unknown; password?: unknown }
+    if (typeof email !== 'string' || typeof password !== 'string' || !email.trim() || !password || email.length > 254 || password.length > 256) {
+      return NextResponse.json({ error: 'נדרש אימייל וסיסמה' }, { status: 400 })
+    }
+    const normalized = email.toLowerCase().trim()
 
-    const user = await db.user.findUnique({ where: { email: email.toLowerCase().trim() } })
-    if (!user) return NextResponse.json({ error: 'אימייל או סיסמה שגויים' }, { status: 401 })
+    if (await isLoginLocked(normalized)) {
+      return NextResponse.json({ error: 'יותר מדי ניסיונות התחברות. נסה שוב בעוד מספר דקות' }, { status: 429 })
+    }
 
-    const valid = await bcrypt.compare(password, user.passwordHash)
-    if (!valid) return NextResponse.json({ error: 'אימייל או סיסמה שגויים' }, { status: 401 })
+    const user = await db.user.findUnique({ where: { email: normalized } })
+    const valid = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH)
+    if (!user || !valid) {
+      await recordLoginFailure(normalized)
+      return NextResponse.json({ error: INVALID }, { status: 401 })
+    }
 
+    await clearLoginFailures(normalized)
     const token = await signJWT({ sub: user.id, email: user.email, name: user.name, role: user.role, schoolId: user.schoolId })
     await setAuthCookie(token)
 

@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { cookies } from 'next/headers'
 import { SignJWT, jwtVerify } from 'jose'
 import type { AuthUser, JWTPayload } from '@/types'
@@ -35,15 +36,28 @@ export async function verifyJWT(token: string): Promise<JWTPayload | null> {
   } catch { return null }
 }
 
-export async function getSession(): Promise<AuthUser | null> {
+// The token only says who the user is. Role and school are read from the database on every
+// request, so a role or school change applies at once and a deleted user loses access. A token
+// issued before the user's record last changed (password change, role or school change) is no
+// longer accepted; change-password issues a fresh one for the session that made the change.
+// One primary-key lookup per request (deduplicated within a server render by React cache).
+// The proxy only checks the signature; this check runs where requireRole/getSession is used.
+export const getSession = cache(async (): Promise<AuthUser | null> => {
   try {
     const token = (await cookies()).get(COOKIE)?.value
     if (!token) return null
     const payload = await verifyJWT(token)
     if (!payload) return null
-    return { id: payload.sub, email: payload.email, name: payload.name, role: payload.role, schoolId: payload.schoolId }
+    const { db } = await import('@/lib/db')
+    const user = await db.user.findUnique({
+      where: { id: payload.sub },
+      select: { id: true, email: true, name: true, role: true, schoolId: true, updatedAt: true },
+    })
+    if (!user) return null
+    if (typeof payload.iat !== 'number' || payload.iat < Math.floor(user.updatedAt.getTime() / 1000)) return null
+    return { id: user.id, email: user.email, name: user.name, role: user.role, schoolId: user.schoolId }
   } catch { return null }
-}
+})
 
 // Alias — used by some pages
 export const getCurrentUser = getSession

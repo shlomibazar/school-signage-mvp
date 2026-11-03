@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { db } from '@/lib/db'
-import { getSession } from '@/lib/auth'
+import { getSession, signJWT, setAuthCookie } from '@/lib/auth'
 
 export const runtime = 'nodejs'
 
@@ -52,11 +52,16 @@ export async function POST(req: NextRequest) {
 
     const passwordHash = await bcrypt.hash(newPassword, 12)
     // Prevent overwriting a password that was changed in another request.
+    // updatedAt moves forward, which invalidates every session issued before the change.
     const updated = await db.user.updateMany({
       where: { id: user.id, passwordHash: user.passwordHash },
-      data: { passwordHash },
+      data: { passwordHash, updatedAt: new Date() },
     })
     if (updated.count !== 1) return error('הסיסמה השתנתה בינתיים. נסה שוב', 409)
+
+    // Keep the session that made the change signed in, with a token issued after the change.
+    const fresh = await db.user.findUnique({ where: { id: user.id }, select: { id: true, email: true, name: true, role: true, schoolId: true } })
+    if (fresh) await setAuthCookie(await signJWT({ sub: fresh.id, email: fresh.email, name: fresh.name, role: fresh.role, schoolId: fresh.schoolId }))
 
     return NextResponse.json({ success: true, message: 'הסיסמה עודכנה בהצלחה' })
   } catch (e) {
