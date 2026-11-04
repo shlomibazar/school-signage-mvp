@@ -22,6 +22,7 @@ import BirthdayContentForm     from './content-forms/BirthdayContentForm'
 import EventsContentForm       from './content-forms/EventsContentForm'
 import TimetableContentForm    from './content-forms/TimetableContentForm'
 import { setDraftDirty, DISCARD_DRAFT_MESSAGE } from '@/lib/unsavedChanges'
+import { announcementIdsOf } from '@/lib/announcementMerge'
 
 const DEFAULT_CLOCK:        ClockSettings               = { hourFormat: '24', showSeconds: false }
 const DEFAULT_DATE:         DateSettings                = { dateFormat: 'full', locale: 'he' }
@@ -83,6 +84,8 @@ export default function ContentEditor({ screenId, section, selectedType, onClose
   const [saving,     setSaving]     = useState(false)
   const [deleting,   setDeleting]   = useState(false)
   const [existingId, setExistingId] = useState<string | null>(null)
+  // Announcement ids of the stored region when it was loaded (the base for merging on save).
+  const baseAnnouncementIds = useRef<string[] | undefined>(undefined)
   const [item,       setItem]       = useState<EditableItem>(makeDefault(selectedType))
 
   useEffect(() => {
@@ -98,6 +101,7 @@ export default function ContentEditor({ screenId, section, selectedType, onClose
           const typeMatches = d.contentType === selectedType
           setUnsavedType(!typeMatches)
           setExistingId(d.id)
+          baseAnnouncementIds.current = d.contentType === 'ANNOUNCEMENT' ? announcementIdsOf(d.settings) : undefined
           setItem({
             contentType: selectedType, active: d.active,
             startDate: d.startDate ?? null, endDate: d.endDate ?? null,
@@ -120,6 +124,7 @@ export default function ContentEditor({ screenId, section, selectedType, onClose
           })
         } else {
           setUnsavedType(true)
+          baseAnnouncementIds.current = undefined
           setExistingId(null); setItem(makeDefault(selectedType))
         }
       } catch { if (!cancelled) toast.error('שגיאה בטעינת התוכן') }
@@ -181,12 +186,18 @@ export default function ContentEditor({ screenId, section, selectedType, onClose
         rssUrl: item.rssUrl ?? null, rssMaxItems: item.rssMaxItems ?? 5,
         weatherCity: item.weatherCity ?? null, weatherUnits: item.weatherUnits ?? 'metric',
         settings: item.settings ?? null,
+        // The announcement list as loaded: the server applies only this editor's changes to it.
+        ...(baseAnnouncementIds.current ? { baseAnnouncementIds: baseAnnouncementIds.current } : {}),
       }
       const res = await fetch(`/api/screens/${screenId}/sections/${section.id}/content`,
         { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? 'שגיאה') }
       const saved = await res.json()
-      setExistingId(saved.data.id); setUnsavedType(false); setBaseline(JSON.stringify(item)); toast.success('התוכן נשמר'); onSaved(saved.data)
+      // Show what was stored: the announcement list may include assignments made elsewhere meanwhile.
+      const next = saved.data.contentType === 'ANNOUNCEMENT' ? { ...item, settings: saved.data.settings as ContentSettings } : item
+      baseAnnouncementIds.current = saved.data.contentType === 'ANNOUNCEMENT' ? announcementIdsOf(saved.data.settings) : undefined
+      setItem(next)
+      setExistingId(saved.data.id); setUnsavedType(false); setBaseline(JSON.stringify(next)); toast.success('התוכן נשמר'); onSaved(saved.data)
     } catch (err: any) { toast.error(err.message ?? 'שגיאה') }
     finally { setSaving(false) }
   }

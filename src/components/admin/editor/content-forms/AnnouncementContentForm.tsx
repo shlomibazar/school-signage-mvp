@@ -1,12 +1,20 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { AnnouncementContentSettings } from '@/types'
 interface Entry { id:string; title:string; body:string; active:boolean; startAt:string; endAt:string; priority:string }
 export default function AnnouncementContentForm({settings,onSettings}:{settings:AnnouncementContentSettings;onSettings:(s:AnnouncementContentSettings)=>void}) {
   const [all,setAll]=useState<Entry[]>([])
   const [error,setError]=useState('')
-  useEffect(()=>{fetch('/api/announcements',{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('שגיאה בטעינת הודעות');return r.json()}).then(d=>setAll(d.data??[])).catch(e=>setError(e.message))},[])
   const ids=settings.selectedAnnouncementIds??[]
+  // Reload the list when the region holds an announcement it does not know yet (e.g. one assigned
+  // from the Announcements page while this editor was open, returned by the save).
+  const [loaded,setLoaded]=useState(false)
+  const unknownKey=loaded?ids.filter(id=>!all.some(a=>a.id===id)).join(','):''
+  const askedFor=useRef('')
+  const [reloads,setReloads]=useState(0)
+  useEffect(()=>{fetch('/api/announcements',{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('שגיאה בטעינת הודעות');return r.json()}).then(d=>{setAll(d.data??[]);setLoaded(true)}).catch(e=>setError(e.message))},[reloads])
+  // One reload per new set of unknown ids (ids of deleted announcements stay unknown).
+  useEffect(()=>{if(unknownKey&&unknownKey!==askedFor.current){askedFor.current=unknownKey;setReloads(n=>n+1)}},[unknownKey])
   const patch=(v:Partial<AnnouncementContentSettings>)=>onSettings({...settings,...v})
   return <div className="space-y-4" dir="rtl">
     <div className="rounded-xl bg-blue-50 border border-blue-100 p-3 text-xs text-blue-800">הדרך המומלצת: ליצור הודעה בעמוד ״הודעות״ ולבחור שם באילו מסכים להציג אותה. כאן אפשר גם לבחור אילו הודעות יופיעו באזור הזה של המסך הנוכחי.</div>

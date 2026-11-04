@@ -1,13 +1,14 @@
 // src/app/api/screens/[id]/sections/[sectionId]/content/route.ts
 
 import { NextRequest, NextResponse } from 'next/server'
-import { errorResponse } from '@/lib/apiErrors'
+import { errorResponse, HttpError } from '@/lib/apiErrors'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { toISOStringOrNull } from '@/lib/utils'
 import { Prisma } from '@prisma/client'
 import { galleryBelongsToSchool, contentSettingsBelongToSchool } from '@/lib/schoolScope'
+import { editorAnnouncementSettings } from '@/lib/announcementMerge'
 
 function apiError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status })
@@ -67,6 +68,8 @@ const ContentSchema = z.object({
   weatherUnits:    z.string().default('metric'),
   // Flexible per-type settings JSON
   settings:        z.record(z.string(), z.unknown()).nullable().optional(),
+  // Announcement ids the editor loaded; its changes are merged into the stored list (see announcementMerge).
+  baseAnnouncementIds: z.array(z.string().max(64)).max(500).optional(),
 })
 
 // ── GET ──────────────────────────────────────────────────
@@ -131,38 +134,46 @@ export async function POST(
     if (!(await contentSettingsBelongToSchool(parsed.settings, section.screen.schoolId)))
       return apiError('Invalid content references', 400)
 
-    // One item per section — delete existing first
-    await db.contentItem.deleteMany({ where: { sectionId: params.sectionId } })
+    const fields = {
+      contentType:     parsed.contentType,
+      active:          parsed.active,
+      priority:        0,
+      startDate:       parsed.startDate ? new Date(parsed.startDate) : null,
+      endDate:         parsed.endDate   ? new Date(parsed.endDate)   : null,
+      startTime:       parsed.startTime  ?? null,
+      endTime:         parsed.endTime    ?? null,
+      daysOfWeek:      parsed.daysOfWeek,
+      textContent:     parsed.textContent  ?? null,
+      textColor:       parsed.textColor    ?? null,
+      bgColor:         parsed.bgColor      ?? null,
+      fontSize:        parsed.fontSize     ?? null,
+      galleryId:       parsed.galleryId    ?? null,
+      slideDuration:   parsed.slideDuration,
+      transitionStyle: parsed.transitionStyle,
+      videoUrl:        parsed.videoUrl     ?? null,
+      videoLoop:       parsed.videoLoop,
+      videoMuted:      parsed.videoMuted,
+      rssUrl:          parsed.rssUrl       ?? null,
+      rssMaxItems:     parsed.rssMaxItems,
+      weatherCity:     parsed.weatherCity  ?? null,
+      weatherUnits:    parsed.weatherUnits,
+    }
 
-    const item = await db.contentItem.create({
-      data: {
-        sectionId:       params.sectionId,
-        contentType:     parsed.contentType,
-        active:          parsed.active,
-        priority:        0,
-        startDate:       parsed.startDate ? new Date(parsed.startDate) : null,
-        endDate:         parsed.endDate   ? new Date(parsed.endDate)   : null,
-        startTime:       parsed.startTime  ?? null,
-        endTime:         parsed.endTime    ?? null,
-        daysOfWeek:      parsed.daysOfWeek,
-        textContent:     parsed.textContent  ?? null,
-        textColor:       parsed.textColor    ?? null,
-        bgColor:         parsed.bgColor      ?? null,
-        fontSize:        parsed.fontSize     ?? null,
-        galleryId:       parsed.galleryId    ?? null,
-        slideDuration:   parsed.slideDuration,
-        transitionStyle: parsed.transitionStyle,
-        videoUrl:        parsed.videoUrl     ?? null,
-        videoLoop:       parsed.videoLoop,
-        videoMuted:      parsed.videoMuted,
-        rssUrl:          parsed.rssUrl       ?? null,
-        rssMaxItems:     parsed.rssMaxItems,
-        weatherCity:     parsed.weatherCity  ?? null,
-        weatherUnits:    parsed.weatherUnits,
-        settings: parsed.settings
-          ? (parsed.settings as Prisma.InputJsonValue)
-          : Prisma.DbNull,
-      },
+    // One item per section. The section and its item are locked, and the stored item is updated
+    // in place (its id stays the same, so announcement assignments that refer to it stay valid).
+    // An announcement list from the editor is merged with the stored one, never blindly replaced.
+    const item = await db.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM screen_sections WHERE id = ${params.sectionId} FOR UPDATE`
+      await tx.$queryRaw`SELECT id FROM content_items WHERE "sectionId" = ${params.sectionId} ORDER BY id FOR UPDATE`
+      const stored = await tx.contentItem.findMany({ where: { sectionId: params.sectionId }, orderBy: { createdAt: 'asc' } })
+      const keep = stored[0]
+      const merged = editorAnnouncementSettings(keep, parsed.contentType, parsed.settings, parsed.baseAnnouncementIds)
+      if ('conflict' in merged) throw new HttpError(409, 'רשימת ההודעות של האזור השתנתה. טענו מחדש את העורך ונסו שוב.')
+      const settings = merged.settings ? (merged.settings as Prisma.InputJsonValue) : Prisma.DbNull
+      if (stored.length > 1) await tx.contentItem.deleteMany({ where: { sectionId: params.sectionId, id: { not: keep.id } } })
+      return keep
+        ? tx.contentItem.update({ where: { id: keep.id }, data: { ...fields, settings } })
+        : tx.contentItem.create({ data: { sectionId: params.sectionId, ...fields, settings } })
     })
 
     return NextResponse.json({

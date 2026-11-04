@@ -1,7 +1,9 @@
 // src/app/api/screens/[id]/sections/[sectionId]/content/[itemId]/route.ts
 
 import { NextRequest, NextResponse } from 'next/server'
-import { errorResponse } from '@/lib/apiErrors'
+import { errorResponse, HttpError } from '@/lib/apiErrors'
+import { Prisma } from '@prisma/client'
+import { editorAnnouncementSettings } from '@/lib/announcementMerge'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
@@ -59,6 +61,8 @@ const UpdateSchema = z.object({
   weatherCity:     z.string().nullable().optional(),
   weatherUnits:    z.string().optional(),
   settings:        z.record(z.string(), z.unknown()).nullable().optional(),
+  // Announcement ids the client loaded; its changes are merged into the stored list (see announcementMerge).
+  baseAnnouncementIds: z.array(z.string().max(64)).max(500).optional(),
 })
 
 // ── PUT ───────────────────────────────────────────────────
@@ -107,11 +111,16 @@ export async function PUT(
     if (parsed.rssMaxItems     !== undefined) data.rssMaxItems     = parsed.rssMaxItems
     if (parsed.weatherCity     !== undefined) data.weatherCity     = parsed.weatherCity
     if (parsed.weatherUnits    !== undefined) data.weatherUnits    = parsed.weatherUnits
-    if (parsed.settings        !== undefined) data.settings        = parsed.settings
-
-    const item = await db.contentItem.update({
-      where: { id: params.itemId },
-      data,
+    // Settings are written under a row lock; an announcement list is merged with the stored one.
+    const item = await db.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM content_items WHERE id = ${params.itemId} FOR UPDATE`
+      if (parsed.settings !== undefined) {
+        const stored = await tx.contentItem.findUnique({ where: { id: params.itemId }, select: { contentType: true, settings: true } })
+        const merged = editorAnnouncementSettings(stored, stored?.contentType ?? '', parsed.settings, parsed.baseAnnouncementIds)
+        if ('conflict' in merged) throw new HttpError(409, 'רשימת ההודעות של האזור השתנתה. טענו מחדש ונסו שוב.')
+        data.settings = merged.settings === null ? Prisma.DbNull : merged.settings
+      }
+      return tx.contentItem.update({ where: { id: params.itemId }, data })
     })
 
     return NextResponse.json({
