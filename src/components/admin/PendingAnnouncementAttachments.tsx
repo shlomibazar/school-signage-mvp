@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils'
 // Removed items, and everything when the form is left unsaved, are discarded on the server.
 
 export type PendingMedia = { id: string; url: string; originalName: string; mimeType?: string }
-export type PreparedPage = { token: string; url: string; preview: string }
+export type PreparedPage = { token: string; url: string; preview: string; uploadedAt: number }
 export type PreparedItem = {
   key: string
   name: string
@@ -21,8 +21,19 @@ export type PreparedItem = {
   done: number
   total: number
   error?: string
+  /** The upload tokens expired (24 hours): "upload again" re-uploads every page from the file. */
+  expired?: boolean
   pages: PreparedPage[]
   media?: PendingMedia
+}
+
+/** Upload tokens are valid for 24 hours; files older than this are uploaded again before saving. */
+export const UPLOAD_MAX_AGE_MS = 23.5 * 60 * 60 * 1000
+export const EXPIRED_MESSAGE = 'תוקף ההעלאה פג (קבצים נשמרים לצירוף עד 24 שעות). לחצו ״העלה שוב״ — הקובץ יועלה מחדש בלי לבחור אותו שוב.'
+/** Marks items whose pages carry one of the given tokens (or are too old) as expired. */
+export function markExpired(items: PreparedItem[], tokens: Set<string>, now = Date.now()): PreparedItem[] {
+  return items.map(i => i.pages.some(p => tokens.has(p.token) || now - p.uploadedAt > UPLOAD_MAX_AGE_MS)
+    ? { ...i, status: 'error', expired: true, error: EXPIRED_MESSAGE } : i)
 }
 
 const ACCEPT = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf']
@@ -79,7 +90,7 @@ export default function PendingAnnouncementAttachments({ items, onChange, disabl
         if (removed.current.has(key)) { discardPrepared([d.data.token]); break }
         src.uploaded = n + 1
         const preview = URL.createObjectURL(page); previews.current.push(preview)
-        patch(key, i => ({ pages: [...i.pages, { token: d.data.token, url: d.data.url, preview }], done: i.pages.length + 1 }))
+        patch(key, i => ({ pages: [...i.pages, { token: d.data.token, url: d.data.url, preview, uploadedAt: Date.now() }], done: i.pages.length + 1 }))
       }
       if (!removed.current.has(key)) patch(key, { status: 'ready' })
     } catch (e) {
@@ -103,6 +114,14 @@ export default function PendingAnnouncementAttachments({ items, onChange, disabl
     onChange(list => [...list, ...next])
     for (const item of next) enqueue(item.key)
     if (fileRef.current) fileRef.current.value = ''
+  }
+  // Retry after an error. Expired uploads start over: every page is uploaded again from the file
+  // kept in memory (the old, expired files are left to the server-side sweep).
+  function retry(item: PreparedItem) {
+    const src = sources.current.get(item.key)
+    if (!src) { patch(item.key, { error: 'הקובץ אינו זמין עוד. הסירו אותו ובחרו אותו שוב.' }); return }
+    if (item.expired) { src.uploaded = 0; patch(item.key, { pages: [], done: 0, expired: false }) }
+    enqueue(item.key)
   }
   function remove(item: PreparedItem) {
     removed.current.add(item.key)
@@ -135,7 +154,7 @@ export default function PendingAnnouncementAttachments({ items, onChange, disabl
               <span className="truncate text-sm font-medium" title={item.name}>{item.name}</span>
             </div>
             <div className="flex shrink-0 items-center gap-1">
-              {item.status === 'error' && <button type="button" disabled={disabled} onClick={() => enqueue(item.key)} className="inline-flex items-center gap-1 rounded-ui-sm px-2 py-1 text-xs font-medium text-ui-ink-2 hover:bg-ui-subtle"><RotateCcw className="h-3.5 w-3.5" />נסה שוב</button>}
+              {item.status === 'error' && <button type="button" disabled={disabled} onClick={() => retry(item)} className="inline-flex items-center gap-1 rounded-ui-sm px-2 py-1 text-xs font-medium text-ui-ink-2 hover:bg-ui-subtle"><RotateCcw className="h-3.5 w-3.5" />{item.expired ? 'העלה שוב' : 'נסה שוב'}</button>}
               <button type="button" disabled={disabled} onClick={() => remove(item)} aria-label={`הסרת ${item.name}`} className="inline-flex items-center gap-1 rounded-ui-sm px-2 py-1 text-xs text-ui-danger hover:bg-ui-danger-soft disabled:opacity-50"><X className="h-3.5 w-3.5" />הסר</button>
             </div>
           </div>
@@ -143,7 +162,7 @@ export default function PendingAnnouncementAttachments({ items, onChange, disabl
             {item.status === 'converting' && <><Loader2 className="h-3.5 w-3.5 animate-spin text-ui-primary" /><span>ממיר PDF לעמודים{item.total ? ` · ${item.done} מתוך ${item.total}` : '...'}</span></>}
             {item.status === 'uploading' && <><Loader2 className="h-3.5 w-3.5 animate-spin text-ui-primary" /><span>מעלה{item.total > 1 ? ` עמוד ${Math.min(item.done + 1, item.total)} מתוך ${item.total}` : '...'}</span></>}
             {item.status === 'ready' && <><CheckCircle2 className="h-3.5 w-3.5 text-ui-success" /><span className="text-ui-success">{item.media ? 'מהגלריה · מוכן' : item.kind === 'pdf' ? `${item.pages.length} עמודים מוכנים` : 'מוכן'}</span></>}
-            {item.status === 'error' && <><AlertCircle className="h-3.5 w-3.5 text-ui-danger" /><span className="text-ui-danger">{item.error}{item.pages.length ? ` (${item.pages.length} מתוך ${item.total} עמודים הועלו)` : ''}</span></>}
+            {item.status === 'error' && <><AlertCircle className="h-3.5 w-3.5 text-ui-danger" /><span className="text-ui-danger">{item.error}{item.pages.length && !item.expired ? ` (${item.pages.length} מתוך ${item.total} עמודים הועלו)` : ''}</span></>}
           </div>
           {(item.status === 'converting' || item.status === 'uploading') && <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-ui-subtle" aria-hidden="true"><div className="h-full bg-ui-primary transition-all" style={{ width: `${pct}%` }} /></div>}
           {thumbs.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">

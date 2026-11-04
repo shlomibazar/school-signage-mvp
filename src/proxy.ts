@@ -41,10 +41,12 @@ export async function proxy(req: NextRequest) {
   return NextResponse.next()
 }
 
-// The upload endpoints (POST /api/media, announcement attachments) are excluded from the
-// matcher: Next buffers the body of every request that passes through the proxy and cuts it at
-// 10 MB (proxyClientMaxBodySize), which broke video and PDF uploads. Both routes call
-// requireRole() before reading the body, so they stay authenticated.
+// The upload endpoints (POST /api/media, announcement attachments, prepared announcement
+// uploads) are excluded from the matcher: Next buffers the body of every request that passes
+// through the proxy and cuts it at 10 MB (proxyClientMaxBodySize), which broke video and PDF
+// uploads. Each of these routes calls requireRole() before reading the body, so they stay
+// authenticated.
+// (/api/announcement-uploads/discard is a small JSON request and stays behind the proxy.)
 export const config = {
-  matcher: ['/admin/:path*', '/api/((?!media$|announcements/[^/]+/attachments$).*)'],
+  matcher: ['/admin/:path*', '/api/((?!media$|announcements/[^/]+/attachments$|announcement-uploads$).*)'],
 }

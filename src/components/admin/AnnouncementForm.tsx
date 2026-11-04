@@ -7,7 +7,7 @@ import type { Announcement } from '@/types'
 import { cleanAnnouncementHtml } from '@/lib/announcementRichText'
 import { presetEnd, presetFor, toLocalInput, type SchedulePreset } from '@/lib/announcementStatus'
 import AnnouncementAttachments from './AnnouncementAttachments'
-import PendingAnnouncementAttachments, { type PreparedItem, preparedBusy, preparedPayload, preparedTokens, discardPrepared } from './PendingAnnouncementAttachments'
+import PendingAnnouncementAttachments, { type PreparedItem, preparedBusy, preparedPayload, preparedTokens, discardPrepared, markExpired, UPLOAD_MAX_AGE_MS } from './PendingAnnouncementAttachments'
 import AnnouncementDeleteButton from './AnnouncementDeleteButton'
 import WhereToDisplay, { type ScreenOption } from './announcements/WhereToDisplay'
 import { Button, ButtonLink } from '@/components/ui/Button'
@@ -95,7 +95,9 @@ export default function AnnouncementForm({initial}:{initial?:Announcement}){
   preparedRef.current=prepared
   useEffect(()=>{
     if(initial)return
-    const discard=()=>{if(!savedRef.current)discardPrepared(preparedTokens(preparedRef.current))}
+    // Never while a save is in flight: if the page is left mid-save, the save may still succeed
+    // with these files (anything left over is removed by the server-side sweep).
+    const discard=()=>{if(!savedRef.current&&!savingRef.current)discardPrepared(preparedTokens(preparedRef.current))}
     const warn=(e:BeforeUnloadEvent)=>{if(!savedRef.current&&preparedRef.current.length){e.preventDefault();e.returnValue=''}}
     window.addEventListener('pagehide',discard)
     window.addEventListener('beforeunload',warn)
@@ -112,7 +114,13 @@ export default function AnnouncementForm({initial}:{initial?:Announcement}){
     if(savingRef.current||attachmentsBusy)return
     setError('');setSuccess('')
     if(preparing){setError('הקבצים עדיין מועלים. ההודעה תישמר אחרי שההעלאה תסתיים — נסו שוב בעוד רגע.');return}
-    if(failedUploads){setError('העלאת חלק מהקבצים נכשלה. נסו שוב או הסירו אותם לפני השמירה.');return}
+    if(failedUploads){setError('העלאת חלק מהקבצים נכשלה או שתוקפה פג. לחצו ״נסה שוב״ / ״העלה שוב״ או הסירו אותם לפני השמירה.');return}
+    // Uploads are valid for 24 hours: a form left open longer asks for those files again.
+    if(!savedId&&prepared.some(i=>i.pages.some(p=>Date.now()-p.uploadedAt>UPLOAD_MAX_AGE_MS))){
+      setPrepared(list=>markExpired(list,new Set()))
+      setError('תוקף ההעלאה של חלק מהקבצים פג. לחצו ״העלה שוב״ ליד כל קובץ מסומן ושמרו שוב. ההודעה לא נשמרה.')
+      return
+    }
     const hasText = body.replace(/<[^>]*>/g, '').replace(/&nbsp;| /g, ' ').trim().length > 0
     if (!hasText && prepared.length === 0 && !savedId) {
       setError('יש להזין תוכן הודעה או לצרף תמונה / PDF')
@@ -130,7 +138,14 @@ export default function AnnouncementForm({initial}:{initial?:Announcement}){
         ...(regionsReady?{regionIds}:{}),
         ...(!savedId?{attachments:preparedPayload(prepared)}:{}),
       })})
-      if(!res.ok){const data=await res.json().catch(()=>null);throw Error(`שמירת ההודעה נכשלה (${res.status}): ${data?.error&&typeof data.error==='string'?data.error:'בדקו את השדות והתאריכים'}`)}
+      if(!res.ok){const data=await res.json().catch(()=>null)
+        if(data?.code==='UPLOAD_EXPIRED'&&Array.isArray(data.invalidTokens)){
+          // Nothing was saved. The files stay in the form, marked, with "upload again".
+          setPrepared(list=>markExpired(list,new Set(data.invalidTokens)))
+          throw Error('תוקף ההעלאה של חלק מהקבצים פג. לחצו ״העלה שוב״ ליד כל קובץ מסומן ושמרו שוב. ההודעה לא נשמרה.')
+        }
+        throw Error(`שמירת ההודעה נכשלה (${res.status}): ${data?.error&&typeof data.error==='string'?data.error:'בדקו את השדות והתאריכים'}`)
+      }
       const payload=await res.json()
       const id=savedId||payload?.data?.id
       if(!id)throw Error('ההודעה נשמרה אך לא התקבל מזהה. רענן את הדף ובדוק את הרשימה.')

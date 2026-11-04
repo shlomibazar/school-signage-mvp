@@ -42,6 +42,28 @@ try {
   tokens.push(p1.j?.data?.token, p2.j?.data?.token)
   t('upload PDF page: kind PDF_PAGE', p1.s === 201 && p1.j.data.kind === 'PDF_PAGE' && p2.j.data.kind === 'PDF_PAGE')
 
+  // ---- large page (near the 10 MB image limit) is not cut by the proxy
+  const big = Buffer.alloc(9.9 * 1024 * 1024, 7); PNG.copy(big, 0, 0, 16)
+  const ub = await upload(A, big, 'big - עמוד 1.png', 'image/png', { pdfPage: '1' })
+  tokens.push(ub.j?.data?.token)
+  t('9.9 MB page: 201 and stored complete (not truncated)', ub.s === 201 && fs.statSync(fileOf(ub.j.data.url)).size === big.length, `${ub.s} ${ub.text.slice(0, 120)}`)
+  t('over 10 MB page rejected (413)', (await upload(A, Buffer.concat([big, Buffer.alloc(200 * 1024)]), 'huge.png', 'image/png')).s === 413)
+
+  // ---- expired token: clear error, list of the expired tokens, nothing saved
+  // Signed here with the LOCAL .env secret only (this script refuses to run anywhere else).
+  const { SignJWT } = await import('jose')
+  const secret = process.env.JWT_SECRET || fs.readFileSync(path.join(ROOT, '.env'), 'utf8').match(/^JWT_SECRET="?([^"\r\n]*)/m)?.[1]
+  const key = (await import('node:crypto')).createHash('sha256').update(`${secret}:announcement-prepared-upload`).digest()
+  const fresh = await upload(A, PNG, 'expired.png', 'image/png'); tokens.push(fresh.j.data.token)
+  const claims = JSON.parse(Buffer.from(fresh.j.data.token.split('.')[1], 'base64url').toString())
+  const expired = await new SignJWT({ sid: claims.sid, url: claims.url, name: claims.name, mime: claims.mime, kind: claims.kind, file: claims.file })
+    .setProtectedHeader({ alg: 'HS256' }).setAudience('announcement-prepared-upload').setIssuedAt(Math.floor(Date.now() / 1000) - 25 * 3600).setExpirationTime(Math.floor(Date.now() / 1000) - 3600).sign(key)
+  const ex = await call(A, '/api/announcements', 'POST', ann('Expired', { attachments: [{ token: u1.j.data.token }, { token: expired }] }))
+  t('expired token: 400 UPLOAD_EXPIRED naming only the expired token', ex.s === 400 && ex.j?.code === 'UPLOAD_EXPIRED' && JSON.stringify(ex.j.invalidTokens) === JSON.stringify([expired]), ex.text)
+  t('expired token: Hebrew message', /פג/.test(ex.j?.error ?? ''))
+  t('expired token: nothing saved (no announcement, no attachment)', !(await db.announcement.findFirst({ where: { title: `${TAG} Expired` } })) && (await db.announcementAttachment.count({ where: { url: u1.j.data.url } })) === 0)
+  t('expired token: discard ignores it (left to the sweep)', (await call(A, '/api/announcement-uploads/discard', 'POST', { tokens: [expired] })).j?.data?.deleted === 0 && fs.existsSync(fileOf(fresh.j.data.url)))
+
   // ---- validation and access
   t('raw PDF rejected (pages are converted in the browser)', (await upload(A, PDF, 'doc.pdf', 'application/pdf')).s === 400)
   t('non-image rejected', (await upload(A, Buffer.from('hello'), 'x.png', 'image/png')).s === 400)
