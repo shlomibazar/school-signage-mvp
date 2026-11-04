@@ -12,7 +12,8 @@
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
     "postinstall": "node scripts/copy-pdf-worker.cjs",
-    "test": "tsx --test tests/*.test.ts"
+    "test": "tsx --test tests/*.test.ts",
+    "test:qa:announcements": "node scripts/qa/announcement-assignments.mjs"
   },
   "dependencies": {
     "@prisma/client": "^5.15.0",
