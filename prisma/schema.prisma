@@ -122,6 +122,10 @@ model Screen {
   height            Int                      @default(1080)
   active            Boolean                  @default(true)
   refreshSecs       Int                      @default(300)
+  // Last snapshot captured in the screen editor ("עדכן צילום"): a versioned image URL and when it
+  // was taken. Both empty until the first capture; the screens list falls back to the schematic.
+  snapshotUrl       String?
+  snapshotAt        DateTime?
   createdAt         DateTime                 @default(now())
   updatedAt         DateTime                 @updatedAt
   operatingSchedule ScreenOperatingSchedule?

@@ -1,12 +1,13 @@
 'use client'
 import { SCREEN_FONTS } from '@/lib/screenFont'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { Save, Eye, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { distributeWidths, toISOStringOrNull } from '@/lib/utils'
 import type { Screen, ScreenLayout, ScreenSection, ContentItem } from '@/types'
 import ScreenPreview from './ScreenPreview'
+import SnapshotButton from './SnapshotButton'
 import HeaderEditor from './HeaderEditor'
 import FooterEditor from './FooterEditor'
 import SectionEditor from './SectionEditor'
@@ -24,6 +25,8 @@ export default function ScreenLayoutEditor({ screen, layout: initLayout, section
   const [layout,   setLayout]   = useState<ScreenLayout>(initLayout)
   const [sections, setSections] = useState<ScreenSection[]>(initSections)
   const [isDirty,  setIsDirty]  = useState(false)
+  // The preview box, so "עדכן צילום" can capture the stage inside it.
+  const previewBoxRef = useRef<HTMLDivElement>(null)
   const [saving,   setSaving]   = useState(false)
   const [tab,      setTab]      = useState<Tab>('header')
   // Preview zoom: 'fit' (default) or a manual scale; the % label shows the scale in use.
@@ -303,10 +306,11 @@ export default function ScreenLayoutEditor({ screen, layout: initLayout, section
               <button type="button" onClick={() => zoomBy(1.25)} title="התקרב (זום פנימה)" aria-label="התקרב" className="w-7 h-7 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-sm leading-none">+</button>
               <button type="button" onClick={() => setPreviewZoom('fit')} aria-pressed={previewZoom === 'fit'}
                 className={`text-xs px-2.5 py-1 rounded-lg border ${previewZoom === 'fit' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white hover:bg-gray-50'}`}>התאם לחלון</button>
+              <SnapshotButton screenId={screen.id} dirty={isDirty} initialSnapshotAt={screen.snapshotAt} getStage={() => previewBoxRef.current?.querySelector<HTMLElement>('.tv-screen-stage') ?? null} />
               <button type="button" onClick={() => setPreviewEnlarged(v => !v)} className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 bg-white hover:bg-gray-50">{previewEnlarged ? 'סגור תצוגה מוגדלת' : 'הגדל תצוגה'}</button>
             </div>
           </div>
-          <div className={`relative bg-slate-100 border border-slate-200 rounded-xl overflow-hidden min-h-[260px] ${previewEnlarged ? 'flex-1 min-h-0' : 'h-[60vh] lg:h-auto lg:min-h-0 lg:flex-1'}`}>
+          <div ref={previewBoxRef} className={`relative bg-slate-100 border border-slate-200 rounded-xl overflow-hidden min-h-[260px] ${previewEnlarged ? 'flex-1 min-h-0' : 'h-[60vh] lg:h-auto lg:min-h-0 lg:flex-1'}`}>
             <ScreenPreview layout={layout} sections={sections} screen={screen} logoUrl={logoUrl} weatherCity={weatherCity} zoom={previewZoom} onScaleChange={setPreviewScale}/>
           </div>
         </div>

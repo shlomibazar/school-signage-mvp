@@ -4,6 +4,7 @@ import ScreenActiveToggle from '@/components/admin/ScreenActiveToggle'
 import Link from 'next/link'
 import ScreenDeleteButton from '@/components/admin/ScreenDeleteButton'
 import ScreenSnapshot from '@/components/admin/ScreenSnapshot'
+import ScreenSnapshotImage from '@/components/admin/ScreenSnapshotImage'
 import ShortLinkManager from '@/components/admin/ShortLinkManager'
 import { Plus, Edit, ExternalLink, Monitor } from 'lucide-react'
 import { getCurrentUser } from '@/lib/auth'
@@ -59,7 +60,10 @@ export default async function ScreensPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {screens.map(screen => (
           <div key={screen.id} className="bg-white border border-gray-100 rounded-2xl overflow-hidden hover:border-gray-200 transition-colors">
-            <ScreenSnapshot screen={screen} media={media} announcements={announcements} />
+            {/* The saved snapshot when there is one; otherwise the schematic summary. */}
+            {screen.snapshotUrl && screen.snapshotAt
+              ? <ScreenSnapshotImage url={screen.snapshotUrl} takenAt={screen.snapshotAt.toISOString()} name={screen.name} slug={screen.slug} portrait={screen.orientation === 'PORTRAIT'} />
+              : <ScreenSnapshot screen={screen} media={media} announcements={announcements} />}
 
             <div className="p-4">
               <div className="flex items-start justify-between gap-2 mb-2">

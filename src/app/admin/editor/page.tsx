@@ -147,6 +147,7 @@ export default async function EditorPage({ searchParams: searchParamsPromise }: 
     height:      raw.height,
     active:      raw.active,
     refreshSecs: raw.refreshSecs,
+    snapshotAt:  raw.snapshotAt?.toISOString() ?? null,
   }
 
   const availableScreens = await db.screen.findMany({

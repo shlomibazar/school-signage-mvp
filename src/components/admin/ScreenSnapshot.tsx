@@ -30,7 +30,7 @@ export default function ScreenSnapshot({ screen, media, announcements }: { scree
   const widths = getTemplateWidths(template, count)
   const theme = resolveScreenTheme(layout?.bgColor ?? null)
   return (
-    <div className="h-40 flex items-center justify-center overflow-hidden p-2" style={{ background: '#e5e7eb' }}>
+    <div className="aspect-video flex items-center justify-center overflow-hidden p-2" style={{ background: '#e5e7eb' }}>
       <div dir="rtl" className="h-full flex flex-col overflow-hidden rounded-sm shadow-sm" style={{ width: screen.orientation === 'PORTRAIT' ? '30%' : '100%', background: theme.bg, color: theme.panelText }}>
         {layout?.headerEnabled !== false && <div className="px-2 py-1 text-[9px] font-semibold truncate" style={{ background: theme.header, color: theme.headerText }}>{screen.name}</div>}
         <div className={`flex ${isStackedLayout(screen.orientation) ? 'flex-col' : ''} flex-1 min-h-0 gap-1 p-1`}>

@@ -14,7 +14,8 @@
     "postinstall": "node scripts/copy-pdf-worker.cjs",
     "test": "tsx --test tests/*.test.ts",
     "test:qa:announcements": "node scripts/qa/announcement-assignments.mjs",
-    "test:qa:uploads": "node scripts/qa/announcement-uploads.mjs"
+    "test:qa:uploads": "node scripts/qa/announcement-uploads.mjs",
+    "test:qa:snapshots": "node scripts/qa/screen-snapshots.mjs"
   },
   "dependencies": {
     "@prisma/client": "^5.15.0",
@@ -22,6 +23,7 @@
     "clsx": "^2.1.1",
     "jose": "^5.4.0",
     "lucide-react": "^0.395.0",
+    "modern-screenshot": "4.4.39",
     "next": "16.4.3",
     "pdfjs-dist": "^6.4.299",
     "react": "^18.3.0",

@@ -11,7 +11,7 @@ export interface JWTPayload { sub:string; email:string; name:string; role:Role; 
 export interface School { id:string; name:string; slug:string; logoUrl:string|null; weatherCity?:string|null; locale:string; timezone:string; active:boolean; theme?:SchoolTheme }
 export interface SchoolTheme { primaryColor:string; secondaryColor:string; backgroundColor:string; fontFamily:string; logoUrl:string|null; borderRadius:number }
 
-export interface Screen { id:string; schoolId:string; name:string; slug:string; orientation:Orientation; width:number; height:number; active:boolean; refreshSecs:number; layout?:ScreenLayout; sections?:ScreenSection[] }
+export interface Screen { id:string; schoolId:string; name:string; slug:string; orientation:Orientation; width:number; height:number; active:boolean; refreshSecs:number; snapshotUrl?:string|null; snapshotAt?:string|null; layout?:ScreenLayout; sections?:ScreenSection[] }
 
 export interface ScreenLayout {
   id:string; screenId:string

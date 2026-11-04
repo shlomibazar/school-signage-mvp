@@ -39,6 +39,42 @@ export async function deletePreparedUpload(fileName: string): Promise<void> {
   if (!response.ok || (result.result !== 'ok' && result.result !== 'not found')) throw new Error(`Cloudinary delete failed (${response.status}): ${result.result ?? 'unknown'}`)
 }
 
+// Screen snapshots ("עדכן צילום"): one image per screen, stored under a fixed name derived from
+// the screen id, so a new capture replaces the previous one and nothing accumulates.
+const SNAPSHOT_ID = /^[a-z0-9]{20,40}$/
+export const SNAPSHOT_FOLDER = 'snapshots'
+
+/**
+ * Stores (replaces) the snapshot of a screen and returns a URL that changes with every capture:
+ * Cloudinary answers with a new version (/v<n>/) for the overwritten asset; local files get ?v=.
+ * Browsers and the CDN therefore never show an old capture under the new URL.
+ */
+export async function storeScreenSnapshot(file: File, screenId: string): Promise<string> {
+  if (!SNAPSHOT_ID.test(screenId)) throw new Error('Invalid screen id')
+  const url = await storeUpload(file, { folder: SNAPSHOT_FOLDER, name: `${screenId}.jpg`, mime: 'image/jpeg' })
+  return storageProvider() === 'local' ? `${url}?v=${Date.now()}` : url
+}
+
+/** Deletes the snapshot of a deleted screen. Only the snapshots folder; missing counts as deleted. */
+export async function deleteScreenSnapshot(screenId: string): Promise<void> {
+  if (!SNAPSHOT_ID.test(screenId)) throw new Error('Invalid screen id')
+  if (storageProvider() === 'local') {
+    const { unlink } = await import('fs/promises')
+    await unlink(path.join(process.cwd(), 'public', 'uploads', SNAPSHOT_FOLDER, `${screenId}.jpg`)).catch(e => { if (e?.code !== 'ENOENT') throw e })
+    return
+  }
+  const cloud = process.env.CLOUDINARY_CLOUD_NAME, key = process.env.CLOUDINARY_API_KEY, secret = process.env.CLOUDINARY_API_SECRET
+  if (!cloud || !key || !secret) throw new Error('Cloudinary is not configured')
+  const publicId = `schoolscreen/${SNAPSHOT_FOLDER}/${screenId}`
+  const timestamp = Math.floor(Date.now() / 1000)
+  const signature = createHash('sha1').update(`invalidate=true&public_id=${publicId}&timestamp=${timestamp}${secret}`).digest('hex')
+  const form = new FormData()
+  form.append('public_id', publicId); form.append('invalidate', 'true'); form.append('timestamp', String(timestamp)); form.append('api_key', key); form.append('signature', signature)
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(cloud)}/image/destroy`, { method: 'POST', body: form, signal: AbortSignal.timeout(30_000) })
+  const result = await response.json().catch(() => ({})) as { result?: string }
+  if (!response.ok || (result.result !== 'ok' && result.result !== 'not found')) throw new Error(`Cloudinary delete failed (${response.status}): ${result.result ?? 'unknown'}`)
+}
+
 /**
  * Stores one file and returns its public URL.
  * @param folder  sub-folder, e.g. "announcements" ("" for the media library's existing layout)
