@@ -15,7 +15,9 @@
     "test": "tsx --test tests/*.test.ts",
     "test:qa:announcements": "node scripts/qa/announcement-assignments.mjs",
     "test:qa:uploads": "node scripts/qa/announcement-uploads.mjs",
-    "test:qa:snapshots": "node scripts/qa/screen-snapshots.mjs"
+    "test:qa:snapshots": "node scripts/qa/screen-snapshots.mjs",
+    "test:qa:permissions": "node scripts/qa/screen-permissions.mjs",
+    "test:qa:dashboard": "node scripts/qa/dashboard.mjs"
   },
   "dependencies": {
     "@prisma/client": "^5.15.0",

@@ -5,7 +5,9 @@ import {requireRole} from '@/lib/auth'
 import { deleteScreenSnapshot } from '@/lib/storage'
 export async function DELETE(_req:NextRequest,{ params: paramsPromise }:{params: Promise<{id:string}>}){
   const params = await paramsPromise;
- try{const user=await requireRole('EDITOR');const screen=await db.screen.findFirst({where:{id:params.id,...(user.role==='SUPER_ADMIN'?{}:{schoolId:user.schoolId??'__none__'})}});if(!screen)return NextResponse.json({error:'המסך לא נמצא'},{status:404});await db.screen.delete({where:{id:screen.id}});
+ try{
+  // Deleting a screen is a school-admin action (like disabling it); editors manage its content.
+  const user=await requireRole('SCHOOL_ADMIN');const screen=await db.screen.findFirst({where:{id:params.id,...(user.role==='SUPER_ADMIN'?{}:{schoolId:user.schoolId??'__none__'})}});if(!screen)return NextResponse.json({error:'המסך לא נמצא'},{status:404});await db.screen.delete({where:{id:screen.id}});
   // The screen's snapshot image is removed too (best effort: a failure only leaves one stray image).
   if(screen.snapshotUrl)await deleteScreenSnapshot(screen.id).catch(e=>console.error('Screen snapshot delete failed',e))
   return NextResponse.json({ok:true})}

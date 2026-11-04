@@ -2,9 +2,9 @@
 // src/components/admin/layout/AdminSidebar.tsx
 
 import { useState, useEffect } from 'react'
-import { confirmLeaveEditor as confirmLeave } from '@/lib/unsavedChanges'
+import { confirmLeaveEditor as confirmLeave, hasUnsavedEditorChanges } from '@/lib/unsavedChanges'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Monitor, PenSquare, Megaphone,
   ImageIcon, Users, Settings, LockKeyhole, HelpCircle, Menu, X, PanelRightClose, PanelRightOpen,
@@ -40,17 +40,17 @@ export function adminPageLabel(pathname: string): string {
   return NAV.find(item => pathname.startsWith(item.href))?.label ?? 'SchoolScreen'
 }
 
-// Unsaved layout or content drafts in the editor (client-side links skip beforeunload).
-function confirmLeaveEditor(e: React.MouseEvent) {
-  if (!confirmLeave('יש שינויים שלא נשמרו. לעזוב את העורך ולבטל אותם?')) {
-    e.preventDefault()
-    return false
-  }
-  return true
+// Unsaved layout or content drafts in the editor (client-side links skip beforeunload): the
+// navigation waits for the in-app confirmation and happens only when the user confirms.
+function guardLeave(e: React.MouseEvent, go: () => void, done: () => void) {
+  if (!hasUnsavedEditorChanges()) { done(); return }
+  e.preventDefault()
+  void confirmLeave('יש שינויים שלא נשמרו. לעזוב את העורך ולבטל אותם?').then(ok => { if (ok) { done(); go() } })
 }
 
 export default function AdminSidebar({ user }: { user: AuthUser }) {
   const pathname = usePathname()
+  const router = useRouter()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   useEffect(() => {
@@ -86,7 +86,7 @@ export default function AdminSidebar({ user }: { user: AuthUser }) {
             )}
             <Link
               href={item.href}
-              onClick={e => { if (confirmLeaveEditor(e)) setMobileOpen(false) }}
+              onClick={e => guardLeave(e, () => router.push(item.href), () => setMobileOpen(false))}
               title={collapsed ? item.label : undefined}
               className={cn(
                 'ui-focus flex items-center gap-2.5 px-2.5 py-2 rounded-ui-sm text-sm transition-colors',
@@ -135,7 +135,7 @@ export default function AdminSidebar({ user }: { user: AuthUser }) {
       </aside>
 
       {/* Mobile: hamburger button */}
-      <button
+      <button type="button"
         className="md:hidden fixed top-3 end-4 z-50 p-2 rounded-lg bg-white border border-gray-200 shadow-sm"
         onClick={() => setMobileOpen(v => !v)}
         aria-label="תפריט"

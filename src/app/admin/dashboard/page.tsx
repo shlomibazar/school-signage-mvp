@@ -1,95 +1,98 @@
-import ScreenActiveToggle from '@/components/admin/ScreenActiveToggle'
 // src/app/admin/dashboard/page.tsx
 import Link from 'next/link'
-import { Monitor, Megaphone, ImageIcon, Plus, Edit, ExternalLink, Upload, MonitorPlay } from 'lucide-react'
+import { Monitor, Megaphone, ImageIcon, Plus, Edit, ExternalLink, Upload, MonitorPlay, FileClock } from 'lucide-react'
 import { getCurrentUser } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { homeSchoolWhere } from '@/lib/schoolScope'
+import { listScreenRegions } from '@/lib/announcementRegions'
+import { displayState, endLabel, WAITING_REASON, type Placement, type DisplayState } from '@/lib/announcementDashboard'
+import { Badge } from '@/components/ui/Display'
 
 export default async function DashboardPage() {
   const user = await getCurrentUser()
-  const canEdit = user?.role === 'SCHOOL_ADMIN' || user?.role === 'SUPER_ADMIN'
 
   // SUPER_ADMIN with no school: show global stats. Any other user without a school sees nothing.
   const scope = homeSchoolWhere(user)
-  const [screenCount, activeScreenCount, announcementCount, mediaCount] = await Promise.all([
+  const [screenCount, activeScreenCount, mediaCount, announcements, recentScreens, school] = await Promise.all([
     db.screen.count({ where: scope }),
     db.screen.count({ where: { ...scope, active: true } }),
-    db.announcement.count({ where: scope }),
     db.mediaFile.count({ where: scope }),
+    db.announcement.findMany({
+      where: scope,
+      select: { id: true, schoolId: true, title: true, priority: true, active: true, startAt: true, endAt: true, startTime: true, endTime: true, daysOfWeek: true },
+    }),
+    db.screen.findMany({ where: scope, take: 4, orderBy: { updatedAt: 'desc' }, select: { id: true, name: true, slug: true, active: true } }),
+    user?.schoolId ? db.school.findUnique({ where: { id: user.schoolId }, select: { timezone: true } }) : null,
   ])
+  const timeZone = school?.timezone ?? 'Asia/Jerusalem'
 
-  const recentScreens = await db.screen.findMany({
-    where:   scope,
-    take:    4,
-    orderBy: { updatedAt: 'desc' },
-    include: { layout: { select: { mainSections: true, headerEnabled: true, footerEnabled: true } } },
-  })
-
+  // Where each announcement is assigned, with the on/off state of the screen and the region.
+  const screens = await listScreenRegions([...new Set(announcements.map(a => a.schoolId))])
+  const placements = new Map<string, Placement[]>()
+  const screenNames = new Map<string, Set<string>>()
+  for (const s of screens) for (const r of s.regions) for (const id of r.announcementIds) {
+    placements.set(id, [...(placements.get(id) ?? []), { screenActive: s.active, regionActive: r.active }])
+    screenNames.set(id, (screenNames.get(id) ?? new Set()).add(s.name))
+  }
   const now = new Date()
-  const upcomingAnnouncements = await db.announcement.findMany({
-    where: {
-      ...scope,
-      endAt:  { gte: now },
-      active: true,
-    },
-    take:    5,
-    orderBy: { startAt: 'asc' },
-  })
+  const rows = announcements.map(a => ({ a, d: displayState(a, placements.get(a.id) ?? [], now, timeZone) }))
+  const count = (state: DisplayState['state']) => rows.filter(r => r.d.state === state).length
+  const liveCount = count('live'), draftCount = count('draft')
+  // On the TVs now first, then the ones waiting for their time (earliest start first).
+  const onScreens = rows.filter(r => r.d.state === 'live' || r.d.state === 'waiting')
+    .sort((x, y) => (x.d.state === 'live' ? 0 : 1) - (y.d.state === 'live' ? 0 : 1) || +new Date(x.a.startAt) - +new Date(y.a.startAt))
+    .slice(0, 5)
 
   return (
     <div className="max-w-5xl">
-      <h1 className="text-xl font-semibold text-gray-900 mb-1">לוח בקרה</h1>
-      <p className="text-sm text-gray-500 mb-6">ברוכים הבאים, {user?.name}</p>
+      <h1 className="mb-1 text-[22px] font-bold text-ui-ink">לוח בקרה</h1>
+      <p className="mb-6 text-[13.5px] text-ui-muted">ברוכים הבאים, {user?.name}</p>
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-        <StatCard label="סך מסכים"       value={screenCount}        icon={Monitor}    color="blue" />
-        <StatCard label="מסכים פעילים"   value={activeScreenCount}  icon={Monitor}    color="green" />
-        <StatCard label="הודעות פעילות"  value={announcementCount}  icon={Megaphone}  color="amber" />
-        <StatCard label="קבצי מדיה"      value={mediaCount}         icon={ImageIcon}  color="purple" />
+      <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <StatCard label="מסכים" value={screenCount} hint={`${activeScreenCount} פעילים`} icon={Monitor} href="/admin/screens" />
+        <StatCard label="מוצגות עכשיו" value={liveCount} hint="הודעות על המסכים כרגע" icon={Megaphone} href="/admin/announcements" />
+        <StatCard label="טיוטות" value={draftCount} hint="לא משויכות לאף מסך" icon={FileClock} href="/admin/announcements?status=draft" />
+        <StatCard label="קבצי מדיה" value={mediaCount} icon={ImageIcon} href="/admin/media" />
       </div>
 
       {/* Quick actions: all of them create or change content (EDITOR or higher), so viewers don't get them. */}
       {user?.role !== 'VIEWER' && <section className="mb-8">
-        <h2 className="text-sm font-semibold text-gray-700 mb-3">פעולות מהירות</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <h2 className="mb-3 text-sm font-semibold text-ui-ink-2">פעולות מהירות</h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <QuickAction href="/admin/announcements/new" icon={<Megaphone className="h-5 w-5" />} label="הודעה חדשה" />
           <QuickAction href="/admin/media"             icon={<Upload className="h-5 w-5" />} label="העלאת מדיה" />
-          <QuickAction href="/admin/screens/new"       icon={<MonitorPlay className="h-5 w-5" />} label="מסך חדש"    />
+          <QuickAction href="/admin/screens/new"       icon={<MonitorPlay className="h-5 w-5" />} label="מסך חדש" />
           <QuickAction href="/admin/screens"           icon={<Edit className="h-5 w-5" />} label="עריכת מסכים" />
         </div>
       </section>}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent screens */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Recent screens: status only. Enabling/disabling and other management stay on the Screens page. */}
         <section>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-gray-700">מסכים אחרונים</h2>
-            <Link href="/admin/screens" className="text-xs text-blue-600 hover:underline">הכל</Link>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-ui-ink-2">מסכים אחרונים</h2>
+            <Link href="/admin/screens" className="ui-focus text-xs text-ui-primary hover:underline">כל המסכים</Link>
           </div>
           <div className="space-y-2">
-            {recentScreens.length === 0 && (
-              <EmptyState message="אין מסכים עדיין" href="/admin/screens/new" cta="צור מסך" />
-            )}
+            {recentScreens.length === 0 && <EmptyState message="אין מסכים עדיין" href="/admin/screens/new" cta="יצירת מסך" />}
             {recentScreens.map(s => (
-              <div key={s.id} className="flex items-center gap-3 bg-white border border-gray-100 rounded-xl px-4 py-3">
-                <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
-                  <Monitor className="w-4 h-4 text-blue-500" />
+              <div key={s.id} className="flex items-center gap-3 rounded-ui border border-ui-border bg-ui-surface px-4 py-3">
+                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-ui-sm bg-ui-primary-soft text-ui-primary">
+                  <Monitor className="h-4 w-4" aria-hidden="true" />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-gray-800 truncate">{s.name}</div>
-                  <div className="text-xs text-gray-400">/screen/{s.slug}</div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium text-ui-ink">{s.name}</div>
+                  <div className="text-xs text-ui-faint" dir="ltr">/screen/{s.slug}</div>
                 </div>
-                <ScreenActiveToggle id={s.id} initialActive={s.active} canEdit={canEdit} screenName={s.name} />
+                <Badge tone={s.active ? 'success' : 'neutral'} dot>{s.active ? 'פעיל' : 'מושבת'}</Badge>
                 <div className="flex items-center gap-1">
-                  <Link href={`/admin/editor?screen=${s.id}`}
-                    className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors">
-                    <Edit className="w-3.5 h-3.5" />
-                  </Link>
-                  <Link href={`/screen/${s.slug}`} target="_blank"
-                    className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors">
-                    <ExternalLink className="w-3.5 h-3.5" />
+                  {user?.role !== 'VIEWER' && <Link href={`/admin/editor?screen=${s.id}`} aria-label={`עריכת המסך ${s.name}`} title="עריכה"
+                    className="ui-focus rounded-ui-sm p-1.5 text-ui-muted transition-colors hover:bg-ui-subtle hover:text-ui-ink">
+                    <Edit className="h-3.5 w-3.5" aria-hidden="true" />
+                  </Link>}
+                  <Link href={`/screen/${s.slug}`} target="_blank" aria-label={`צפייה במסך ${s.name} (בלשונית חדשה)`} title="צפייה במסך"
+                    className="ui-focus rounded-ui-sm p-1.5 text-ui-muted transition-colors hover:bg-ui-subtle hover:text-ui-ink">
+                    <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
                   </Link>
                 </div>
               </div>
@@ -97,33 +100,26 @@ export default async function DashboardPage() {
           </div>
         </section>
 
-        {/* Upcoming announcements */}
+        {/* Announcements on the screens: shown now, or assigned and waiting for their time. */}
         <section>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-gray-700">הודעות פעילות</h2>
-            <Link href="/admin/announcements" className="text-xs text-blue-600 hover:underline">הכל</Link>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-ui-ink-2">הודעות על המסכים</h2>
+            <Link href="/admin/announcements" className="ui-focus text-xs text-ui-primary hover:underline">כל ההודעות</Link>
           </div>
           <div className="space-y-2">
-            {upcomingAnnouncements.length === 0 && (
-              <EmptyState message="אין הודעות פעילות" href="/admin/announcements/new" cta="צור הודעה" />
-            )}
-            {upcomingAnnouncements.map(a => (
-              <div key={a.id} className="flex items-start gap-3 bg-white border border-gray-100 rounded-xl px-4 py-3">
-                <div
-                  className="w-1 rounded-full self-stretch shrink-0"
-                  style={{
-                    background: a.priority === 'EMERGENCY' || a.priority === 'HIGH'
-                      ? '#ef4444'
-                      : a.priority === 'MEDIUM' ? '#f59e0b' : '#3b82f6',
-                  }}
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-gray-800 truncate">{a.title}</div>
-                  <div className="text-xs text-gray-400 mt-0.5">
-                    עד {new Date(a.endAt).toLocaleDateString('he-IL')}
+            {onScreens.length === 0 && <EmptyState message="אין הודעות שמשויכות למסכים" href="/admin/announcements/new" cta="יצירת הודעה" />}
+            {onScreens.map(({ a, d }) => (
+              <div key={a.id} className="flex items-start gap-3 rounded-ui border border-ui-border bg-ui-surface px-4 py-3">
+                <div className="w-1 shrink-0 self-stretch rounded-full" aria-hidden="true"
+                  style={{ background: a.priority === 'EMERGENCY' || a.priority === 'HIGH' ? '#ef4444' : a.priority === 'MEDIUM' ? '#f59e0b' : '#3b82f6' }} />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium text-ui-ink">{a.title}</div>
+                  <div className="mt-0.5 text-xs text-ui-muted">
+                    {[...(screenNames.get(a.id) ?? [])].join(' · ')} · {endLabel(a.endAt, timeZone)}
                   </div>
+                  {d.state === 'waiting' && <div className="mt-0.5 text-xs text-ui-warning">{WAITING_REASON[d.reason]}</div>}
                 </div>
-                <PriorityBadge priority={a.priority} />
+                <Badge tone={d.state === 'live' ? 'success' : 'warning'} dot={d.state === 'live'}>{d.state === 'live' ? 'מוצגת עכשיו' : 'ממתינה'}</Badge>
               </div>
             ))}
           </div>
@@ -135,27 +131,19 @@ export default async function DashboardPage() {
 
 // ── Small components ────────────────────────────────────
 
-function StatCard({
-  label, value, icon: Icon, color,
-}: {
-  label: string; value: number
+function StatCard({ label, value, hint, icon: Icon, href }: {
+  label: string; value: number; hint?: string; href: string
   icon: React.ComponentType<{ className?: string }>
-  color: 'blue' | 'green' | 'amber' | 'purple'
 }) {
-  const colors = {
-    blue:   'bg-blue-50 text-blue-600',
-    green:  'bg-green-50 text-green-600',
-    amber:  'bg-amber-50 text-amber-600',
-    purple: 'bg-purple-50 text-purple-600',
-  }
   return (
-    <div className="bg-white border border-gray-100 rounded-xl p-4">
-      <div className={`w-8 h-8 rounded-lg ${colors[color]} flex items-center justify-center mb-3`}>
-        <Icon className="w-4 h-4" />
+    <Link href={href} className="ui-focus block rounded-ui border border-ui-border bg-ui-surface p-4 transition-colors hover:border-ui-primary-line">
+      <div className="mb-3 grid h-8 w-8 place-items-center rounded-ui-sm bg-ui-primary-soft text-ui-primary">
+        <Icon className="h-4 w-4" aria-hidden="true" />
       </div>
-      <div className="text-2xl font-semibold text-gray-900 tabular-nums">{value}</div>
-      <div className="text-xs text-gray-500 mt-0.5">{label}</div>
-    </div>
+      <div className="text-2xl font-semibold tabular-nums text-ui-ink">{value}</div>
+      <div className="mt-0.5 text-xs font-medium text-ui-ink-2">{label}</div>
+      {hint && <div className="text-[11px] text-ui-muted">{hint}</div>}
+    </Link>
   )
 }
 
@@ -163,36 +151,21 @@ function QuickAction({ href, icon, label }: { href: string; icon: React.ReactNod
   return (
     <Link
       href={href}
-      className="ui-focus flex flex-col items-center gap-2 bg-ui-surface border border-ui-border rounded-ui-lg py-4 px-3 shadow-ui hover:border-ui-primary-line hover:bg-ui-primary-soft transition-colors group"
+      className="ui-focus group flex flex-col items-center gap-2 rounded-ui-lg border border-ui-border bg-ui-surface px-3 py-4 shadow-ui transition-colors hover:border-ui-primary-line hover:bg-ui-primary-soft"
     >
       <span className="grid h-10 w-10 place-items-center rounded-ui bg-ui-primary-soft text-ui-primary">{icon}</span>
-      <span className="text-[13px] font-medium text-ui-ink-2 group-hover:text-ui-primary-ink text-center">{label}</span>
+      <span className="text-center text-[13px] font-medium text-ui-ink-2 group-hover:text-ui-primary-ink">{label}</span>
     </Link>
   )
 }
 
 function EmptyState({ message, href, cta }: { message: string; href: string; cta: string }) {
   return (
-    <div className="bg-white border border-gray-100 border-dashed rounded-xl px-4 py-6 text-center">
-      <p className="text-sm text-gray-400 mb-2">{message}</p>
-      <Link href={href} className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
-        <Plus className="w-3 h-3" />{cta}
+    <div className="rounded-ui border border-dashed border-ui-border bg-ui-surface px-4 py-6 text-center">
+      <p className="mb-2 text-sm text-ui-muted">{message}</p>
+      <Link href={href} className="ui-focus inline-flex items-center gap-1 text-xs text-ui-primary hover:underline">
+        <Plus className="h-3 w-3" aria-hidden="true" />{cta}
       </Link>
     </div>
-  )
-}
-
-const PRIORITY_LABELS: Record<string, { label: string; className: string }> = {
-  LOW:       { label: 'רגיל',  className: 'bg-blue-50 text-blue-700' },
-  MEDIUM:    { label: 'בינוני', className: 'bg-amber-50 text-amber-700' },
-  HIGH:      { label: 'דחוף',  className: 'bg-red-50 text-red-700' },
-  EMERGENCY: { label: 'חירום', className: 'bg-red-100 text-red-800' },
-}
-function PriorityBadge({ priority }: { priority: string }) {
-  const p = PRIORITY_LABELS[priority] ?? PRIORITY_LABELS.LOW
-  return (
-    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0 ${p.className}`}>
-      {p.label}
-    </span>
   )
 }

@@ -21,7 +21,7 @@ import AnnouncementContentForm from './content-forms/AnnouncementContentForm'
 import BirthdayContentForm     from './content-forms/BirthdayContentForm'
 import EventsContentForm       from './content-forms/EventsContentForm'
 import TimetableContentForm    from './content-forms/TimetableContentForm'
-import { setDraftDirty, DISCARD_DRAFT_MESSAGE } from '@/lib/unsavedChanges'
+import { setDraftDirty, confirmDiscardDraft } from '@/lib/unsavedChanges'
 import { announcementIdsOf } from '@/lib/announcementMerge'
 
 const DEFAULT_CLOCK:        ClockSettings               = { hourFormat: '24', showSeconds: false }
@@ -160,7 +160,7 @@ export default function ContentEditor({ screenId, section, selectedType, onClose
     return () => window.removeEventListener('beforeunload', warn)
   }, [dirty, section.id])
   useEffect(() => () => setDraftDirty(section.id, false), [section.id])
-  const requestClose = () => { if (!dirty || window.confirm(DISCARD_DRAFT_MESSAGE)) onClose() }
+  const requestClose = async () => { if (!dirty || await confirmDiscardDraft()) onClose() }
 
   const patchItem     = useCallback((patch: Partial<ContentItem>) => setItem(prev => ({ ...prev, ...patch })), [])
   const patchSchedule = useCallback((patch: Partial<SchedulingValues>) => setItem(prev => ({ ...prev, ...patch })), [])
@@ -224,7 +224,7 @@ export default function ContentEditor({ screenId, section, selectedType, onClose
             {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Save className="w-3.5 h-3.5"/>}
             {saving ? 'שומר...' : 'שמור'}
           </button>
-          <button type="button" onClick={requestClose} title="סגור עריכה" className="p-1 rounded hover:bg-blue-100 text-blue-400 hover:text-blue-700 transition-colors">
+          <button type="button" onClick={requestClose} title="סגור עריכה" aria-label="סגירת עריכת התוכן" className="p-1 rounded hover:bg-blue-100 text-blue-400 hover:text-blue-700 transition-colors">
             <X className="w-3.5 h-3.5"/>
           </button>
         </div>
@@ -259,14 +259,14 @@ export default function ContentEditor({ screenId, section, selectedType, onClose
       {!loading && (
         <div className="flex items-center gap-2 px-3 py-2.5 border-t border-gray-100 bg-gray-50">
           {existingId && selectedType!=='EMPTY' && (
-            <button onClick={handleDelete} disabled={deleting}
+            <button type="button" onClick={handleDelete} disabled={deleting}
               className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-red-600 hover:bg-red-50 border border-red-200 rounded-lg transition-colors disabled:opacity-50">
               <Trash2 className="w-3 h-3"/>{deleting?'מסיר...':'הסר אזור מהפריסה'}
             </button>
           )}
           <div className="flex-1"/>
-          <button onClick={requestClose} className="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors">ביטול</button>
-          <button onClick={handleSave} disabled={saving}
+          <button type="button" onClick={requestClose} className="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors">ביטול</button>
+          <button type="button" onClick={handleSave} disabled={saving}
             className={cn('flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors disabled:opacity-50',
               selectedType==='EMPTY' ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-blue-600 text-white hover:bg-blue-700')}>
             <Save className="w-3 h-3"/>{saving?'שומר...':'שמור תוכן'}

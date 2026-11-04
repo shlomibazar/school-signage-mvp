@@ -23,7 +23,7 @@ export default function AdminTopBar({ user }: { user: AuthUser }) {
   const [loading, setLoading] = useState(false)
 
   async function handleLogout() {
-    if (!confirmLeaveEditor()) return
+    if (!(await confirmLeaveEditor())) return
     setLoading(true)
     await fetch('/api/auth/logout', { method: 'POST' })
     router.push('/auth/login')
@@ -49,7 +49,7 @@ export default function AdminTopBar({ user }: { user: AuthUser }) {
 
       {/* Right: user menu */}
       <div className="relative">
-        <button
+        <button type="button"
           onClick={() => setOpen(v => !v)}
           className="ui-focus flex items-center gap-2.5 px-3 py-1.5 rounded-ui hover:bg-ui-subtle transition-colors"
         >
@@ -73,7 +73,7 @@ export default function AdminTopBar({ user }: { user: AuthUser }) {
                 <div className="text-xs font-medium text-gray-800">{user.name}</div>
                 <div className="text-xs text-gray-400">{user.email}</div>
               </div>
-              <button
+              <button type="button"
                 onClick={handleLogout}
                 disabled={loading}
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"

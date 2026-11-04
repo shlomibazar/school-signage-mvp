@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { isDraftDirty, DISCARD_DRAFT_MESSAGE } from '@/lib/unsavedChanges'
+import { isDraftDirty, confirmDiscardDraft } from '@/lib/unsavedChanges'
 import { cn } from '@/lib/utils'
 import type { ContentItem, ContentType, ScreenSection } from '@/types'
 import ContentEditor from './ContentEditor'
@@ -45,9 +45,9 @@ export default function SectionEditor({ screenId, section, index, isTemp, onUpda
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section.id, section.contentItems])
 
-  function handleTypeClick(type: ContentType) {
+  async function handleTypeClick(type: ContentType) {
     // Switching the type replaces the open form: ask first if it has unsaved changes.
-    if (type !== selectedType && isDraftDirty(localSection.id) && !window.confirm(DISCARD_DRAFT_MESSAGE)) return
+    if (type !== selectedType && isDraftDirty(localSection.id) && !(await confirmDiscardDraft())) return
     setSelectedType(type)
     const patched: ScreenSection = {
       ...localSection,
@@ -72,8 +72,8 @@ export default function SectionEditor({ screenId, section, index, isTemp, onUpda
       <div className="px-3 py-2.5 bg-gray-50 text-xs font-medium text-gray-500 border-b border-gray-100 flex items-center justify-between">
         <span>אזור {index + 1}</span>
         {!isTemp && selectedType !== 'EMPTY' && (
-          <button onClick={() => {
-            if (editorOpen && isDraftDirty(localSection.id) && !window.confirm(DISCARD_DRAFT_MESSAGE)) return
+          <button type="button" onClick={async () => {
+            if (editorOpen && isDraftDirty(localSection.id) && !(await confirmDiscardDraft())) return
             if (editorOpen) onUpdate(localSection) // closing drops the unsaved draft from the preview
             setEditorOpen(v => !v)
           }}
@@ -91,7 +91,7 @@ export default function SectionEditor({ screenId, section, index, isTemp, onUpda
             <p className="text-[10px] text-gray-400 mb-2">סוג תוכן</p>
             <div className="grid grid-cols-4 gap-1">
               {CONTENT_TYPES.map(ct => (
-                <button key={ct.value} onClick={() => handleTypeClick(ct.value)}
+                <button type="button" key={ct.value} aria-pressed={selectedType === ct.value} onClick={() => handleTypeClick(ct.value)}
                   className={cn('flex flex-col items-center gap-0.5 px-1 py-2 rounded-lg border text-center transition-colors',
                     selectedType === ct.value ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-gray-100 hover:border-gray-300 text-gray-600')}>
                   <span style={{ fontSize: 14 }}>{ct.icon}</span>

@@ -165,7 +165,7 @@ export default function ScreenLayoutEditor({ screen, layout: initLayout, section
         {settingsVisible && <div className="w-full lg:w-[44%] xl:w-[46%] lg:max-w-[760px] shrink-0 flex flex-col rounded-xl border border-gray-200 bg-white shadow-sm min-w-0 lg:h-full lg:overflow-hidden">
           <div className="flex bg-gray-100 rounded-xl p-1.5 text-sm shrink-0 gap-1 m-3 mb-0">
             {(['header','main','footer','design'] as Tab[]).map(t => (
-              <button key={t} onClick={() => setTab(t)}
+              <button type="button" key={t} aria-pressed={tab===t} onClick={() => setTab(t)}
                 className={`flex-1 py-2.5 rounded-lg transition-colors ${tab===t?'bg-white text-gray-900 font-medium shadow-sm':'text-gray-500 hover:text-gray-700'}`}>
                 {t==='header'?'כותרת':t==='main'?'ראשי':t==='footer'?'תחתית':'עיצוב'}
               </button>
@@ -188,7 +188,7 @@ export default function ScreenLayoutEditor({ screen, layout: initLayout, section
                 <div className="p-3 flex gap-2">
                   {([1,2,3] as const).map(n=>(
                     // Icons follow the saved orientation: columns on landscape, rows on portrait.
-                    <button key={n} onClick={()=>handleSectionCount(n)} aria-label={`${n} אזורים`} aria-pressed={layout.mainSections===n}
+                    <button type="button" key={n} onClick={()=>handleSectionCount(n)} aria-label={`${n} אזורים`} aria-pressed={layout.mainSections===n}
                       className={`flex-1 h-12 border rounded-lg flex items-center justify-center transition-colors ${stackedSections?'flex-col gap-0.5':'gap-1'} ${layout.mainSections===n?'border-blue-500 bg-blue-50':'border-gray-200 hover:border-gray-300'}`}>
                       {Array.from({length:n}).map((_,i)=>(
                         <span key={i} className={`block rounded-sm ${stackedSections?'w-4':'h-6'} ${layout.mainSections===n?'bg-blue-400':'bg-gray-300'}`}

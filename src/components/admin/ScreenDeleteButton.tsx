@@ -1,10 +1,34 @@
 'use client'
-import {useRouter} from 'next/navigation'
-import {useState} from 'react'
-import {Trash2} from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
-export default function ScreenDeleteButton({id,name}:{id:string;name:string}){
- const router=useRouter();const [busy,setBusy]=useState(false)
- async function remove(){if(!window.confirm(`למחוק לצמיתות את המסך "${name}" ואת הפריסה שלו? ההודעות והתמונות במאגר יישארו.`))return;setBusy(true);try{const r=await fetch(`/api/screens/${id}`,{method:'DELETE'});if(!r.ok)throw Error();toast.success('המסך נמחק בהצלחה');router.refresh()}catch{toast.error('מחיקת המסך נכשלה')}finally{setBusy(false)}}
- return <button type="button" disabled={busy} onClick={remove} title="מחק מסך" className="flex items-center justify-center gap-1 px-3 py-2 border border-red-200 rounded-lg text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"><Trash2 className="w-3.5 h-3.5"/>מחק</button>
+import { confirmDialog } from '@/components/ui/ConfirmHost'
+
+// Deleting a screen (SCHOOL_ADMIN and up, enforced by the API). The in-app dialog runs the request,
+// so a double click cannot send it twice and an error is shown in the dialog.
+export default function ScreenDeleteButton({ id, name }: { id: string; name: string }) {
+  const router = useRouter()
+  async function remove() {
+    const ok = await confirmDialog({
+      title: 'למחוק את המסך?',
+      body: <>
+        <p>המסך <b>״{name}״</b> והפריסה שלו יימחקו לצמיתות, כולל הצילום שלו. אי אפשר לבטל את הפעולה.</p>
+        <p className="mt-2">ההודעות והתמונות במאגר יישארו. טלוויזיה שמחוברת למסך הזה תפסיק להציג אותו.</p>
+      </>,
+      confirmLabel: 'מחיקת המסך',
+      action: async () => {
+        const r = await fetch(`/api/screens/${encodeURIComponent(id)}`, { method: 'DELETE' })
+        if (!r.ok) throw new Error(r.status === 403 ? 'רק מנהל בית הספר יכול למחוק מסכים' : r.status === 404 ? 'המסך לא נמצא. ייתכן שכבר נמחק.' : 'מחיקת המסך נכשלה. נסו שוב.')
+      },
+    })
+    if (!ok) return
+    toast.success('המסך נמחק')
+    router.refresh()
+  }
+  return (
+    <button type="button" onClick={remove} aria-label={`מחיקת המסך ${name}`}
+      className="ui-focus flex items-center justify-center gap-1 rounded-ui-sm border border-red-200 bg-ui-surface px-3 py-2 text-xs text-ui-danger hover:bg-ui-danger-soft">
+      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />מחיקה
+    </button>
+  )
 }

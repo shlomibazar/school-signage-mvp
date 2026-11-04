@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef, useCallback, memo } from 'react'
 import toast from 'react-hot-toast'
+import { confirmDialog } from '@/components/ui/ConfirmHost'
 import { UPLOAD_BATCH_BYTES } from '@/lib/uploadValidation'
 import { Upload, Trash2, Loader2, ImageIcon, Edit2, Check, X, Plus, FolderOpen, Folder } from 'lucide-react'
 import type { MediaLibraryImage, Gallery } from '@/types'
@@ -52,17 +53,17 @@ const MediaCard=memo(function MediaCard({img,canEdit,isSelected,isEditing,editCa
           <input autoFocus type="text" value={editCaption} onChange={e => onCaptionChange(e.target.value)}
             onKeyDown={e => { if(e.key==='Enter')onSaveCaption(img.id); if(e.key==='Escape')onCancelEdit() }}
             placeholder="כיתוב..." className="flex-1 text-[10px] border border-gray-200 rounded px-1 py-0.5 focus:outline-none min-w-0"/>
-          <button onClick={() => onSaveCaption(img.id)} className="text-green-500"><Check className="w-3 h-3"/></button>
-          <button onClick={onCancelEdit} className="text-gray-400"><X className="w-3 h-3"/></button>
+          <button type="button" aria-label="שמירת הכיתוב" onClick={() => onSaveCaption(img.id)} className="text-green-500"><Check className="w-3 h-3"/></button>
+          <button type="button" aria-label="ביטול עריכת הכיתוב" onClick={onCancelEdit} className="text-gray-400"><X className="w-3 h-3"/></button>
         </div>
       ) : (
         <div className="flex items-center justify-between gap-1">
           <p className="text-[10px] text-gray-500 truncate">{fmtBytes(img.size)}</p>
-          {canEdit && <button onClick={() => onStartEdit(img)} className="text-gray-300 hover:text-gray-600 shrink-0"><Edit2 className="w-3 h-3"/></button>}
+          {canEdit && <button type="button" aria-label={`עריכת הכיתוב של ${img.originalName}`} onClick={() => onStartEdit(img)} className="text-gray-300 hover:text-gray-600 shrink-0"><Edit2 className="w-3 h-3"/></button>}
         </div>
       )}
     </div>
-    {canEdit && <button onClick={() => onDelete(img.id)}
+    {canEdit && <button type="button" aria-label={`מחיקת ${img.originalName}`} onClick={() => onDelete(img.id)}
       title="מחק תמונה" className="absolute top-1 right-1 p-1 bg-black/60 rounded-full text-white opacity-80 hover:opacity-100 transition-opacity hover:bg-red-600">
       <Trash2 className="w-3 h-3"/>
     </button>}
@@ -174,10 +175,15 @@ export default function MediaLibrary({ canEdit }: { canEdit: boolean }) {
   }
 
   const handleDelete = useStableCallback(async (id: string) => {
-    if (!confirm('למחוק תמונה זו?')) return
-    const res = await fetch('/api/media/' + id, { method: 'DELETE' })
-    if (!res.ok) { toast.error('מחיקת התמונה נכשלה'); return }
-    toast.success('התמונה נמחקה בהצלחה')
+    const img = images.find(i => i.id === id)
+    const ok = await confirmDialog({
+      title: 'למחוק את הקובץ?',
+      body: <>הקובץ <b>״{img?.originalName ?? ''}״</b> יימחק מספריית המדיה ויוסר מהגלריות שמציגות אותו. אי אפשר לבטל את הפעולה.</>,
+      confirmLabel: 'מחיקה',
+      action: async () => { const res = await fetch('/api/media/' + id, { method: 'DELETE' }); if (!res.ok) throw new Error('מחיקת הקובץ נכשלה. נסו שוב.') },
+    })
+    if (!ok) return
+    toast.success('הקובץ נמחק')
     setImages(prev => prev.filter(img => img.id !== id))
     await loadGalleries()
   })
@@ -233,10 +239,16 @@ export default function MediaLibrary({ canEdit }: { canEdit: boolean }) {
   }
   async function bulkAction(action:'delete'|'move'){
     const ids=[...selected];if(!ids.length)return;
-    if(action==='delete'&&!confirm(`למחוק ${ids.length} פריטים?`))return;
     if(action==='move'&&!destination){toast.error('יש לבחור תיקיית יעד');return}
+    const run=async()=>{const r=await fetch('/api/media/bulk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids,action,galleryId:destination})});if(!r.ok)throw Error(action==='delete'?'מחיקת הקבצים נכשלה. נסו שוב.':'העברת הקבצים נכשלה. נסו שוב.')}
+    if(action==='delete'){
+      // The deletion runs inside the dialog (no double submission; an error keeps it open).
+      const ok=await confirmDialog({title:`למחוק ${ids.length===1?'קובץ אחד':`${ids.length} קבצים`}?`,body:'הקבצים שנבחרו יימחקו מספריית המדיה ויוסרו מהגלריות שמציגות אותם. אי אפשר לבטל את הפעולה.',confirmLabel:`מחיקת ${ids.length===1?'הקובץ':`${ids.length} הקבצים`}`,action:run})
+      if(!ok)return
+      await loadImages(activeGallery);await loadGalleries();setSelected(new Set());toast.success('הקבצים נמחקו');return
+    }
     setBusy(true)
-    try{const r=await fetch('/api/media/bulk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids,action,galleryId:destination})});if(!r.ok)throw Error();await loadImages(activeGallery);await loadGalleries();setSelected(new Set());toast.success('הפעולה הושלמה')}catch{toast.error('הפעולה נכשלה')}finally{setBusy(false)}
+    try{await run();await loadImages(activeGallery);await loadGalleries();setSelected(new Set());toast.success('הקבצים הועברו')}catch(e){toast.error(e instanceof Error?e.message:'הפעולה נכשלה')}finally{setBusy(false)}
   }
 
   const saveCaption = useStableCallback(async (id: string) => {
@@ -263,10 +275,14 @@ export default function MediaLibrary({ canEdit }: { canEdit: boolean }) {
 
   async function deleteFolder(id: string) {
     const folder = galleries.find(g => g.id === id)
-    if (!confirm(`למחוק לצמיתות את התיקייה \"${folder?.name ?? ''}\" ואת כל ${folder?.fileCount ?? ''} התמונות שבתוכה? פעולה זו אינה ניתנת לביטול.`)) return
-    const res = await fetch('/api/galleries/' + id, { method: 'DELETE' })
-    if (!res.ok) { toast.error('מחיקת התיקייה נכשלה'); return }
-    toast.success('התיקייה וכל התמונות שבתוכה נמחקו')
+    const ok = await confirmDialog({
+      title: 'למחוק את התיקייה?',
+      body: <>התיקייה <b>״{folder?.name ?? ''}״</b>{(folder?.fileCount ?? 0) === 0 ? ' (ריקה) תימחק לצמיתות' : folder?.fileCount === 1 ? ' והקובץ שבתוכה יימחקו לצמיתות' : ` וכל ${folder?.fileCount} הקבצים שבתוכה יימחקו לצמיתות`}. אי אפשר לבטל את הפעולה.</>,
+      confirmLabel: (folder?.fileCount ?? 0) === 0 ? 'מחיקת התיקייה' : 'מחיקת התיקייה והקבצים',
+      action: async () => { const res = await fetch('/api/galleries/' + id, { method: 'DELETE' }); if (!res.ok) throw new Error('מחיקת התיקייה נכשלה. נסו שוב.') },
+    })
+    if (!ok) return
+    toast.success('התיקייה וכל הקבצים שבתוכה נמחקו')
     setGalleries(prev => prev.filter(g => g.id !== id))
     if (activeGallery === id) { setActiveGallery(null); await loadImages(null) } else await loadImages(activeGallery)
   }
@@ -278,7 +294,7 @@ export default function MediaLibrary({ canEdit }: { canEdit: boolean }) {
           <h1 className="text-xl font-semibold text-gray-900">ספריית מדיה</h1>
           <p className="text-sm text-gray-500 mt-0.5">{images.length} תמונות</p>
         </div>
-        {canEdit && <button onClick={() => fileRef.current?.click()} disabled={uploading}
+        {canEdit && <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors">
           {uploading ? <><Loader2 className="w-4 h-4 animate-spin"/>מעלה...</> : <><Upload className="w-4 h-4"/>העלאת תמונות וסרטונים</>}
         </button>}
@@ -290,7 +306,7 @@ export default function MediaLibrary({ canEdit }: { canEdit: boolean }) {
         <div className="w-52 shrink-0 space-y-1">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">תיקיות</span>
-            {canEdit && <button onClick={() => setCreatingFolder(v => !v)} className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+            {canEdit && <button type="button" aria-label="תיקייה חדשה" onClick={() => setCreatingFolder(v => !v)} className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
               <Plus className="w-3.5 h-3.5"/>
             </button>}
           </div>
@@ -300,13 +316,13 @@ export default function MediaLibrary({ canEdit }: { canEdit: boolean }) {
               <input autoFocus type="text" value={newFolderName} onChange={e => setNewFolderName(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') createFolder(); if (e.key === 'Escape') setCreatingFolder(false) }}
                 placeholder="שם תיקייה..." className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400 min-w-0"/>
-              <button onClick={createFolder} className="p-1.5 bg-blue-500 text-white rounded-lg"><Check className="w-3 h-3"/></button>
-              <button onClick={() => setCreatingFolder(false)} className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg"><X className="w-3 h-3"/></button>
+              <button type="button" aria-label="יצירת התיקייה" onClick={createFolder} className="p-1.5 bg-blue-500 text-white rounded-lg"><Check className="w-3 h-3"/></button>
+              <button type="button" aria-label="ביטול יצירת התיקייה" onClick={() => setCreatingFolder(false)} className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg"><X className="w-3 h-3"/></button>
             </div>
           )}
 
           {/* All images */}
-          <button onClick={() => switchGallery(null)}
+          <button type="button" onClick={() => switchGallery(null)}
             className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-xl text-sm transition-colors ${activeGallery === null ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-50'}`}>
             <ImageIcon className="w-4 h-4 shrink-0"/>
             <span className="flex-1 text-right truncate">כל התמונות</span>
@@ -319,11 +335,11 @@ export default function MediaLibrary({ canEdit }: { canEdit: boolean }) {
                   <input autoFocus type="text" value={editFolderName} onChange={e => setEditFolderName(e.target.value)}
                     onKeyDown={e => { if(e.key==='Enter')saveFolder(g.id); if(e.key==='Escape')setEditFolderId(null) }}
                     className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400 min-w-0"/>
-                  <button onClick={() => saveFolder(g.id)} className="p-1 bg-blue-500 text-white rounded"><Check className="w-3 h-3"/></button>
-                  <button onClick={() => setEditFolderId(null)} className="p-1 text-gray-400 hover:bg-gray-100 rounded"><X className="w-3 h-3"/></button>
+                  <button type="button" aria-label="שמירת שם התיקייה" onClick={() => saveFolder(g.id)} className="p-1 bg-blue-500 text-white rounded"><Check className="w-3 h-3"/></button>
+                  <button type="button" aria-label="ביטול שינוי השם" onClick={() => setEditFolderId(null)} className="p-1 text-gray-400 hover:bg-gray-100 rounded"><X className="w-3 h-3"/></button>
                 </div>
               ) : (
-                <button onClick={() => switchGallery(g.id)}
+                <button type="button" onClick={() => switchGallery(g.id)}
                   className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-xl text-sm transition-colors ${activeGallery === g.id ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-50'}`}>
                   {activeGallery === g.id ? <FolderOpen className="w-4 h-4 shrink-0 text-blue-500"/> : <Folder className="w-4 h-4 shrink-0 text-amber-500"/>}
                   <span className="flex-1 text-right truncate">{g.name}</span>
@@ -332,8 +348,8 @@ export default function MediaLibrary({ canEdit }: { canEdit: boolean }) {
               )}
               {canEdit && editFolderId !== g.id && (
                 <div className="absolute left-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 bg-white/90 rounded-md">
-                  <button onClick={() => { setEditFolderId(g.id); setEditFolderName(g.name) }} className="p-1 text-gray-300 hover:text-blue-500 rounded"><Edit2 className="w-3 h-3"/></button>
-                  <button onClick={() => deleteFolder(g.id)} className="p-1 text-gray-300 hover:text-red-500 rounded"><Trash2 className="w-3 h-3"/></button>
+                  <button type="button" aria-label={`שינוי שם התיקייה ${g.name}`} onClick={() => { setEditFolderId(g.id); setEditFolderName(g.name) }} className="p-1 text-gray-300 hover:text-blue-500 rounded"><Edit2 className="w-3 h-3"/></button>
+                  <button type="button" aria-label={`מחיקת התיקייה ${g.name}`} onClick={() => deleteFolder(g.id)} className="p-1 text-gray-300 hover:text-red-500 rounded"><Trash2 className="w-3 h-3"/></button>
                 </div>
               )}
             </div>
@@ -348,7 +364,7 @@ export default function MediaLibrary({ canEdit }: { canEdit: boolean }) {
             {activeGallery ? `העלה לתיקייה "${galleries.find(g=>g.id===activeGallery)?.name}"` : 'העלה תמונות וסרטונים · ניתן לבחור כמה קבצים'}
           </div>}
 
-          {canEdit&&selected.size>0&&<div className="flex flex-wrap items-center gap-2 mb-3 p-2 rounded-xl bg-blue-50 text-sm" dir="rtl"><span>{selected.size} נבחרו</span><button onClick={()=>setSelected(new Set())} className="px-2 py-1 bg-white rounded">בטל בחירה</button><select value={destination} onChange={e=>setDestination(e.target.value)} className="p-1 border rounded"><option value="">בחר תיקיית יעד</option>{galleries.map(g=><option key={g.id} value={g.id}>{g.name}</option>)}</select><button disabled={busy||!destination} onClick={()=>bulkAction('move')} className="px-2 py-1 bg-blue-600 text-white rounded disabled:opacity-50">העבר לתיקייה</button><button disabled={busy} onClick={()=>bulkAction('delete')} className="px-2 py-1 bg-red-600 text-white rounded">מחק נבחרים</button></div>}
+          {canEdit&&selected.size>0&&<div className="flex flex-wrap items-center gap-2 mb-3 p-2 rounded-xl bg-blue-50 text-sm" dir="rtl"><span>{selected.size} נבחרו</span><button type="button" onClick={()=>setSelected(new Set())} className="px-2 py-1 bg-white rounded">בטל בחירה</button><select value={destination} onChange={e=>setDestination(e.target.value)} className="p-1 border rounded"><option value="">בחר תיקיית יעד</option>{galleries.map(g=><option key={g.id} value={g.id}>{g.name}</option>)}</select><button type="button" disabled={busy||!destination} onClick={()=>bulkAction('move')} className="px-2 py-1 bg-blue-600 text-white rounded disabled:opacity-50">העבר לתיקייה</button><button type="button" disabled={busy} onClick={()=>bulkAction('delete')} className="px-2 py-1 bg-red-600 text-white rounded">מחק נבחרים</button></div>}
           {loading ? (
             <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-gray-400"/></div>
           ) : images.length === 0 ? (

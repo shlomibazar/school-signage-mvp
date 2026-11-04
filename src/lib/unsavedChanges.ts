@@ -26,7 +26,16 @@ export function hasUnsavedEditorChanges(): boolean {
   return document.body.dataset.screenEditorDirty === 'true' || document.body.dataset.contentDraftDirty === 'true'
 }
 
-/** True when it is fine to leave: nothing unsaved, or the user confirmed. */
-export function confirmLeaveEditor(message = UNSAVED_MESSAGE): boolean {
-  return !hasUnsavedEditorChanges() || window.confirm(message)
+/** True when it is fine to leave: nothing unsaved, or the user confirmed in the in-app dialog.
+ *  (Closing or reloading the tab is still guarded by the browser's own beforeunload prompt.) */
+export async function confirmLeaveEditor(message = UNSAVED_MESSAGE): Promise<boolean> {
+  if (!hasUnsavedEditorChanges()) return true
+  const { confirmDialog } = await import('@/components/ui/ConfirmHost')
+  return confirmDialog({ title: 'לעזוב בלי לשמור?', body: message, confirmLabel: 'יציאה בלי שמירה', cancelLabel: 'המשך עריכה' })
+}
+
+/** Asks before discarding an open content form with unsaved changes. */
+export async function confirmDiscardDraft(): Promise<boolean> {
+  const { confirmDialog } = await import('@/components/ui/ConfirmHost')
+  return confirmDialog({ title: 'לבטל את השינויים?', body: DISCARD_DRAFT_MESSAGE, confirmLabel: 'ביטול השינויים', cancelLabel: 'המשך עריכה' })
 }

@@ -24,9 +24,10 @@ export default function ScreenOperatingSettings({ screens, canEdit }: { screens:
       const response = await fetch(`/api/screens/${encodeURIComponent(row.id)}/schedule`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(row.schedule),
       })
-      if (!response.ok) throw new Error('שמירת ההגדרות נכשלה')
+      // Plain messages for the user; the server logs the technical details.
+      if (!response.ok) throw new Error(response.status === 403 ? 'אין לך הרשאה לשנות את שעות הפעילות.' : response.status === 400 ? 'בדקו את השעות והימים שנבחרו ונסו שוב.' : 'שמירת שעות הפעילות נכשלה. נסו שוב בעוד רגע.')
       setMessage('נשמר בהצלחה. במסך פתוח, השינוי יופיע לאחר בדיקת העדכונים הבאה.')
-    } catch { setMessage('השמירה נכשלה. בדקו שהעדכון למסד הנתונים הותקן.') }
+    } catch (e) { setMessage(e instanceof Error ? e.message : 'שמירת שעות הפעילות נכשלה. נסו שוב בעוד רגע.') }
     finally { setBusy(false) }
   }
   return <div className="space-y-4" dir="rtl">

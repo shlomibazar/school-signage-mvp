@@ -93,7 +93,8 @@ export default async function ScreensPage() {
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
                 </Link>
-                {canEditContent && <ScreenDeleteButton id={screen.id} name={screen.name}/>}
+                {/* Deleting needs SCHOOL_ADMIN or higher (enforced by the API). */}
+                {canEdit && <ScreenDeleteButton id={screen.id} name={screen.name}/>}
               </div>
             </div>
           </div>
