@@ -32,7 +32,8 @@ function loadPdfJs(): Promise<PdfJs> {
 
   return loader;
 }
-export async function pdfPages(file: File): Promise<File[]> {
+/** onProgress(done, total) runs before the first page and after each converted page. */
+export async function pdfPages(file: File, onProgress?: (done: number, total: number) => void): Promise<File[]> {
   if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name)) return [file];
   const pdfjs = await loadPdfJs();
   pdfjs.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.mjs';
@@ -41,6 +42,7 @@ export async function pdfPages(file: File): Promise<File[]> {
   try {
     if (doc.numPages > 30) throw new Error('ניתן לצרף PDF של עד 30 עמודים');
     const results: File[] = [];
+    onProgress?.(0, doc.numPages);
     for (let n = 1; n <= doc.numPages; n++) {
       const page = await doc.getPage(n);
       const base = page.getViewport({ scale: 1 });
@@ -57,6 +59,7 @@ await page.render({ canvasContext: context, viewport }).promise;      const blob
       canvas.width = 0;
       canvas.height = 0;
       page.cleanup();
+      onProgress?.(n, doc.numPages);
     }
     return results;
   } finally {

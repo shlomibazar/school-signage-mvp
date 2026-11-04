@@ -98,7 +98,7 @@ export default function WhereToDisplay({ announcementId, value, onChange, onLoad
             </ul>
           </div>
         )}
-        {screens && screens.length > 0 && <p className="text-xs text-ui-muted">ההודעה תתווסף לסוף סבב ההודעות בכל אזור שנבחר. ההודעות הקיימות נשארות. בלי בחירת מסך, ההודעה תישמר כטיוטה ולא תוצג.</p>}
+        {screens && screens.length > 0 && <p className="text-xs text-ui-muted">ההודעה תתווסף לסוף סבב ההודעות בכל אזור שנבחר. ההודעות הקיימות נשארות. בלי בחירת מסך, ההודעה תישמר אך לא תוצג באף מסך עד לשיוכה.</p>}
       </CardBody>
     </Card>
   )

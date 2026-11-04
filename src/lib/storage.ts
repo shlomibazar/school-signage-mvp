@@ -16,6 +16,30 @@ export function storageProvider(): 'local' | 'cloudinary' {
 }
 
 /**
+ * Deletes a stored image from the prepared-announcement-uploads folder ("announcements/prepared").
+ * Restricted to that folder and to server-chosen names, so no other upload (media library,
+ * saved attachments, logos) can ever be deleted through it. Missing files count as deleted.
+ */
+export async function deletePreparedUpload(fileName: string): Promise<void> {
+  if (!/^[0-9a-f-]{36}\.(jpg|png|webp|gif)$/.test(fileName)) throw new Error('Invalid prepared upload name')
+  if (storageProvider() === 'local') {
+    const { unlink } = await import('fs/promises')
+    await unlink(path.join(process.cwd(), 'public', 'uploads', 'announcements', 'prepared', fileName)).catch(e => { if (e?.code !== 'ENOENT') throw e })
+    return
+  }
+  const cloud = process.env.CLOUDINARY_CLOUD_NAME, key = process.env.CLOUDINARY_API_KEY, secret = process.env.CLOUDINARY_API_SECRET
+  if (!cloud || !key || !secret) throw new Error('Cloudinary is not configured')
+  const publicId = `schoolscreen/announcements/prepared/${fileName.replace(/\.[^.]+$/, '')}`
+  const timestamp = Math.floor(Date.now() / 1000)
+  const signature = createHash('sha1').update(`public_id=${publicId}&timestamp=${timestamp}${secret}`).digest('hex')
+  const form = new FormData()
+  form.append('public_id', publicId); form.append('timestamp', String(timestamp)); form.append('api_key', key); form.append('signature', signature)
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(cloud)}/image/destroy`, { method: 'POST', body: form, signal: AbortSignal.timeout(30_000) })
+  const result = await response.json().catch(() => ({})) as { result?: string }
+  if (!response.ok || (result.result !== 'ok' && result.result !== 'not found')) throw new Error(`Cloudinary delete failed (${response.status}): ${result.result ?? 'unknown'}`)
+}
+
+/**
  * Stores one file and returns its public URL.
  * @param folder  sub-folder, e.g. "announcements" ("" for the media library's existing layout)
  * @param name    unique file name including the extension (chosen by the server)

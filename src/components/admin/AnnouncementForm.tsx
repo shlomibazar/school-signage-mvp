@@ -1,14 +1,13 @@
 'use client'
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import toast from 'react-hot-toast'
 import { useRouter } from 'next/navigation'
 import { ArrowRight, Info, CheckCircle2, AlertCircle } from 'lucide-react'
 import type { Announcement } from '@/types'
 import { cleanAnnouncementHtml } from '@/lib/announcementRichText'
-import { pdfPages } from '@/lib/pdfPages'
 import { presetEnd, presetFor, toLocalInput, type SchedulePreset } from '@/lib/announcementStatus'
 import AnnouncementAttachments from './AnnouncementAttachments'
-import PendingAnnouncementAttachments, { type PendingAttachment } from './PendingAnnouncementAttachments'
+import PendingAnnouncementAttachments, { type PreparedItem, preparedBusy, preparedPayload, preparedTokens, discardPrepared } from './PendingAnnouncementAttachments'
 import AnnouncementDeleteButton from './AnnouncementDeleteButton'
 import WhereToDisplay, { type ScreenOption } from './announcements/WhereToDisplay'
 import { Button, ButtonLink } from '@/components/ui/Button'
@@ -84,79 +83,66 @@ export default function AnnouncementForm({initial}:{initial?:Announcement}){
   const sharedScreens=new Set(screens.filter(s=>s.regions.some(r=>savedId&&r.announcementIds.includes(savedId))).map(s=>s.id)).size
   const selectedScreens=screens.filter(s=>s.regions.some(r=>regionIds.includes(r.id))).length
 
-  const [pending,setPending]=useState<PendingAttachment[]>([])
+  // New announcement: files are uploaded (and PDFs converted) as soon as they are chosen; saving
+  // attaches them. Existing announcement: files go straight to it (AnnouncementAttachments).
+  const [prepared,setPrepared]=useState<PreparedItem[]>([])
+  const updatePrepared=useCallback((update:(items:PreparedItem[])=>PreparedItem[])=>setPrepared(update),[])
+  const preparing=preparedBusy(prepared)
+  const failedUploads=prepared.filter(i=>i.status==='error').length
+  // Uploads not saved with an announcement are discarded when the form is cancelled or left.
+  const savedRef=useRef(false)
+  const preparedRef=useRef(prepared)
+  preparedRef.current=prepared
+  useEffect(()=>{
+    if(initial)return
+    const discard=()=>{if(!savedRef.current)discardPrepared(preparedTokens(preparedRef.current))}
+    const warn=(e:BeforeUnloadEvent)=>{if(!savedRef.current&&preparedRef.current.length){e.preventDefault();e.returnValue=''}}
+    window.addEventListener('pagehide',discard)
+    window.addEventListener('beforeunload',warn)
+    return()=>{window.removeEventListener('pagehide',discard);window.removeEventListener('beforeunload',warn);discard()}
+  },[initial])
   const [busy,setBusy]=useState(false),[error,setError]=useState('')
-  const [phase,setPhase]=useState<'saving'|'uploading'>('saving')
-  const [status,setStatus]=useState('')
   const [success,setSuccess]=useState('')
-  // Bumped after uploads so the saved-attachments list re-fetches the real records from the server.
-  const [attachmentsVersion,setAttachmentsVersion]=useState(0)
   const [attachmentsBusy,setAttachmentsBusy]=useState(false)
   // Guards against a second submit before the disabled state renders (double click, Enter).
   const savingRef=useRef(false)
-  // PDF pages already uploaded per pending item, so a retry after a partial failure does not duplicate them.
-  const uploadedPagesRef=useRef<Record<string,number>>({})
   const saving=busy||attachmentsBusy
   async function save(e:React.FormEvent){
     e.preventDefault()
     if(savingRef.current||attachmentsBusy)return
     setError('');setSuccess('')
+    if(preparing){setError('הקבצים עדיין מועלים. ההודעה תישמר אחרי שההעלאה תסתיים — נסו שוב בעוד רגע.');return}
+    if(failedUploads){setError('העלאת חלק מהקבצים נכשלה. נסו שוב או הסירו אותם לפני השמירה.');return}
     const hasText = body.replace(/<[^>]*>/g, '').replace(/&nbsp;| /g, ' ').trim().length > 0
-    if (!hasText && pending.length === 0 && !savedId) {
+    if (!hasText && prepared.length === 0 && !savedId) {
       setError('יש להזין תוכן הודעה או לצרף תמונה / PDF')
       return
     }
     if (!effectiveEnd || new Date(effectiveEnd) < new Date(start)) { setError('תאריך הסיום חייב להיות אחרי תאריך ההתחלה'); return }
     savingRef.current=true
-    setBusy(true);setPhase('saving');setStatus('שומר את ההודעה...')
+    setBusy(true)
     try{
       const keepSchedule=initial&&!scheduleTouched
       const res=await fetch(savedId?`/api/announcements/${savedId}`:'/api/announcements',{method:savedId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-        title,showTitle,body,hasPendingAttachments:pending.length>0,priority,active,attachmentDisplayMode,attachmentSlideSeconds,
+        title,showTitle,body,priority,active,attachmentDisplayMode,attachmentSlideSeconds,
         startAt:keepSchedule?new Date(initial.startAt).toISOString():new Date(start).toISOString(),
         endAt:keepSchedule?new Date(initial.endAt).toISOString():new Date(effectiveEnd).toISOString(),
         ...(regionsReady?{regionIds}:{}),
+        ...(!savedId?{attachments:preparedPayload(prepared)}:{}),
       })})
       if(!res.ok){const data=await res.json().catch(()=>null);throw Error(`שמירת ההודעה נכשלה (${res.status}): ${data?.error&&typeof data.error==='string'?data.error:'בדקו את השדות והתאריכים'}`)}
       const payload=await res.json()
       const id=savedId||payload?.data?.id
       if(!id)throw Error('ההודעה נשמרה אך לא התקבל מזהה. רענן את הדף ובדוק את הרשימה.')
+      savedRef.current=true
       setSavedId(id)
-      const queue=[...pending]
-      let uploaded=0
-      if(queue.length)setPhase('uploading')
-      try{
-        for(const [i,a] of queue.entries()){
-          const name=a.file?.name||a.media?.originalName||'קובץ'
-          if(a.file?.type==='application/pdf')setStatus(`ממיר PDF לעמודים: ${name}...`)
-          const pages=a.file?await pdfPages(a.file):[null]
-          for(let p=uploadedPagesRef.current[a.key]??0;p<pages.length;p++){
-            const page=pages[p]
-            const form=new FormData()
-            if(page){
-              form.append('file',page)
-              if(a.file?.type==='application/pdf'){form.append('pdfPage','1');form.append('originalName',page.name)}
-            } else if(a.media) form.append('mediaId',a.media.id)
-            else continue
-            setStatus(`מעלה קבצים... קובץ ${i+1} מתוך ${queue.length}${pages.length>1?` (עמוד ${p+1} מתוך ${pages.length})`:''}`)
-            const r=await fetch(`/api/announcements/${id}/attachments`,{method:'POST',body:form})
-            if(!r.ok){const d=await r.json().catch(()=>({}));throw Error(`ההודעה נשמרה, אך העלאת "${name}" נכשלה: ${d.error||r.status}. הקבצים שלא נשמרו ממתינים — לחץ "נסה שוב".`)}
-            uploaded++
-            uploadedPagesRef.current[a.key]=p+1
-          }
-          // Remove from pending only after every page of this item was persisted.
-          delete uploadedPagesRef.current[a.key]
-          setPending(list=>list.filter(x=>x.key!==a.key))
-          setAttachmentsVersion(v=>v+1)
-        }
-      }finally{
-        // Re-sync with the server after any upload attempt, including partial failures.
-        if(queue.length)setAttachmentsVersion(v=>v+1)
-      }
-      const where=regionsReady?(selectedScreens?`פורסמה ב${selectedScreens===1?'מסך אחד':`-${selectedScreens} מסכים`}`:'נשמרה כטיוטה (לא מוצגת באף מסך)'):'נשמרה'
-      const message=`ההודעה ${where}${uploaded?` · ${uploaded} קבצים הועלו`:''}`
-      setSuccess(message)
-      toast.success(message)
+      const files=preparedPayload(prepared).length
+      const message=!regionsReady?'ההודעה נשמרה'
+        :selectedScreens?`ההודעה נשמרה ומוצגת ב${selectedScreens===1?'מסך אחד':`-${selectedScreens} מסכים`}`
+        :'ההודעה נשמרה. היא לא מוצגת באף מסך עד לשיוכה.'
+      const full=`${message}${!initial&&files?` · ${files} קבצים צורפו`:''}`
+      setSuccess(full)
+      toast.success(full)
       // A new announcement is done once it is saved: back to the list, where it shows with its status.
       if(!initial){router.push('/admin/announcements');router.refresh();return}
       setScheduleTouched(false)
@@ -164,12 +150,10 @@ export default function AnnouncementForm({initial}:{initial?:Announcement}){
       setRegionsReady(false);setReloadKey(k=>k+1)
       router.refresh()
     }catch(e){setError(e instanceof Error?e.message:'שגיאה');toast.error('לא ניתן להשלים את השמירה')}
-    finally{savingRef.current=false;setBusy(false);setStatus('')}
+    finally{savingRef.current=false;setBusy(false)}
   }
   const [reloadKey,setReloadKey]=useState(0)
-  const primaryLabel=busy?(phase==='uploading'?'מעלה קבצים...':'שומר...'):attachmentsBusy?'מעלה קבצים...'
-    :savedId&&initial?'שמירת שינויים'
-    :selectedScreens?`פרסום ב${selectedScreens===1?'מסך אחד':`-${selectedScreens} מסכים`}`:'שמירה כטיוטה'
+  const primaryLabel=busy?'שומר...':attachmentsBusy?'מעלה קבצים...':preparing?'ממתין לסיום ההעלאה...':initial?'שמירת שינויים':'שמירת הודעה'
 
   return <form onSubmit={save} className="mx-auto w-full max-w-6xl min-w-0 [overflow-anchor:none]" dir="rtl">
     <PageHeader title={initial?'עריכת הודעה':'הודעה חדשה'} description={initial?undefined:'כתבו את ההודעה, בחרו מתי ואיפה להציג אותה ופרסמו. אין צורך להיכנס לעורך המסך.'}
@@ -193,9 +177,9 @@ export default function AnnouncementForm({initial}:{initial?:Announcement}){
               </div>
               <p className="text-xs text-ui-muted">אפשר לסמן חלק מהטקסט ולעצב רק אותו.</p>
             </div>
-            {savedId&&<AnnouncementAttachments key={savedId} announcementId={savedId} refreshToken={attachmentsVersion} disabled={busy} onBusyChange={setAttachmentsBusy}/>}
+            {savedId&&<AnnouncementAttachments key={savedId} announcementId={savedId} disabled={busy} onBusyChange={setAttachmentsBusy}/>}
             {/* Pending files stay visible until each one is confirmed saved (also after a failed upload). */}
-            {(!savedId||pending.length>0)&&<PendingAnnouncementAttachments items={pending} onChange={setPending} disabled={busy}/>}
+            {!initial&&!savedId&&<PendingAnnouncementAttachments items={prepared} onChange={updatePrepared} disabled={busy}/>}
           </CardBody>
         </Card>
 
@@ -245,18 +229,18 @@ export default function AnnouncementForm({initial}:{initial?:Announcement}){
     <div aria-live="polite" className="mt-4 grid gap-2">
       {busy&&<div role="status" className="flex items-center gap-3 rounded-ui border border-ui-primary-line bg-ui-primary-soft p-3 text-sm font-medium text-ui-primary-ink">
         <span aria-hidden="true" className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-ui-primary border-t-transparent"/>
-        <span>{status||'שומר...'} נא לא לסגור את הדף.</span>
+        <span>שומר את ההודעה... נא לא לסגור את הדף.</span>
       </div>}
       {!busy&&success&&<div role="status" className="flex items-center gap-2 rounded-ui border border-green-200 bg-ui-success-soft p-3 text-sm font-medium text-ui-success"><CheckCircle2 className="h-4 w-4" />{success}</div>}
       {error&&<div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-ui border border-red-200 bg-ui-danger-soft p-3 text-sm text-ui-danger">
         <span className="flex items-center gap-2"><AlertCircle className="h-4 w-4 shrink-0" />{error}</span>
-        {pending.length>0&&<Button type="submit" variant="danger" size="sm" disabled={saving}>נסה שוב</Button>}
       </div>}
     </div>
+    {/* Cancel discards uploads made for a new announcement that was not saved (the unmount cleanup). */}
     <div className="sticky bottom-0 z-20 -mx-3 mt-4 flex flex-wrap items-center gap-2 border-t border-ui-border bg-ui-surface px-3 py-3 sm:-mx-4 sm:px-4 lg:-mx-6 lg:px-6">
-      <Button type="submit" variant="primary" loading={saving} disabled={saving}>{primaryLabel}</Button>
+      <Button type="submit" variant="primary" loading={saving||preparing} disabled={saving||preparing}>{primaryLabel}</Button>
       <Button variant="secondary" disabled={busy} onClick={()=>router.push('/admin/announcements')}>ביטול</Button>
-      <span className="text-xs text-ui-muted">{selectedScreens?'השינויים יופיעו במסכים תוך דקה.':'בלי בחירת מסך, ההודעה נשמרת כטיוטה ולא מוצגת.'}</span>
+      <span className="text-xs text-ui-muted">{selectedScreens?`ההודעה תוצג ב${selectedScreens===1?'מסך אחד':`-${selectedScreens} מסכים`}. השינויים יופיעו במסכים תוך דקה.`:'ההודעה תישמר אך לא תוצג באף מסך עד לשיוכה.'}</span>
       {savedId&&initial&&<div className="ms-auto"><AnnouncementDeleteButton id={savedId} title={title||initial.title} shownOn={shownOn} redirectTo="/admin/announcements" size="md" /></div>}
     </div>
   </form>
