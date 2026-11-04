@@ -1,3 +1,6 @@
 import { z } from 'zod'
 import { cleanAnnouncementHtml } from './announcementRichText'
+// Target announcement regions (content item ids) chosen in "where to display". Each one is
+// checked on the server against the school's announcement regions.
+export const regionIdsSchema=z.array(z.string().min(1).max(64)).max(200).transform(ids=>[...new Set(ids)])
 export const schema=z.object({title:z.string().trim().min(1),showTitle:z.boolean().default(true),body:z.string().trim().max(30000).transform(cleanAnnouncementHtml),priority:z.enum(['LOW','MEDIUM','HIGH','EMERGENCY']).default('LOW'),active:z.boolean().default(true),startAt:z.string().datetime(),endAt:z.string().datetime(),icon:z.string().nullable().optional(),attachmentDisplayMode:z.enum(['together','slideshow']).default('slideshow'),attachmentSlideSeconds:z.number().int().min(3).max(30).default(8)}).refine(v=>v.endAt>=v.startAt,{message:'תאריך סיום קודם לתאריך התחלה'})

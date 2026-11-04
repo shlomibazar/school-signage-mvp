@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { pdfPages } from '@/lib/pdfPages'
 import { thumbnailImageUrl, isImageMedia } from '@/lib/imageDelivery'
+import { ConfirmDialog } from '@/components/ui/Dialog'
 
 type Attachment = {id:string;kind:string;url:string;originalName:string}
 type Media = {id:string;originalName:string;url:string;mimeType?:string}
@@ -16,6 +17,8 @@ export default function AnnouncementAttachments({announcementId,refreshToken=0,d
   const [busy,setBusy] = useState(false)
   const [error,setError] = useState('')
   const [notice,setNotice] = useState('')
+  // Attachment waiting for the in-app removal confirmation.
+  const [removing,setRemoving] = useState<Attachment|null>(null)
   const inputRef=useRef<HTMLInputElement>(null)
   const endpoint=`/api/announcements/${announcementId}/attachments`
   const reload=useCallback(async()=>{
@@ -69,7 +72,6 @@ export default function AnnouncementAttachments({announcementId,refreshToken=0,d
     finally{setBusy(false)}
   }
   async function remove(id:string){
-    if(!confirm('להסיר את הקובץ מההודעה?'))return
     setBusy(true);setError('');setNotice('')
     try{
       const r=await fetch(`${endpoint}?attachmentId=${encodeURIComponent(id)}`,{method:'DELETE'})
@@ -79,23 +81,23 @@ export default function AnnouncementAttachments({announcementId,refreshToken=0,d
     }catch(e){setError(e instanceof Error?e.message:'ההסרה נכשלה')}
     finally{setBusy(false)}
   }
-  return <section className="border rounded-xl p-3 sm:p-4 space-y-4 min-w-0 max-w-full overflow-x-hidden" dir="rtl">
-    <div className="flex items-center justify-between gap-2"><h2 className="font-semibold">תמונות וקבצים מצורפים</h2><span className="text-xs text-gray-500">{items.length} קבצים שמורים</span></div>
-    <p className="text-xs text-gray-500">תמונות נשמרות מיד עם הצירוף ויוצגו בהודעה במסך שההודעה משויכת אליו. קובצי PDF מומרים לעמודי תמונה ומוצגים בטלוויזיה לפי סדר העמודים.</p>
+  return <section className="rounded-ui border border-ui-border p-3 sm:p-4 space-y-4 min-w-0 max-w-full overflow-x-hidden" dir="rtl">
+    <div className="flex items-center justify-between gap-2"><h2 className="font-semibold">תמונות וקבצים מצורפים</h2><span className="text-xs text-ui-muted">{items.length} קבצים שמורים</span></div>
+    <p className="text-xs text-ui-muted">תמונות נשמרות מיד עם הצירוף ויוצגו בהודעה במסך שההודעה משויכת אליו. קובצי PDF מומרים לעמודי תמונה ומוצגים בטלוויזיה לפי סדר העמודים.</p>
     <div className="flex flex-wrap gap-2">
-      <label className={`inline-flex cursor-pointer items-center rounded-lg bg-blue-600 px-4 py-2 text-white text-sm ${locked?'opacity-50 pointer-events-none':''}`}>
+      <label className={`inline-flex cursor-pointer items-center rounded-ui-sm bg-ui-primary px-4 py-2 text-white hover:bg-ui-primary-hover text-sm ${locked?'opacity-50 pointer-events-none':''}`}>
         העלאת תמונות / PDF<input ref={inputRef} type="file" multiple disabled={locked} accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" className="sr-only" onChange={e=>void upload(e.target.files)}/>
       </label>
-      <button type="button" disabled={locked} className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50" onClick={()=>setPicker(v=>!v)}>{picker?'סגור גלריה':'בחירה מהגלריה'}</button>
+      <button type="button" disabled={locked} className="rounded-ui-sm border border-ui-border-strong bg-ui-surface px-4 py-2 text-sm text-ui-ink-2 hover:bg-ui-subtle disabled:opacity-50" onClick={()=>setPicker(v=>!v)}>{picker?'סגור גלריה':'בחירה מהגלריה'}</button>
     </div>
     {picker&&<div className="rounded-xl border bg-slate-50 p-3 space-y-3">
       <div className="flex justify-between items-center gap-2"><p className="text-sm">בחר תמונות בלחיצה על התמונה ({selected.length} נבחרו)</p><button type="button" className="text-xs text-blue-700" onClick={()=>setSelected([])}>נקה בחירה</button></div>
-      {media.length===0?<p className="text-sm text-gray-500">לא נמצאו תמונות בגלריה</p>:<div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-64 overflow-y-auto overscroll-contain">
+      {media.length===0?<p className="text-sm text-ui-muted">לא נמצאו תמונות בגלריה</p>:<div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-64 overflow-y-auto overscroll-contain">
         {media.map(m=>{const active=selected.includes(m.id);return <button key={m.id} type="button" disabled={locked} aria-pressed={active} title={m.originalName} className={`relative rounded-lg overflow-hidden border-2 text-right bg-white ${active?'border-blue-600 ring-2 ring-blue-200':'border-transparent'}`} onClick={()=>setSelected(v=>active?v.filter(id=>id!==m.id):[...v,m.id])}>
-          <img src={thumbnailImageUrl(m.url)} alt={m.originalName} loading="lazy" className="w-full h-24 object-contain bg-gray-100"/><span className="block truncate text-xs p-1">{m.originalName}</span>{active&&<span className="absolute top-1 right-1 bg-blue-600 text-white rounded-full px-1.5 text-xs">✓</span>}
+          <img src={thumbnailImageUrl(m.url)} alt={m.originalName} loading="lazy" className="w-full h-24 object-contain bg-gray-100"/><span className="block truncate text-xs p-1">{m.originalName}</span>{active&&<span className="absolute top-1 right-1 bg-ui-primary text-white hover:bg-ui-primary-hover rounded-full px-1.5 text-xs">✓</span>}
         </button>})}
       </div>}
-      <button type="button" disabled={locked||selected.length===0} onClick={()=>void attachSelected()} className="rounded-lg bg-blue-600 text-white px-4 py-2 text-sm disabled:opacity-50">צרף {selected.length} תמונות להודעה</button>
+      <button type="button" disabled={locked||selected.length===0} onClick={()=>void attachSelected()} className="rounded-lg bg-ui-primary text-white hover:bg-ui-primary-hover px-4 py-2 text-sm disabled:opacity-50">צרף {selected.length} תמונות להודעה</button>
     </div>}
     {busy&&<div role="status" className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm font-medium text-blue-800"><span aria-hidden="true" className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-blue-600 border-t-transparent"/>מעלה קבצים... נא להמתין.</div>}
     {error&&<p role="alert" className="text-sm text-red-700 bg-red-50 p-2 rounded">{error}</p>}
@@ -104,8 +106,11 @@ export default function AnnouncementAttachments({announcementId,refreshToken=0,d
       {items.map(a=><div key={a.id} className="border rounded-lg p-2 space-y-2 min-w-0">
         {a.kind==='IMAGE'||a.kind==='PDF_PAGE'?<img src={thumbnailImageUrl(a.url)} alt={a.originalName} className="w-full h-28 object-contain bg-gray-50 rounded"/>:<div className="h-28 bg-red-50 rounded flex items-center justify-center text-red-700 font-semibold">PDF</div>}
         <div className="text-xs truncate" title={a.originalName}>{a.originalName}</div>
-        <div className="flex justify-between items-center"><span className="text-xs text-green-700">✓ נשמר</span><button type="button" disabled={locked} className="text-red-600 text-xs disabled:opacity-50" onClick={()=>void remove(a.id)}>הסר</button></div>
+        <div className="flex justify-between items-center"><span className="text-xs text-green-700">✓ נשמר</span><button type="button" disabled={locked} className="text-red-600 text-xs disabled:opacity-50" onClick={()=>setRemoving(a)}>הסר</button></div>
       </div>)}
     </div>}
+    <ConfirmDialog open={!!removing} busy={busy} title="להסיר את הקובץ מההודעה?" confirmLabel="הסרה" onCancel={()=>setRemoving(null)} onConfirm={async()=>{const a=removing;if(!a)return;await remove(a.id);setRemoving(null)}}>
+      <p>הקובץ <b>״{removing?.originalName}״</b> יוסר מההודעה בכל המסכים שבהם היא מוצגת.</p>
+    </ConfirmDialog>
   </section>
 }
