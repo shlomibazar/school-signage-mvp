@@ -45,9 +45,22 @@ try {
 
   // Screens page: the delete button only for SCHOOL_ADMIN and up.
   const pageE = await call(E, '/admin/screens'), pageA = await call(A, '/admin/screens')
-  t('screens page: no delete button for EDITOR', pageE.s === 200 && !pageE.text.includes(`מחיקת המסך ${TAG} One`))
-  t('screens page: delete button for SCHOOL_ADMIN', pageA.text.includes(`מחיקת המסך ${TAG} One`))
-  t('screens page: no disable button for EDITOR', !pageE.text.includes('השבתת מסך'))
+  // Disable/enable and delete live in the card's "⋮" menu, which only SCHOOL_ADMIN and up get.
+  t('screens page: no management menu for EDITOR', pageE.s === 200 && !pageE.text.includes(`פעולות נוספות למסך ${TAG} One`))
+  t('screens page: management menu for SCHOOL_ADMIN', pageA.text.includes(`פעולות נוספות למסך ${TAG} One`))
+  t('screens page: EDITOR still gets edit and TV connection', pageE.text.includes('עריכת מסך') && pageE.text.includes('חיבור טלוויזיה'))
+  const pageV = await call(V, '/admin/screens')
+  t('screens page: VIEWER gets view and TV connection only', pageV.s === 200 && pageV.text.includes('צפייה במסך') && pageV.text.includes('חיבור טלוויזיה') && !pageV.text.includes('עריכת מסך') && !pageV.text.includes(`פעולות נוספות למסך ${TAG} One`))
+  // Pairing codes: SCHOOL_ADMIN and up; short links: EDITOR and up (unchanged API rules).
+  t('EDITOR cannot create a pairing code (403)', (await call(E, `/api/screens/${s2.id}/pairing`, 'POST')).s === 403)
+  t('VIEWER cannot create a short link (403)', (await call(V, `/api/screens/${s2.id}/short-link`, 'POST')).s === 403)
+  const p1 = await call(A, `/api/screens/${s2.id}/pairing`, 'POST')
+  t('SCHOOL_ADMIN pairing code: 6 digits, expires in about 10 minutes', p1.s === 200 && /^\d{6}$/.test(p1.j?.code) && Math.abs(Date.parse(p1.j.expiresAt) - Date.now() - 600_000) < 15_000, p1.text)
+  const p2 = await call(A, `/api/screens/${s2.id}/pairing`, 'POST')
+  t('new pairing code replaces the previous one (one active code per screen)', p2.s === 200 && (await db.screenPairingCode.count({ where: { screenId: s2.id } })) === 1)
+  const sl1 = await call(E, `/api/screens/${s2.id}/short-link`, 'POST'), sl2 = await call(A, `/api/screens/${s2.id}/short-link`, 'POST')
+  t('short link is stable (second request returns the same link)', sl1.j?.code && sl1.j.code === sl2.j?.code)
+  t('another school cannot create a pairing code (404)', (await call(B, `/api/screens/${s2.id}/pairing`, 'POST')).s === 404)
 
   const ad = await call(A, `/api/screens/${s1.id}`, 'DELETE')
   t('SCHOOL_ADMIN deletes a screen of its school (200)', ad.s === 200 && !(await exists(s1.id)), `${ad.s}`)

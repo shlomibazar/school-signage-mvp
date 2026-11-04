@@ -3,8 +3,7 @@ import { useState } from 'react'
 import { Camera, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { hasUnsavedEditorChanges } from '@/lib/unsavedChanges'
-
-const when = (iso: string) => new Date(iso).toLocaleString('he-IL', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })
+import { snapshotShortTime as when } from '@/lib/snapshotTime'
 
 // "עדכן צילום": captures the live preview of the saved screen and stores it as the snapshot shown
 // in the screens list. Only on click; never automatically on save.

@@ -1,21 +1,19 @@
-import ScreenPairingManager from '@/components/admin/ScreenPairingManager'
-import ScreenActiveToggle from '@/components/admin/ScreenActiveToggle'
 // src/app/admin/screens/page.tsx
-import Link from 'next/link'
-import ScreenDeleteButton from '@/components/admin/ScreenDeleteButton'
+import { Plus, Monitor } from 'lucide-react'
 import ScreenSnapshot from '@/components/admin/ScreenSnapshot'
-import ScreenSnapshotImage from '@/components/admin/ScreenSnapshotImage'
-import ShortLinkManager from '@/components/admin/ShortLinkManager'
-import { Plus, Edit, ExternalLink, Monitor } from 'lucide-react'
+import ScreenCard from '@/components/admin/screens/ScreenCard'
 import { getCurrentUser } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { homeSchoolWhere } from '@/lib/schoolScope'
+import { ButtonLink } from '@/components/ui/Button'
+import { PageHeader, EmptyState } from '@/components/ui/Display'
 
 export default async function ScreensPage() {
   const user     = await getCurrentUser()
   const schoolId = user?.schoolId
-  const canEdit = user?.role === 'SCHOOL_ADMIN' || user?.role === 'SUPER_ADMIN'
-  // Create/delete screens, edit layouts and short links need EDITOR or higher (as in the API).
+  // Disable/enable, delete, pairing codes and screen settings: SCHOOL_ADMIN and up (as in the API).
+  const canAdmin = user?.role === 'SCHOOL_ADMIN' || user?.role === 'SUPER_ADMIN'
+  // Editing layouts, creating screens and short links: EDITOR and up (as in the API).
   const canEditContent = !!user && user.role !== 'VIEWER'
 
   const screens = await db.screen.findMany({
@@ -25,81 +23,39 @@ export default async function ScreensPage() {
     include: {
       layout: { select: { mainSections: true, headerEnabled: true, footerEnabled: true, footerTicker: true, bgColor: true } },
       sections: { orderBy: { position: 'asc' }, include: { contentItems: { select: { contentType: true, active: true, textContent: true, settings: true, galleryId: true, bgColor: true }, orderBy: { createdAt: 'asc' } } } },
-      _count: { select: { sections: true, announcements: true } },
     },
   })
+  // Only needed for the schematic preview of screens that have no snapshot yet.
+  const needSchematic = screens.some(s => !s.snapshotUrl)
+  const media = schoolId && needSchematic ? await db.mediaFile.findMany({where:{schoolId,mediaType:'IMAGE',mimeType:{startsWith:'image/'},hidden:false},select:{id:true,url:true,galleryId:true},orderBy:{uploadedAt:'desc'}}) : []
+  const announcements = schoolId && needSchematic ? await db.announcement.findMany({where:{schoolId,active:true},select:{id:true,title:true,body:true,priority:true,bgColor:true},orderBy:{createdAt:'desc'}}) : []
+  const activeCount = screens.filter(s => s.active).length
 
-  const media = schoolId ? await db.mediaFile.findMany({where:{schoolId,mediaType:'IMAGE',mimeType:{startsWith:'image/'},hidden:false},select:{id:true,url:true,galleryId:true},orderBy:{uploadedAt:'desc'}}) : []
-  const announcements = schoolId ? await db.announcement.findMany({where:{schoolId,active:true},select:{id:true,title:true,body:true,priority:true,bgColor:true},orderBy:{createdAt:'desc'}}) : []
   return (
-    <div className="max-w-4xl">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">מסכים</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{screens.length} מסכים סה״כ</p>
-        </div>
-        {canEditContent && <Link
-          href="/admin/screens/new"
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          מסך חדש
-        </Link>}
-      </div>
+    <div className="mx-auto w-full max-w-6xl">
+      <PageHeader title="מסכים"
+        description={screens.length ? `${screens.length} מסכים · ${activeCount} פעילים` : undefined}
+        actions={canEditContent && <ButtonLink href="/admin/screens/new" variant="primary" icon={<Plus className="h-4 w-4" aria-hidden="true" />}>מסך חדש</ButtonLink>} />
 
-      {screens.length === 0 && (
-        <div className="bg-white border border-gray-100 border-dashed rounded-2xl p-16 text-center">
-          <Monitor className="w-10 h-10 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500 mb-3">עדיין אין מסכים</p>
-          {canEditContent && <Link href="/admin/screens/new" className="text-sm text-blue-600 hover:underline">
-            צור את המסך הראשון
-          </Link>}
+      {screens.length === 0 ? (
+        <div className="rounded-ui-lg border border-dashed border-ui-border bg-ui-surface">
+          <EmptyState icon={<Monitor className="h-6 w-6" />} title="עדיין אין מסכים"
+            description="מסך הוא מה שהטלוויזיה מציגה: פריסה, תוכן ועיצוב."
+            action={canEditContent && <ButtonLink href="/admin/screens/new" variant="primary" icon={<Plus className="h-4 w-4" aria-hidden="true" />}>יצירת המסך הראשון</ButtonLink>} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {screens.map(screen => (
+            <ScreenCard key={screen.id} canEditContent={canEditContent} canAdmin={canAdmin}
+              screen={{
+                id: screen.id, name: screen.name, slug: screen.slug, orientation: screen.orientation,
+                width: screen.width, height: screen.height, active: screen.active, shortCode: screen.shortCode,
+                snapshotUrl: screen.snapshotUrl, snapshotAt: screen.snapshotAt?.toISOString() ?? null,
+              }}
+              fallback={screen.snapshotUrl ? null : <ScreenSnapshot screen={screen} media={media} announcements={announcements} />} />
+          ))}
         </div>
       )}
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {screens.map(screen => (
-          <div key={screen.id} className="bg-white border border-gray-100 rounded-2xl overflow-hidden hover:border-gray-200 transition-colors">
-            {/* The saved snapshot when there is one; otherwise the schematic summary. */}
-            {screen.snapshotUrl && screen.snapshotAt
-              ? <ScreenSnapshotImage url={screen.snapshotUrl} takenAt={screen.snapshotAt.toISOString()} name={screen.name} slug={screen.slug} portrait={screen.orientation === 'PORTRAIT'} />
-              : <ScreenSnapshot screen={screen} media={media} announcements={announcements} />}
-
-            <div className="p-4">
-              <div className="flex items-start justify-between gap-2 mb-2">
-                <h3 className="font-semibold text-gray-800">{screen.name}</h3>
-                <ScreenActiveToggle id={screen.id} initialActive={screen.active} canEdit={canEdit} screenName={screen.name} />
-              </div>
-
-              <div className="text-xs text-gray-400 space-y-1 mb-3">
-                <div>{screen.orientation === 'LANDSCAPE' ? 'אופקי 16:9' : 'אנכי 9:16'} · {screen.width}×{screen.height}</div>
-                <div className="text-blue-500">/screen/{screen.slug}</div>
-              </div>
-
-              <ShortLinkManager screenId={screen.id} initialCode={screen.shortCode} canCreate={canEditContent} />
-              {canEdit && <ScreenPairingManager screenId={screen.id} />}
-              <div className="flex items-center gap-2">
-                {canEditContent && <Link
-                  href={`/admin/editor?screen=${screen.id}`}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2 border border-gray-200 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                >
-                  <Edit className="w-3.5 h-3.5" />
-                  ערוך פריסה
-                </Link>}
-                <Link
-                  href={`/screen/${screen.slug}`}
-                  target="_blank"
-                  className="flex items-center gap-1.5 py-2 px-3 border border-gray-200 rounded-lg text-xs text-gray-500 hover:bg-gray-50 transition-colors"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </Link>
-                {/* Deleting needs SCHOOL_ADMIN or higher (enforced by the API). */}
-                {canEdit && <ScreenDeleteButton id={screen.id} name={screen.name}/>}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
     </div>
   )
 }

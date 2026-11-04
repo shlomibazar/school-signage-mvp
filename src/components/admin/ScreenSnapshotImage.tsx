@@ -2,10 +2,10 @@
 import { useEffect, useState } from 'react'
 import { ExternalLink, X, Maximize2 } from 'lucide-react'
 import { displayImageUrl } from '@/lib/imageDelivery'
+import { snapshotStamp as stamp } from '@/lib/snapshotTime'
 
 // The saved snapshot of a screen (captured in the editor with "עדכן צילום"). The card shows a
 // small Cloudinary rendition; a click opens a larger one. No TV renderer is loaded here.
-const stamp = (iso: string) => new Date(iso).toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', day: 'numeric', month: 'numeric', year: '2-digit', hour: '2-digit', minute: '2-digit' })
 
 export default function ScreenSnapshotImage({ url, takenAt, name, slug, portrait }: { url: string; takenAt: string; name: string; slug: string; portrait: boolean }) {
   const [open, setOpen] = useState(false)
