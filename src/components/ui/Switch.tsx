@@ -1,12 +1,13 @@
 'use client'
 
-interface Props { checked: boolean; onCheckedChange: (v: boolean) => void; disabled?: boolean }
+interface Props { checked: boolean; onCheckedChange: (v: boolean) => void; disabled?: boolean; 'aria-label'?: string }
 
-export function Switch({ checked, onCheckedChange, disabled }: Props) {
+export function Switch({ checked, onCheckedChange, disabled, 'aria-label': ariaLabel }: Props) {
   return (
     <button
       type="button"
       role="switch"
+      aria-label={ariaLabel}
       dir="ltr"
       aria-checked={checked}
       disabled={disabled}

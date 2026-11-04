@@ -155,9 +155,12 @@ export default async function EditorPage({ searchParams: searchParamsPromise }: 
     select: { id: true, name: true }, orderBy: { createdAt: 'asc' },
   })
 
+  // The school's logo and weather city, shown read-only in the header settings.
+  const schoolProfile = await db.school.findUnique({ where: { id: raw.schoolId }, select: { logoUrl: true, weatherCity: true } })
+
   return (
     <div className="min-w-0">
-      <ScreenLayoutEditor schoolId={raw.schoolId} initialLogoUrl={(await db.school.findUnique({where:{id:raw.schoolId},select:{logoUrl:true}}))?.logoUrl ?? null} initialWeatherCity={(await db.school.findUnique({where:{id:raw.schoolId},select:{weatherCity:true}}))?.weatherCity ?? null} key={screen.id} screen={screen} layout={layout} sections={sections}
+      <ScreenLayoutEditor initialLogoUrl={schoolProfile?.logoUrl ?? null} initialWeatherCity={schoolProfile?.weatherCity ?? null} key={screen.id} screen={screen} layout={layout} sections={sections}
         screenSelector={<ScreenSelector currentId={screen.id} screens={availableScreens} />} />
     </div>
   )

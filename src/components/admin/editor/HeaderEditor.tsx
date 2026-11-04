@@ -1,11 +1,16 @@
 'use client'
-import { useState, useEffect } from 'react'
-import { ISRAEL_WEATHER_CITIES } from '@/lib/israelWeatherCities'
-import toast from 'react-hot-toast'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { Settings2 } from 'lucide-react'
 import { Switch } from '@/components/ui/Switch'
+import { confirmLeaveEditor } from '@/lib/unsavedChanges'
+import { weatherCityName } from '@/lib/screenSettings'
 import type { ScreenLayout, DateType } from '@/types'
 
-interface Props { layout: ScreenLayout; onChange: (p: Partial<ScreenLayout>) => void; schoolId: string; weatherCity?: string | null; onWeatherCityChange?: (city:string|null)=>void; logoUrl?: string | null; onLogoChange?: (url: string | null) => void }
+// The school's logo and weather city are shared by all screens and edited in the school settings
+// (/admin/settings#school); here they are shown read-only. Whether a screen shows them is a layout
+// setting (headerShowLogo / headerShowWeather) and stays here.
+interface Props { layout: ScreenLayout; onChange: (p: Partial<ScreenLayout>) => void; weatherCity?: string | null; logoUrl?: string | null }
 
 const HEIGHT_OPTIONS = [
   { value: 60,  label: 'קטן (60px)' },
@@ -20,47 +25,8 @@ const DATE_TYPE_OPTIONS: { value: DateType; label: string; example: string }[] =
   { value: 'BOTH',       label: 'שניהם',            example: 'לועזי + עברי' },
 ]
 
-export default function HeaderEditor({ layout, onChange, schoolId, logoUrl, onLogoChange, weatherCity, onWeatherCityChange }: Props) {
-  const [uploading, setUploading] = useState(false)
-  const displayCity=(value:string|null|undefined)=>value?.includes('|')?value.split('|').slice(1).join('|'):value??''
-  const [cityInput, setCityInput] = useState(displayCity(weatherCity))
-  const [selectedCity, setSelectedCity] = useState<string|null>(weatherCity ?? null)
-  const [cityOpen, setCityOpen] = useState(false)
-  useEffect(()=>{setCityInput(displayCity(weatherCity));setSelectedCity(weatherCity??null)},[weatherCity])
-  const cityResults = cityInput.trim().length > 0
-    ? ISRAEL_WEATHER_CITIES.filter(c=>c.name.includes(cityInput.trim())||c.english.toLowerCase().includes(cityInput.trim().toLowerCase())).slice(0,12)
-    : []
-  const selectCity=(c:typeof ISRAEL_WEATHER_CITIES[number])=>{
-    setCityInput(c.name);setSelectedCity(`${c.latitude},${c.longitude}|${c.name}`);setCityOpen(false)
-  }
-  const [savingCity, setSavingCity] = useState(false)
-  const saveCity = async () => {
-    if (cityInput.trim() && (!selectedCity || displayCity(selectedCity)!==cityInput.trim())) {
-      toast.error('יש לבחור יישוב מתוך הרשימה');return
-    }
-    setSavingCity(true)
-    try {
-      const response = await fetch(`/api/schools/${encodeURIComponent(schoolId)}/weather-city`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({city:selectedCity ?? ''})})
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'שמירת העיר נכשלה')
-      onWeatherCityChange?.(data.weatherCity)
-      toast.success('עיר מזג האוויר נשמרה לכל מסכי בית הספר')
-    } catch(e) {toast.error(e instanceof Error ? e.message : 'שגיאה בשמירת העיר')}
-    finally {setSavingCity(false)}
-  }
-  const uploadLogo = async (file: File) => {
-    if (!['image/png','image/jpeg','image/webp'].includes(file.type) || file.size > 3 * 1024 * 1024) { toast.error('יש לבחור תמונת PNG/JPG/WebP עד 3MB'); return }
-    setUploading(true)
-    try {
-      const body = new FormData(); body.append('file', file)
-      const response = await fetch(`/api/schools/${encodeURIComponent(schoolId)}/logo`, { method: 'POST', body })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'העלאה נכשלה')
-      onLogoChange?.(data.logoUrl)
-      toast.success('הלוגו נשמר לבית הספר')
-    } catch (error) { toast.error(error instanceof Error ? error.message : 'שגיאה בהעלאת הלוגו') }
-    finally { setUploading(false) }
-  }
+export default function HeaderEditor({ layout, onChange, logoUrl, weatherCity }: Props) {
+  const router = useRouter()
   return (
     <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
       <div className="px-3 py-2.5 bg-gray-50 text-xs font-medium text-gray-500 border-b border-gray-100">
@@ -144,30 +110,21 @@ export default function HeaderEditor({ layout, onChange, schoolId, logoUrl, onLo
         </div>
 
         <div className="rounded-lg border border-gray-200 p-3 space-y-2">
-          <label className="block text-xs font-medium text-gray-700">לוגו בית הספר (משותף לכל המסכים)</label>
-          {logoUrl && <img src={logoUrl} alt="לוגו נוכחי" className="h-14 w-auto max-w-full object-contain" />}
-          <input type="file" accept="image/png,image/jpeg,image/webp" disabled={uploading} onChange={e=>{ const file=e.target.files?.[0]; if(file) void uploadLogo(file); e.currentTarget.value='' }} className="block w-full text-xs" />
-          <p className="text-xs text-gray-500">PNG, JPG או WebP עד 3MB. הלוגו נשמר מיד ומשותף לכל המסכים.</p>
-        </div>
-        {layout.headerShowWeather && <div className="rounded-lg bg-blue-50 p-3 space-y-2">
-          <label htmlFor="school-weather-city" className="block text-xs font-semibold text-gray-700">עיר בית הספר למזג האוויר (משותפת לכל המסכים)</label>
-          <div className="flex gap-2">
-            <div className="relative flex-1 min-w-0">
-              <input id="school-weather-city" autoComplete="off" dir="rtl" value={cityInput}
-                onFocus={()=>setCityOpen(true)}
-                onChange={e=>{setCityInput(e.target.value);setSelectedCity(null);setCityOpen(true)}}
-                placeholder="חפש יישוב בישראל..." maxLength={80}
-                className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm" />
-              {cityOpen && cityResults.length>0 && <div className="absolute z-50 top-full mt-1 w-full max-h-52 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
-                {cityResults.map(c=><button key={c.name} type="button" onClick={()=>selectCity(c)}
-                  className="block w-full px-3 py-2 text-right text-sm hover:bg-blue-50">{c.name}</button>)}
-              </div>}
-              {cityOpen && cityInput.trim() && cityResults.length===0 && <div className="absolute z-50 top-full mt-1 w-full rounded-lg border bg-white px-3 py-2 text-xs text-gray-600">לא נמצא יישוב ברשימה</div>}
-            </div>
-            <button type="button" disabled={savingCity || (!!cityInput.trim() && (!selectedCity || displayCity(selectedCity)!==cityInput.trim()))} onClick={()=>void saveCity()} className="rounded-lg bg-blue-600 text-white px-3 py-1.5 text-xs disabled:opacity-50">{savingCity?'שומר...':'שמור עיר'}</button>
+          <div className="text-xs font-semibold text-gray-700">פרטי בית הספר (משותפים לכל המסכים)</div>
+          <div className="flex items-center justify-between gap-2 text-xs">
+            <span className="text-gray-500">לוגו</span>
+            {logoUrl ? <img src={logoUrl} alt="לוגו בית הספר" className="h-8 w-auto max-w-[96px] object-contain" /> : <span className="text-gray-400">לא הוגדר</span>}
           </div>
-          <p className="text-xs text-gray-500">בחר יישוב מתוך התוצאות ולחץ שמור. המיקום המדויק יישמר לכל המסכים. מתעדכן כל 15 דקות.</p>
-        </div>}
+          <div className="flex items-center justify-between gap-2 text-xs">
+            <span className="text-gray-500">עיר למזג האוויר</span>
+            <span className="truncate text-gray-700">{weatherCityName(weatherCity) || 'ברירת המחדל של המערכת'}</span>
+          </div>
+          <Link href="/admin/settings#school"
+            onClick={e => { e.preventDefault(); void confirmLeaveEditor('יש שינויים שלא נשמרו בעורך. לעבור להגדרות בית הספר ולבטל אותם?').then(ok => { if (ok) router.push('/admin/settings#school') }) }}
+            className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline">
+            <Settings2 className="h-3.5 w-3.5" aria-hidden="true" />ניהול בהגדרות בית הספר
+          </Link>
+        </div>
         {/* Scroll text */}
         <div>
           <label className="block text-xs text-gray-500 mb-1.5">כותרת ראשית (אופציונלי)</label>

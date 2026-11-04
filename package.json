@@ -17,7 +17,8 @@
     "test:qa:uploads": "node scripts/qa/announcement-uploads.mjs",
     "test:qa:snapshots": "node scripts/qa/screen-snapshots.mjs",
     "test:qa:permissions": "node scripts/qa/screen-permissions.mjs",
-    "test:qa:dashboard": "node scripts/qa/dashboard.mjs"
+    "test:qa:dashboard": "node scripts/qa/dashboard.mjs",
+    "test:qa:settings": "node scripts/qa/settings.mjs"
   },
   "dependencies": {
     "@prisma/client": "^5.15.0",

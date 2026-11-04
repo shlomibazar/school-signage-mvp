@@ -31,7 +31,7 @@ export default function ScreenCard({ screen, fallback, canEditContent, canAdmin 
   const portrait = screen.orientation === 'PORTRAIT'
 
   const menu: MenuItem[] = [
-    { label: 'הגדרות מסך', icon: <Settings className="h-4 w-4" aria-hidden="true" />, href: '/admin/settings' },
+    { label: 'הגדרות מסך', icon: <Settings className="h-4 w-4" aria-hidden="true" />, href: `/admin/screens/${screen.id}/settings` },
     {
       label: active ? 'השבתת המסך' : 'הפעלת המסך', icon: <Power className="h-4 w-4" aria-hidden="true" />,
       onSelect: async () => { const next = await setScreenActive(screen, !active); if (next !== null) { setActive(next); router.refresh() } },

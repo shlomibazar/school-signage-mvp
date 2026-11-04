@@ -15,13 +15,14 @@ import { Switch } from '@/components/ui/Switch'
 import { SCREEN_THEMES } from '@/lib/screenThemes'
 import { DISPLAY_TEMPLATES, getDisplayTemplate, getDisplayThemeValue, withDisplayTemplate, withDisplayTheme, getTemplateWidths, getDisplaySurface, withDisplaySurface, isStackedLayout } from '@/lib/displayTemplates'
 
-interface Props { screen: Screen; layout: ScreenLayout; sections: ScreenSection[]; screenSelector?: React.ReactNode; schoolId: string; initialLogoUrl?: string | null; initialWeatherCity?: string | null }
+interface Props { screen: Screen; layout: ScreenLayout; sections: ScreenSection[]; screenSelector?: React.ReactNode; initialLogoUrl?: string | null; initialWeatherCity?: string | null }
 type Tab = 'header' | 'main' | 'footer' | 'design'
 function isTempId(id: string) { return id.startsWith('new-') }
 
-export default function ScreenLayoutEditor({ screen, layout: initLayout, sections: initSections, screenSelector, schoolId, initialLogoUrl, initialWeatherCity }: Props) {
-  const [weatherCity, setWeatherCity] = useState(initialWeatherCity ?? null)
-  const [logoUrl, setLogoUrl] = useState(initialLogoUrl ?? null)
+export default function ScreenLayoutEditor({ screen, layout: initLayout, sections: initSections, screenSelector, initialLogoUrl, initialWeatherCity }: Props) {
+  // School-wide values, read-only here (edited in the school settings).
+  const weatherCity = initialWeatherCity ?? null
+  const logoUrl = initialLogoUrl ?? null
   const [layout,   setLayout]   = useState<ScreenLayout>(initLayout)
   const [sections, setSections] = useState<ScreenSection[]>(initSections)
   const [isDirty,  setIsDirty]  = useState(false)
@@ -178,7 +179,7 @@ export default function ScreenLayoutEditor({ screen, layout: initLayout, section
                 <span className="text-sm font-medium text-gray-700">כותרת עליונה</span>
                 <Switch checked={layout.headerEnabled} onCheckedChange={v=>updateLayout({headerEnabled:v})}/>
               </div>
-              <HeaderEditor layout={layout} onChange={updateLayout} schoolId={schoolId} logoUrl={logoUrl} onLogoChange={setLogoUrl} weatherCity={weatherCity} onWeatherCityChange={setWeatherCity}/>
+              <HeaderEditor layout={layout} onChange={updateLayout} logoUrl={logoUrl} weatherCity={weatherCity}/>
             </div>
           )}
           {tab==='main' && (

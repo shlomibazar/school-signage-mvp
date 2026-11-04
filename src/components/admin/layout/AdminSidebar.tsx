@@ -31,7 +31,9 @@ const NAV: NavItem[] = [
   // Users management is not built yet (/admin/users is a "phase 2" placeholder), so it is not
   // in the menu; add it back here when it exists:
   // { href: '/admin/users', label: 'משתמשים', icon: Users, section: 'ניהול', roles: ['SCHOOL_ADMIN', 'SUPER_ADMIN'] },
-  { href: '/admin/settings',      label: 'הגדרות',         icon: Settings,     section: 'ניהול', roles: ['SCHOOL_ADMIN', 'SUPER_ADMIN'] },
+  // Editors manage the school's logo and weather city here (as the API allows); screen settings are
+  // read-only for them.
+  { href: '/admin/settings',      label: 'הגדרות',         icon: Settings,     section: 'ניהול', roles: ['EDITOR', 'SCHOOL_ADMIN', 'SUPER_ADMIN'] },
   { href: '/admin/change-password', label: 'שינוי סיסמה', icon: LockKeyhole },
 ]
 
@@ -40,12 +42,12 @@ export function adminPageLabel(pathname: string): string {
   return NAV.find(item => pathname.startsWith(item.href))?.label ?? 'SchoolScreen'
 }
 
-// Unsaved layout or content drafts in the editor (client-side links skip beforeunload): the
+// Unsaved changes (editor layout, content drafts, settings forms) (client-side links skip beforeunload): the
 // navigation waits for the in-app confirmation and happens only when the user confirms.
 function guardLeave(e: React.MouseEvent, go: () => void, done: () => void) {
   if (!hasUnsavedEditorChanges()) { done(); return }
   e.preventDefault()
-  void confirmLeave('יש שינויים שלא נשמרו. לעזוב את העורך ולבטל אותם?').then(ok => { if (ok) { done(); go() } })
+  void confirmLeave('יש שינויים שלא נשמרו. לעזוב את הדף ולבטל אותם?').then(ok => { if (ok) { done(); go() } })
 }
 
 export default function AdminSidebar({ user }: { user: AuthUser }) {

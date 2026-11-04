@@ -1,41 +1,71 @@
-import { db } from '@/lib/db'
-import { Prisma } from '@prisma/client'
-import { getCurrentUser } from '@/lib/auth'
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import ScreenRefreshSettings from '@/components/admin/ScreenRefreshSettings'
-import ScreenOperatingSettings from '@/components/admin/ScreenOperatingSettings'
-import SettingsAccordion from '@/components/admin/SettingsAccordion'
-import { DEFAULT_SCHEDULE, type ScreenSchedule } from '@/lib/screenSchedule'
+import { ChevronLeft, Clock, RefreshCw, Monitor } from 'lucide-react'
+import { db } from '@/lib/db'
+import { getCurrentUser } from '@/lib/auth'
+import { schoolWhere } from '@/lib/schoolScope'
+import { loadSchedules } from '@/lib/screenScheduleStore'
+import { refreshLabel, scheduleSummary } from '@/lib/screenSettings'
+import { PageHeader, Badge, EmptyState } from '@/components/ui/Display'
+import { Card, CardHeader } from '@/components/ui/Card'
+import SchoolProfileForm from '@/components/admin/settings/SchoolProfileForm'
+import UnsavedLinkGuard from '@/components/admin/settings/UnsavedLinkGuard'
 
-type ScheduleRow = { screenId: string; enabled: boolean; startTime: string; endTime: string; days: number[]; standbyMode: string }
-
+// Settings: the school's shared details (logo, weather city) and a short list of the screens,
+// each linking to its own settings page. Layout and content stay in the screen editor.
 export default async function SettingsPage() {
   const user = await getCurrentUser()
   if (!user) redirect('/auth/login')
-  const where = user.role === 'SUPER_ADMIN' ? {} : { schoolId: user.schoolId ?? '__none__' }
-  const screens = await db.screen.findMany({ where, select: { id: true, name: true, school: { select: { name: true } }, refreshSecs: true }, orderBy: { name: 'asc' } })
-  // The migration must be applied before deploying this page.
-  // Only the schedules of the screens this user may see are read (filtered in the database).
-  const schedules = screens.length ? await db.$queryRaw<ScheduleRow[]>`
-    SELECT "screenId", "enabled", "startTime", "endTime", "days", "standbyMode"
-    FROM "ScreenOperatingSchedule"
-    WHERE "screenId" IN (${Prisma.join(screens.map(s => s.id))})
-  ` : []
-  const byId = new Map(schedules.map(s => [s.screenId, s]))
-  const screenSchedules = screens.map(s => {
-    const stored = byId.get(s.id)
-    const schedule: ScreenSchedule = stored ? {
-      enabled: stored.enabled, startTime: stored.startTime, endTime: stored.endTime,
-      days: stored.days, standbyMode: ['clock', 'message', 'logo'].includes(stored.standbyMode) ? stored.standbyMode as ScreenSchedule['standbyMode'] : 'logo',
-    } : { ...DEFAULT_SCHEDULE }
-    return { id: s.id, name: s.name, school: s.school, schedule }
+  const school = user.schoolId
+    ? await db.school.findUnique({ where: { id: user.schoolId }, select: { id: true, name: true, logoUrl: true, weatherCity: true } })
+    : null
+  const screens = await db.screen.findMany({
+    // Same scope as before: SUPER_ADMIN sees every school's screens, everyone else their own.
+    where: schoolWhere(user), orderBy: { createdAt: 'asc' },
+    select: { id: true, name: true, active: true, refreshSecs: true, schoolId: true, school: { select: { name: true } } },
   })
-  const canEdit = user.role === 'SUPER_ADMIN' || user.role === 'SCHOOL_ADMIN'
-  return <div dir="rtl" className="max-w-4xl space-y-5">
-    <div><h1 className="text-xl font-semibold text-gray-900">הגדרות</h1><p className="text-sm text-gray-500 mt-1">הגדרות תפעול, ללא כפילות עם עורך הפריסה.</p></div>
-    <SettingsAccordion sections={[
-      { id: 'hours', title: 'שעות פעילות', description: 'תזמון מסכים ותצוגת ״נתראה בקרוב״', content: <ScreenOperatingSettings screens={screenSchedules} canEdit={canEdit}/> },
-      { id: 'refresh', title: 'רענון תוכן', description: 'כל 5, 10 או 15 דקות — לכל מסך בנפרד', content: <ScreenRefreshSettings screens={screens} canEdit={canEdit}/> },
-    ]}/>
-  </div>
+  const schedules = await loadSchedules(screens.map(s => s.id))
+  // Logo and weather city: EDITOR and up (as in /api/schools/[id]/logo and /weather-city).
+  const canEditSchool = user.role !== 'VIEWER'
+
+  return (
+    <UnsavedLinkGuard className="mx-auto w-full max-w-3xl">
+      <PageHeader title="הגדרות" description="פרטי בית הספר והגדרות המסכים. הפריסה והתוכן נערכים בעורך." />
+      <div className="grid gap-6">
+        {school
+          ? <SchoolProfileForm school={school} canEdit={canEditSchool} />
+          : <Card className="p-5 text-sm text-ui-muted">המשתמש אינו משויך לבית ספר, ולכן אין פרטי בית ספר לעריכה.</Card>}
+
+        <Card id="screens" className="scroll-mt-20">
+          <CardHeader title="הגדרות מסכים" description="שעות פעילות, רענון וחיבור טלוויזיה — לכל מסך בנפרד" />
+          {screens.length === 0
+            ? <EmptyState icon={<Monitor className="h-6 w-6" />} title="עדיין אין מסכים" />
+            : <ul className="divide-y divide-ui-border">
+              {screens.map(s => {
+                const schedule = schedules.get(s.id)!
+                return (
+                  <li key={s.id}>
+                    <Link href={`/admin/screens/${s.id}/settings`} aria-label={`הגדרות המסך ${s.name}`}
+                      className="ui-focus group flex min-h-16 items-center gap-3 px-5 py-3 hover:bg-ui-subtle">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate text-sm font-semibold text-ui-ink">{s.name}</span>
+                          <Badge tone={s.active ? 'success' : 'neutral'} dot>{s.active ? 'פעיל' : 'מושבת'}</Badge>
+                        </div>
+                        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-ui-muted">
+                          <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" aria-hidden="true" />{scheduleSummary(schedule)}</span>
+                          {s.schoolId !== user.schoolId && <span>{s.school.name}</span>}
+                          <span className="inline-flex items-center gap-1"><RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />רענון {refreshLabel(s.refreshSecs)}</span>
+                        </div>
+                      </div>
+                      <ChevronLeft className="h-5 w-5 shrink-0 text-ui-faint group-hover:text-ui-ink-2" aria-hidden="true" />
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>}
+        </Card>
+      </div>
+    </UnsavedLinkGuard>
+  )
 }
