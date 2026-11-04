@@ -25,15 +25,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {children}
         <Toaster
           position="top-left"
+          // Modern Minimal: neutral white toast; the icon carries the success/error color.
           toastOptions={{
             duration: 4000,
-            error: { style: { background: '#fee2e2', color: '#991b1b', border: '1px solid #fca5a5' } },
+            success: { iconTheme: { primary: '#15803d', secondary: '#ffffff' } },
+            error: { duration: 6000, iconTheme: { primary: '#dc2626', secondary: '#ffffff' } },
             style: {
               fontFamily: 'var(--font-heebo)',
               direction:  'rtl',
-              background: '#dcfce7',
-              color: '#166534',
-              border: '1px solid #86efac',
+              background: '#ffffff',
+              color: '#0f172a',
+              border: '1px solid #e5e7eb',
+              borderRadius: '10px',
+              boxShadow: '0 12px 32px rgba(15,23,42,.14)',
+              fontSize: '14px',
             },
           }}
         />

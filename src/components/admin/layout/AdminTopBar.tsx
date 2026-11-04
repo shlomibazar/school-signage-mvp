@@ -38,11 +38,11 @@ export default function AdminTopBar({ user }: { user: AuthUser }) {
 
   return (
     // On mobile, leave room at the end side for the fixed menu button (AdminSidebar).
-    <header className="h-14 bg-white border-b border-gray-100 flex items-center justify-between ps-5 pe-16 md:pe-5 shrink-0">
+    <header className="h-14 bg-ui-surface border-b border-ui-border flex items-center justify-between ps-5 pe-16 md:pe-5 shrink-0">
       {/* Current page title */}
-      <div className="flex items-center gap-2 text-sm text-gray-500 min-w-0">
+      <div className="flex items-center gap-2 text-sm text-ui-muted min-w-0">
         <School className="w-4 h-4 shrink-0" />
-        <span className="text-gray-800 font-medium truncate">
+        <span className="text-ui-ink font-semibold truncate">
           {adminPageLabel(pathname)}
         </span>
       </div>
@@ -51,10 +51,10 @@ export default function AdminTopBar({ user }: { user: AuthUser }) {
       <div className="relative">
         <button
           onClick={() => setOpen(v => !v)}
-          className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl hover:bg-gray-50 transition-colors"
+          className="ui-focus flex items-center gap-2.5 px-3 py-1.5 rounded-ui hover:bg-ui-subtle transition-colors"
         >
           {/* Avatar */}
-          <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-semibold">
+          <div className="w-7 h-7 rounded-full bg-ui-primary-soft text-ui-primary-ink flex items-center justify-center text-xs font-semibold">
             {initials}
           </div>
           <div className="text-start hidden sm:block">

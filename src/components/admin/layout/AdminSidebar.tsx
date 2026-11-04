@@ -80,7 +80,7 @@ export default function AdminSidebar({ user }: { user: AuthUser }) {
         return (
           <div key={item.href}>
             {showSection && !collapsed && (
-              <div className="text-[10px] font-medium text-gray-400 px-2 pt-4 pb-1 uppercase tracking-wider">
+              <div className="text-[11px] font-medium text-ui-faint px-2.5 pt-5 pb-1.5">
                 {item.section}
               </div>
             )}
@@ -89,10 +89,10 @@ export default function AdminSidebar({ user }: { user: AuthUser }) {
               onClick={e => { if (confirmLeaveEditor(e)) setMobileOpen(false) }}
               title={collapsed ? item.label : undefined}
               className={cn(
-                'flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] transition-colors',
+                'ui-focus flex items-center gap-2.5 px-2.5 py-2 rounded-ui-sm text-sm transition-colors',
                 active
-                  ? 'bg-blue-50 text-blue-700 font-medium'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
+                  ? 'bg-ui-primary-soft text-ui-primary-ink font-semibold'
+                  : 'text-ui-ink-2 hover:bg-ui-subtle hover:text-ui-ink',
               )}
             >
               <Icon className="w-4 h-4 shrink-0" />
@@ -108,11 +108,11 @@ export default function AdminSidebar({ user }: { user: AuthUser }) {
   return (
     <>
       {/* Desktop sidebar — logical border: border-e = end-side = left in RTL */}
-      <aside className={`hidden md:flex ${collapsed ? "w-16" : "w-52"} shrink-0 bg-white border-e border-gray-100 flex-col transition-[width] duration-200`}>
+      <aside className={`hidden md:flex ${collapsed ? "w-16" : "w-56"} shrink-0 bg-ui-surface border-e border-ui-border flex-col transition-[width] duration-200`}>
         {/* Logo */}
-        <div className="h-14 flex items-center gap-2.5 px-4 border-b border-gray-100 shrink-0">
-          <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
-            <Monitor className="w-4 h-4 text-blue-600" />
+        <div className="h-14 flex items-center gap-2.5 px-4 border-b border-ui-border shrink-0">
+          <div className="w-7 h-7 rounded-lg bg-ui-primary flex items-center justify-center shrink-0">
+            <Monitor className="w-4 h-4 text-white" />
           </div>
           {!collapsed && <span className="font-semibold text-[15px]">SchoolScreen</span>}
           <button type="button" onClick={toggleCollapsed} title={collapsed ? "הרחב תפריט" : "צמצם תפריט"} aria-label={collapsed ? "הרחב תפריט" : "צמצם תפריט"} className="ms-auto rounded-lg p-1 hover:bg-gray-100 text-gray-500">{collapsed ? <PanelRightOpen className="w-4 h-4" /> : <PanelRightClose className="w-4 h-4" />}</button>
@@ -150,10 +150,10 @@ export default function AdminSidebar({ user }: { user: AuthUser }) {
             className="md:hidden fixed inset-0 z-40 bg-black/30"
             onClick={() => setMobileOpen(false)}
           />
-          <aside className="md:hidden fixed inset-y-0 end-0 z-40 w-64 bg-white border-e border-gray-100 flex flex-col shadow-xl">
-            <div className="flex items-center gap-2.5 px-4 py-4 border-b border-gray-100">
-              <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center">
-                <Monitor className="w-4 h-4 text-blue-600" />
+          <aside className="md:hidden fixed inset-y-0 end-0 z-40 w-64 bg-ui-surface border-e border-ui-border flex flex-col shadow-xl">
+            <div className="flex items-center gap-2.5 px-4 py-4 border-b border-ui-border">
+              <div className="w-7 h-7 rounded-lg bg-ui-primary flex items-center justify-center">
+                <Monitor className="w-4 h-4 text-white" />
               </div>
               <span className="font-semibold text-[15px]">SchoolScreen</span>
             </div>

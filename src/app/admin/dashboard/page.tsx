@@ -1,7 +1,7 @@
 import ScreenActiveToggle from '@/components/admin/ScreenActiveToggle'
 // src/app/admin/dashboard/page.tsx
 import Link from 'next/link'
-import { Monitor, Megaphone, ImageIcon, Plus, Edit, ExternalLink } from 'lucide-react'
+import { Monitor, Megaphone, ImageIcon, Plus, Edit, ExternalLink, Upload, MonitorPlay } from 'lucide-react'
 import { getCurrentUser } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { homeSchoolWhere } from '@/lib/schoolScope'
@@ -54,10 +54,10 @@ export default async function DashboardPage() {
       {user?.role !== 'VIEWER' && <section className="mb-8">
         <h2 className="text-sm font-semibold text-gray-700 mb-3">פעולות מהירות</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <QuickAction href="/admin/announcements/new" icon="📢" label="הודעה חדשה" />
-          <QuickAction href="/admin/media"             icon="🖼" label="העלאת מדיה" />
-          <QuickAction href="/admin/screens/new"       icon="📺" label="מסך חדש"    />
-          <QuickAction href="/admin/screens"           icon="✏️" label="עריכת מסכים" />
+          <QuickAction href="/admin/announcements/new" icon={<Megaphone className="h-5 w-5" />} label="הודעה חדשה" />
+          <QuickAction href="/admin/media"             icon={<Upload className="h-5 w-5" />} label="העלאת מדיה" />
+          <QuickAction href="/admin/screens/new"       icon={<MonitorPlay className="h-5 w-5" />} label="מסך חדש"    />
+          <QuickAction href="/admin/screens"           icon={<Edit className="h-5 w-5" />} label="עריכת מסכים" />
         </div>
       </section>}
 
@@ -159,14 +159,14 @@ function StatCard({
   )
 }
 
-function QuickAction({ href, icon, label }: { href: string; icon: string; label: string }) {
+function QuickAction({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
   return (
     <Link
       href={href}
-      className="flex flex-col items-center gap-2 bg-white border border-gray-100 rounded-xl py-4 px-3 hover:border-blue-200 hover:bg-blue-50/30 transition-colors group"
+      className="ui-focus flex flex-col items-center gap-2 bg-ui-surface border border-ui-border rounded-ui-lg py-4 px-3 shadow-ui hover:border-ui-primary-line hover:bg-ui-primary-soft transition-colors group"
     >
-      <span className="text-2xl">{icon}</span>
-      <span className="text-xs text-gray-600 group-hover:text-blue-700 text-center">{label}</span>
+      <span className="grid h-10 w-10 place-items-center rounded-ui bg-ui-primary-soft text-ui-primary">{icon}</span>
+      <span className="text-[13px] font-medium text-ui-ink-2 group-hover:text-ui-primary-ink text-center">{label}</span>
     </Link>
   )
 }
