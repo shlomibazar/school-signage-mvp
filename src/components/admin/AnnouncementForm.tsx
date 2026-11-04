@@ -109,6 +109,9 @@ export default function AnnouncementForm({initial}:{initial?:Announcement}){
   // Guards against a second submit before the disabled state renders (double click, Enter).
   const savingRef=useRef(false)
   const saving=busy||attachmentsBusy
+  // Messages are shown below the form; bring them into view (the save button may be at the top).
+  const feedbackRef=useRef<HTMLDivElement>(null)
+  useEffect(()=>{if(error||busy)feedbackRef.current?.scrollIntoView({block:'nearest',behavior:'smooth'})},[error,busy])
   async function save(e:React.FormEvent){
     e.preventDefault()
     if(savingRef.current||attachmentsBusy)return
@@ -177,7 +180,7 @@ export default function AnnouncementForm({initial}:{initial?:Announcement}){
     <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_400px]">
       <div className="grid min-w-0 gap-4">
         <Card>
-          <CardHeader title="תוכן ההודעה" />
+          <CardHeader title="תוכן ההודעה" actions={<Button type="submit" variant="primary" size="sm" loading={saving||preparing} disabled={saving||preparing}>{primaryLabel}</Button>} />
           <CardBody className="grid gap-4">
             <Field label="כותרת" htmlFor="ann-title"><Input id="ann-title" required value={title} onChange={e=>setTitle(e.target.value)} placeholder="למשל: ערב הורים ביום שלישי" /></Field>
             <div className="grid gap-1.5">
@@ -241,7 +244,7 @@ export default function AnnouncementForm({initial}:{initial?:Announcement}){
       </div>
     </div>
 
-    <div aria-live="polite" className="mt-4 grid gap-2">
+    <div ref={feedbackRef} aria-live="polite" className="mt-4 grid gap-2 scroll-mt-4">
       {busy&&<div role="status" className="flex items-center gap-3 rounded-ui border border-ui-primary-line bg-ui-primary-soft p-3 text-sm font-medium text-ui-primary-ink">
         <span aria-hidden="true" className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-ui-primary border-t-transparent"/>
         <span>שומר את ההודעה... נא לא לסגור את הדף.</span>
@@ -251,12 +254,13 @@ export default function AnnouncementForm({initial}:{initial?:Announcement}){
         <span className="flex items-center gap-2"><AlertCircle className="h-4 w-4 shrink-0" />{error}</span>
       </div>}
     </div>
-    {/* Cancel discards uploads made for a new announcement that was not saved (the unmount cleanup). */}
-    <div className="sticky bottom-0 z-20 -mx-3 mt-4 flex flex-wrap items-center gap-2 border-t border-ui-border bg-ui-surface px-3 py-3 sm:-mx-4 sm:px-4 lg:-mx-6 lg:px-6">
+    {/* Bottom actions, after all fields (same submit as the button in the content card header).
+        Cancel discards uploads made for a new announcement that was not saved (the unmount cleanup). */}
+    <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-ui-border pt-4">
       <Button type="submit" variant="primary" loading={saving||preparing} disabled={saving||preparing}>{primaryLabel}</Button>
       <Button variant="secondary" disabled={busy} onClick={()=>router.push('/admin/announcements')}>ביטול</Button>
-      <span className="text-xs text-ui-muted">{selectedScreens?`ההודעה תוצג ב${selectedScreens===1?'מסך אחד':`-${selectedScreens} מסכים`}. השינויים יופיעו במסכים תוך דקה.`:'ההודעה תישמר אך לא תוצג באף מסך עד לשיוכה.'}</span>
-      {savedId&&initial&&<div className="ms-auto"><AnnouncementDeleteButton id={savedId} title={title||initial.title} shownOn={shownOn} redirectTo="/admin/announcements" size="md" /></div>}
+      <span className="min-w-0 basis-full text-xs text-ui-muted sm:basis-auto sm:flex-1">{selectedScreens?`ההודעה תוצג ב${selectedScreens===1?'מסך אחד':`-${selectedScreens} מסכים`}. השינויים יופיעו במסכים תוך דקה.`:'ההודעה תישמר אך לא תוצג באף מסך עד לשיוכה.'}</span>
+      {savedId&&initial&&<div className="sm:ms-auto"><AnnouncementDeleteButton id={savedId} title={title||initial.title} shownOn={shownOn} redirectTo="/admin/announcements" size="md" /></div>}
     </div>
   </form>
 }
