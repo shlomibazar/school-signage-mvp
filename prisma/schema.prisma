@@ -91,7 +91,6 @@ model School {
   announcements Announcement[]
   mediaFiles    MediaFile[]
   galleries     Gallery[]
-  messages      Message[]
   theme         SchoolTheme?
 
   @@map("schools")
@@ -288,24 +287,6 @@ model AnnouncementScreen {
 
   @@id([announcementId, screenId])
   @@map("announcement_screens")
-}
-
-// NEW: Messages — simple text messages for content editor
-model Message {
-  id        String   @id @default(cuid())
-  schoolId  String
-  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  title     String
-  body      String
-  priority  String   @default("info") // info | warning | urgent
-  icon      String   @default("📢")
-  bgColor   String   @default("#1e3a5f")
-  textColor String   @default("#ffffff")
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("messages")
 }
 
 model MediaFile {

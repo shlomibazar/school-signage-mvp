@@ -46,7 +46,6 @@ export interface ContentItem { id:string; sectionId:string; contentType:ContentT
 export interface Announcement { id:string; schoolId:string; title:string; showTitle:boolean; body:string; priority:Priority; bgColor:string; textColor:string; icon:string|null; attachmentDisplayMode?:'together'|'slideshow'; attachmentSlideSeconds?:number; active:boolean; startAt:string; endAt:string; startTime:string|null; endTime:string|null; daysOfWeek:number[]; isEmergency:boolean; screens?:AnnouncementScreen[] }
 export interface AnnouncementScreen { announcementId:string; screenId:string; sectionPosition:number|null }
 
-export interface Message { id:string; schoolId:string; title:string; body:string; priority:string; icon:string; bgColor:string; textColor:string; active:boolean; createdAt:string; updatedAt:string }
 
 export interface MediaFile { id:string; schoolId:string; galleryId:string|null; filename:string; originalName:string; mimeType:string; size:number; mediaType:MediaType; url:string; caption:string|null; hidden:boolean; uploadedAt:string }
 export interface MediaLibraryImage { mimeType?:string; id:string; filename:string; originalName:string; url:string; size:number; caption:string|null; uploadedAt:string; galleryId:string|null }
