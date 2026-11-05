@@ -19,9 +19,11 @@ const clampPx=(min:number,value:number,max:number)=>Math.min(max,Math.max(min,va
 
 // zoom: 'fit' scales the whole screen into the available area (width AND height);
 // a number is a manual scale. onScaleChange reports the scale in use (for the % label).
-interface Props { screen: Screen; layout: ScreenLayout; sections: ScreenSection[]; zoom?: 'fit' | number; onScaleChange?: (scale: number) => void; logoUrl?: string | null; weatherCity?: string | null }
+// Editor only: highlightIndex outlines the region being edited, and onSelectSection lets a click on a
+// region select it. Both are turned off while a snapshot is captured, so they never appear in it.
+interface Props { screen: Screen; layout: ScreenLayout; sections: ScreenSection[]; zoom?: 'fit' | number; onScaleChange?: (scale: number) => void; logoUrl?: string | null; weatherCity?: string | null; highlightIndex?: number | null; onSelectSection?: (index: number) => void }
 
-export default function ScreenPreview({ screen, layout, sections, zoom = 'fit', onScaleChange, logoUrl, weatherCity }: Props) {
+export default function ScreenPreview({ screen, layout, sections, zoom = 'fit', onScaleChange, logoUrl, weatherCity, highlightIndex = null, onSelectSection }: Props) {
   const isLandscape = screen.orientation !== 'PORTRAIT'
   const viewportRef = useRef<HTMLDivElement>(null)
   const [available, setAvailable] = useState({ width: 960, height: 540 })
@@ -135,12 +137,17 @@ export default function ScreenPreview({ screen, layout, sections, zoom = 'fit', 
               // Before hydration there is no local time yet, so take the first active item.
               const activeItems=section.contentItems.filter(ci=>ci.active)
               const item=(now ? resolveActiveContent(activeItems,now) : activeItems[0]) ?? section.contentItems[0]
-              return <div key={section.id} className={`${stacked ? 'w-full min-h-0' : 'h-full min-w-0'} overflow-hidden tv-content-panel`} style={{flex:`${templateWidths[i] ?? section.widthPct} ${templateWidths[i] ?? section.widthPct} 0%`}}>
+              return <div key={section.id} className={`${stacked ? 'w-full min-h-0' : 'h-full min-w-0'} overflow-hidden tv-content-panel`} style={{position:'relative',flex:`${templateWidths[i] ?? section.widthPct} ${templateWidths[i] ?? section.widthPct} 0%`}}>
                 {item && item.contentType !== 'EMPTY' ? (
                   <ContentRenderer key={`${section.id}-${item.id}-${item.contentType}`} item={item} />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center opacity-50" style={{fontSize:30}}>בחר תוכן לאזור זה</div>
                 )}
+                {onSelectSection && <button type="button" onClick={()=>onSelectSection(i)} aria-label={`בחירת אזור ${i+1} לעריכה`} aria-pressed={highlightIndex===i}
+                  className="editor-region-hit" style={{position:'absolute',inset:0,width:'100%',height:'100%',background:'transparent',border:0,padding:0,cursor:'pointer',zIndex:5,
+                    boxShadow:highlightIndex===i?'inset 0 0 0 8px #3b82f6':undefined,borderRadius:'inherit'}}>
+                  {highlightIndex===i && <span style={{position:'absolute',top:14,right:14,background:'#3b82f6',color:'#fff',fontSize:26,fontWeight:700,padding:'4px 14px',borderRadius:10}}>אזור {i+1}</span>}
+                </button>}
               </div>
             })}
           </div>

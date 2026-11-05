@@ -7,11 +7,13 @@ import { snapshotShortTime as when } from '@/lib/snapshotTime'
 
 // "עדכן צילום": captures the live preview of the saved screen and stores it as the snapshot shown
 // in the screens list. Only on click; never automatically on save.
-export default function SnapshotButton({ screenId, getStage, dirty, initialSnapshotAt }: {
+export default function SnapshotButton({ screenId, getStage, dirty, initialSnapshotAt, onCapturingChange }: {
   screenId: string
   getStage: () => HTMLElement | null
   dirty: boolean
   initialSnapshotAt?: string | null
+  /** Lets the editor hide its own marks (the selected-region outline) while the stage is captured. */
+  onCapturingChange?: (capturing: boolean) => void
 }) {
   const [busy, setBusy] = useState(false)
   const [last, setLast] = useState(initialSnapshotAt ?? null)
@@ -22,7 +24,10 @@ export default function SnapshotButton({ screenId, getStage, dirty, initialSnaps
     const stage = getStage()
     if (!stage) { toast.error('התצוגה המקדימה עדיין לא מוכנה'); return }
     setBusy(true)
+    onCapturingChange?.(true)
     try {
+      // Two frames: the editor re-renders without its marks before the stage is read.
+      await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())))
       const { captureScreenStage } = await import('@/lib/screenSnapshotCapture')
       const shot = await captureScreenStage(stage)
       const form = new FormData()
@@ -34,7 +39,7 @@ export default function SnapshotButton({ screenId, getStage, dirty, initialSnaps
       toast.success('הצילום עודכן ויוצג ברשימת המסכים')
     } catch (e) {
       toast.error(e instanceof Error && e.message ? e.message : 'יצירת הצילום נכשלה')
-    } finally { setBusy(false) }
+    } finally { onCapturingChange?.(false); setBusy(false) }
   }
   return (
     <button type="button" onClick={capture} disabled={busy}

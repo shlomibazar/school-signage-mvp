@@ -834,3 +834,7 @@ html, body {
 .tv-display-premium .tv-v2-clock-dates {max-height:100%;overflow:hidden;}
 .tv-preview-date-stack.tv-header-date-rows {display:flex;flex-direction:column;align-items:center;gap:1px;}
 @media(max-width:850px){.tv-display-premium .tv-v2-dates.tv-header-date-rows{display:flex !important;}}
+
+/* Screen editor preview: a region can be clicked to edit it (never rendered on the TV). */
+.editor-region-hit:hover { box-shadow: inset 0 0 0 6px rgba(59,130,246,.45); }
+.editor-region-hit:focus-visible { outline: none; box-shadow: inset 0 0 0 8px #2563eb; }

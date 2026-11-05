@@ -1,8 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Save, Trash2, X, Loader2 } from 'lucide-react'
+import { Save, X, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { cn } from '@/lib/utils'
 import type {
   ContentItem, ContentType, ScreenSection,
   ClockSettings, DateSettings, RssSettings, VideoSettings,
@@ -23,6 +22,8 @@ import EventsContentForm       from './content-forms/EventsContentForm'
 import TimetableContentForm    from './content-forms/TimetableContentForm'
 import { setDraftDirty, confirmDiscardDraft } from '@/lib/unsavedChanges'
 import { announcementIdsOf } from '@/lib/announcementMerge'
+import { contentTypeLabel } from '@/lib/contentTypes'
+import { confirmDialog } from '@/components/ui/ConfirmHost'
 
 const DEFAULT_CLOCK:        ClockSettings               = { hourFormat: '24', showSeconds: false }
 const DEFAULT_DATE:         DateSettings                = { dateFormat: 'full', locale: 'he' }
@@ -68,22 +69,20 @@ function schedulingFrom(item: EditableItem): SchedulingValues {
            startTime: item.startTime ?? '', endTime: item.endTime ?? '', daysOfWeek: item.daysOfWeek ?? [] }
 }
 
-const TYPE_LABELS: Record<ContentType, string> = {
-  TEXT:'טקסט', IMAGE_GALLERY:'גלריה', VIDEO:'וידאו', CLOCK:'שעון', DATE:'תאריך',
-  WEATHER:'מזג אויר', RSS_FEED:'RSS', TIMETABLE:'לוח/תפריט', EVENTS:'אירועים',
-  BIRTHDAYS:'ימי הולדת', ANNOUNCEMENT:'הודעה', EMPTY:'ריק',
-}
-
 interface Props {
   screenId: string; section: ScreenSection; selectedType: ContentType
   onClose: () => void; onSaved: (item: ContentItem | null) => void; onDraftChange?: (item: EditableItem) => void
+  /** Reports whether the form has unsaved changes. */
+  onDirtyChange?: (dirty: boolean) => void
 }
 
-export default function ContentEditor({ screenId, section, selectedType, onClose, onSaved, onDraftChange }: Props) {
+export default function ContentEditor({ screenId, section, selectedType, onClose, onSaved, onDraftChange, onDirtyChange }: Props) {
   const [loading,    setLoading]    = useState(true)
   const [saving,     setSaving]     = useState(false)
-  const [deleting,   setDeleting]   = useState(false)
   const [existingId, setExistingId] = useState<string | null>(null)
+  // The type of the content stored in the region (null when the region is empty).
+  const [storedType, setStoredType] = useState<ContentType | null>(null)
+  const savingRef = useRef(false)
   // Announcement ids of the stored region when it was loaded (the base for merging on save).
   const baseAnnouncementIds = useRef<string[] | undefined>(undefined)
   const [item,       setItem]       = useState<EditableItem>(makeDefault(selectedType))
@@ -100,7 +99,7 @@ export default function ContentEditor({ screenId, section, selectedType, onClose
           const d = data.data
           const typeMatches = d.contentType === selectedType
           setUnsavedType(!typeMatches)
-          setExistingId(d.id)
+          setExistingId(d.id); setStoredType(d.contentType)
           baseAnnouncementIds.current = d.contentType === 'ANNOUNCEMENT' ? announcementIdsOf(d.settings) : undefined
           setItem({
             contentType: selectedType, active: d.active,
@@ -125,7 +124,7 @@ export default function ContentEditor({ screenId, section, selectedType, onClose
         } else {
           setUnsavedType(true)
           baseAnnouncementIds.current = undefined
-          setExistingId(null); setItem(makeDefault(selectedType))
+          setExistingId(null); setStoredType(null); setItem(makeDefault(selectedType))
         }
       } catch { if (!cancelled) toast.error('שגיאה בטעינת התוכן') }
       finally { if (!cancelled) setLoading(false) }
@@ -154,12 +153,15 @@ export default function ContentEditor({ screenId, section, selectedType, onClose
   const dirty = !loading && baseline !== null && (unsavedType || JSON.stringify(item) !== baseline)
   useEffect(() => {
     setDraftDirty(section.id, dirty)
+    dirtyCallback.current?.(dirty)
     if (!dirty) return
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
   }, [dirty, section.id])
-  useEffect(() => () => setDraftDirty(section.id, false), [section.id])
+  const dirtyCallback = useRef(onDirtyChange)
+  dirtyCallback.current = onDirtyChange
+  useEffect(() => () => { setDraftDirty(section.id, false); dirtyCallback.current?.(false) }, [section.id])
   const requestClose = async () => { if (!dirty || await confirmDiscardDraft()) onClose() }
 
   const patchItem     = useCallback((patch: Partial<ContentItem>) => setItem(prev => ({ ...prev, ...patch })), [])
@@ -170,7 +172,20 @@ export default function ContentEditor({ screenId, section, selectedType, onClose
     ((item.settings && Object.keys(item.settings).length > 0 ? item.settings : fallback) as unknown) as T
 
   async function handleSave() {
-    if (selectedType === 'EMPTY') { await handleDelete(); return }
+    if (savingRef.current || selectedType === 'EMPTY') return
+    // Saving another type over stored content replaces it: ask first.
+    if (existingId && storedType && storedType !== selectedType) {
+      const ok = await confirmDialog({
+        title: 'להחליף את התוכן באזור?',
+        body: <>
+          <p>התוכן השמור באזור (<b>״{contentTypeLabel(storedType)}״</b>) יוחלף ב<b>״{contentTypeLabel(selectedType)}״</b>.</p>
+          {storedType === 'ANNOUNCEMENT' && <p className="mt-2">ההודעות עצמן לא יימחקו — רק השיוך שלהן לאזור הזה.</p>}
+        </>,
+        confirmLabel: 'החלפת התוכן',
+      })
+      if (!ok) return
+    }
+    savingRef.current = true
     setSaving(true)
     try {
       const body = {
@@ -197,41 +212,24 @@ export default function ContentEditor({ screenId, section, selectedType, onClose
       const next = saved.data.contentType === 'ANNOUNCEMENT' ? { ...item, settings: saved.data.settings as ContentSettings } : item
       baseAnnouncementIds.current = saved.data.contentType === 'ANNOUNCEMENT' ? announcementIdsOf(saved.data.settings) : undefined
       setItem(next)
-      setExistingId(saved.data.id); setUnsavedType(false); setBaseline(JSON.stringify(next)); toast.success('התוכן נשמר'); onSaved(saved.data)
+      setExistingId(saved.data.id); setStoredType(saved.data.contentType); setUnsavedType(false); setBaseline(JSON.stringify(next)); toast.success('התוכן נשמר'); onSaved(saved.data)
     } catch (err: any) { toast.error(err.message ?? 'שגיאה') }
-    finally { setSaving(false) }
+    finally { savingRef.current = false; setSaving(false) }
   }
 
-  async function handleDelete() {
-    if (!existingId) { onSaved(null); onClose(); return }
-    setDeleting(true)
-    try {
-      const res = await fetch(`/api/screens/${screenId}/sections/${section.id}/content/${existingId}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('שגיאה במחיקה')
-      toast.success('התוכן נמחק'); onSaved(null); onClose()
-    } catch (err: any) { toast.error(err.message) }
-    finally { setDeleting(false) }
-  }
 
   return (
-    <div className="bg-white border border-blue-100 rounded-xl overflow-hidden shadow-sm">
-      <div className="flex items-center justify-between px-3 py-2.5 bg-blue-50 border-b border-blue-100">
-        <span className="text-xs font-semibold text-blue-700">עריכת תוכן — {TYPE_LABELS[selectedType]}</span>
-        <div className="flex items-center gap-1.5">
-          <button type="button" onClick={handleSave} disabled={saving || loading || deleting}
-            title="שמור את התוכן בלי לסגור את העורך"
-            className="flex items-center gap-1 rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50">
-            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Save className="w-3.5 h-3.5"/>}
-            {saving ? 'שומר...' : 'שמור'}
-          </button>
-          <button type="button" onClick={requestClose} title="סגור עריכה" aria-label="סגירת עריכת התוכן" className="p-1 rounded hover:bg-blue-100 text-blue-400 hover:text-blue-700 transition-colors">
-            <X className="w-3.5 h-3.5"/>
-          </button>
-        </div>
+    <div className="overflow-hidden rounded-ui border border-ui-primary-line bg-ui-surface">
+      <div className="flex items-center justify-between gap-2 border-b border-ui-primary-line bg-ui-primary-soft px-3 py-2">
+        <span data-content-editor-title tabIndex={-1} className="rounded text-[13px] font-semibold text-ui-primary-ink outline-none focus-visible:ring-2 focus-visible:ring-ui-primary">עריכת תוכן · {contentTypeLabel(selectedType)}</span>
+        <button type="button" onClick={requestClose} aria-label="סגירת עריכת התוכן"
+          className="ui-focus grid h-8 w-8 place-items-center rounded-ui-sm text-ui-primary-ink hover:bg-white/60">
+          <X className="h-4 w-4" aria-hidden="true"/>
+        </button>
       </div>
       <div className="p-3 space-y-3">
         {loading ? (
-          <div className="flex items-center justify-center py-10 gap-2 text-gray-400">
+          <div className="flex items-center justify-center py-10 gap-2 text-ui-muted">
             <Loader2 className="w-4 h-4 animate-spin"/><span className="text-xs">טוען...</span>
           </div>
         ) : (
@@ -247,29 +245,21 @@ export default function ContentEditor({ screenId, section, selectedType, onClose
             {selectedType==='BIRTHDAYS'     && <BirthdayContentForm settings={asSettings<BirthdaySettings>(DEFAULT_BIRTHDAY)} onSettings={patchSettings}/>}
             {selectedType==='EVENTS'        && <EventsContentForm settings={asSettings<EventSettings>(DEFAULT_EVENT)} onSettings={patchSettings}/>}
             {selectedType==='TIMETABLE'     && <TimetableContentForm settings={asSettings<TimetableSettings>(DEFAULT_TIMETABLE)} onSettings={patchSettings}/>}
-            {selectedType==='EMPTY'         && (
-              <div className="rounded-lg bg-gray-50 border border-dashed border-gray-200 p-8 text-center">
-                <p className="text-sm text-gray-400">אזור זה ריק — בחר סוג תוכן אחר</p>
-              </div>
-            )}
-            {selectedType!=='EMPTY' && selectedType!=='ANNOUNCEMENT' && <SchedulingPanel values={schedulingFrom(item)} onChange={patchSchedule}/>}
+            {selectedType!=='ANNOUNCEMENT' && <SchedulingPanel values={schedulingFrom(item)} onChange={patchSchedule}/>}
           </>
         )}
       </div>
       {!loading && (
-        <div className="flex items-center gap-2 px-3 py-2.5 border-t border-gray-100 bg-gray-50">
-          {existingId && selectedType!=='EMPTY' && (
-            <button type="button" onClick={handleDelete} disabled={deleting}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-red-600 hover:bg-red-50 border border-red-200 rounded-lg transition-colors disabled:opacity-50">
-              <Trash2 className="w-3 h-3"/>{deleting?'מסיר...':'הסר אזור מהפריסה'}
-            </button>
-          )}
-          <div className="flex-1"/>
-          <button type="button" onClick={requestClose} className="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors">ביטול</button>
-          <button type="button" onClick={handleSave} disabled={saving}
-            className={cn('flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors disabled:opacity-50',
-              selectedType==='EMPTY' ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-blue-600 text-white hover:bg-blue-700')}>
-            <Save className="w-3 h-3"/>{saving?'שומר...':'שמור תוכן'}
+        // The region's own save: content is stored separately from the layout ("שמירת פריסה").
+        <div className="sticky bottom-0 flex flex-wrap items-center gap-2 border-t border-ui-border bg-ui-subtle px-3 py-2.5">
+          <span className="min-w-0 flex-1 text-xs" aria-live="polite">
+            {dirty ? <span className="inline-flex items-center gap-1.5 font-medium text-amber-700"><span className="h-2 w-2 rounded-full bg-amber-500" aria-hidden="true"/>שינויים בתוכן לא נשמרו</span>
+              : existingId ? <span className="text-ui-muted">התוכן שמור</span> : null}
+          </span>
+          <button type="button" onClick={requestClose} className="ui-focus h-9 rounded-ui-sm border border-ui-border-strong bg-ui-surface px-3 text-[13px] text-ui-ink-2 hover:bg-ui-subtle">ביטול</button>
+          <button type="button" onClick={handleSave} disabled={saving || !dirty}
+            className="ui-focus inline-flex h-9 items-center gap-1.5 rounded-ui-sm bg-ui-primary px-3 text-[13px] font-medium text-white hover:bg-ui-primary-hover disabled:opacity-50">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true"/> : <Save className="h-4 w-4" aria-hidden="true"/>}{saving ? 'שומר...' : 'שמירת תוכן'}
           </button>
         </div>
       )}
