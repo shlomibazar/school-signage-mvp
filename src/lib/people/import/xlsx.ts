@@ -1,4 +1,5 @@
 import { inflateRawSync } from 'node:zlib'
+import { posix } from 'node:path'
 
 // A minimal, read-only .xlsx reader for the people import (server only, no dependencies).
 //
@@ -16,10 +17,10 @@ export class XlsxError extends Error {}
 export const XLSX_LIMITS = {
   fileBytes: 5 * 1024 * 1024,
   entries: 400,
-  entryBytes: 25 * 1024 * 1024,
-  totalBytes: 60 * 1024 * 1024,
+  entryBytes: 16 * 1024 * 1024,
+  totalBytes: 40 * 1024 * 1024,
   sheets: 30,
-  rows: 10_000,
+  rows: 5_000, // worksheet row numbers; an import holds at most 3,000 data rows
   columns: 60,
   cellText: 1_000,
 }
@@ -30,6 +31,7 @@ export type Cell =
   | { kind: 'bool'; value: boolean; formula: boolean }
   | { kind: 'error'; formula: boolean }
 
+/** truncated: the sheet has content beyond the row limit (its rows were not read). */
 export type Sheet = { name: string; rows: (Cell | undefined)[][]; truncated: boolean }
 export type Workbook = { sheets: Sheet[]; date1904: boolean }
 
@@ -84,6 +86,51 @@ function readEntry(buf: Buffer, e: Entry, budget: { left: number }): string {
 }
 
 // ── xml helpers (the parts have a fixed, known schema) ─────────────────────────────────────────
+// Elements are found with indexOf scans, never with backtracking regular expressions over a whole
+// part: every scan is linear in the part's size, so a malformed part (thousands of unclosed tags)
+// fails fast instead of keeping the server busy for minutes.
+
+const MALFORMED = 'הקובץ פגום או אינו קובץ Excel תקין.'
+
+/** A part prepared for scanning: no DTD (Excel never writes one), element prefixes removed. */
+function prepareXml(xml: string): string {
+  if (/<!(?:DOCTYPE|ENTITY)/i.test(xml)) throw new XlsxError('הקובץ מכיל הגדרות XML שאינן נתמכות. שמרו אותו מחדש ב־Excel ונסו שוב.')
+  // <x:row> (OpenXML SDK and other generators) → <row>; attributes such as r:id are left untouched.
+  return xml.replace(/<(\/?)[A-Za-z_][\w.-]*:(?=[A-Za-z_])/g, '<$1')
+}
+
+type El = { attrs: string; body: string }
+
+/** The `tag` elements in xml[from, to): attributes and inner content. Nested same-name elements are not expected. */
+function* elements(xml: string, tag: string, from = 0, to = xml.length): Generator<El> {
+  const open = '<' + tag, close = '</' + tag + '>'
+  let i = xml.indexOf(open, from)
+  while (i >= 0 && i < to) {
+    const next = xml.charCodeAt(i + open.length)
+    // "<c" must not match "<col" / "<cols"
+    if (!(next === 32 || next === 9 || next === 10 || next === 13 || next === 62 || next === 47)) { i = xml.indexOf(open, i + 1); continue }
+    const gt = xml.indexOf('>', i + open.length)
+    if (gt < 0 || gt >= to) throw new XlsxError(MALFORMED)
+    if (xml.charCodeAt(gt - 1) === 47) {
+      yield { attrs: xml.slice(i + open.length, gt - 1), body: '' }
+      i = xml.indexOf(open, gt + 1)
+      continue
+    }
+    const end = xml.indexOf(close, gt + 1)
+    if (end < 0 || end + close.length > to) throw new XlsxError(MALFORMED)
+    yield { attrs: xml.slice(i + open.length, gt), body: xml.slice(gt + 1, end) }
+    i = xml.indexOf(open, end + close.length)
+  }
+}
+
+/** The first `tag` element's content, or undefined. */
+const first = (xml: string, tag: string) => {
+  const open = '<' + tag + '>', start = xml.indexOf(open)
+  if (start < 0) return undefined
+  const end = xml.indexOf('</' + tag + '>', start + open.length)
+  if (end < 0) throw new XlsxError(MALFORMED)
+  return xml.slice(start + open.length, end)
+}
 
 function decodeXml(s: string): string {
   return s.replace(/&(#x[0-9a-fA-F]+|#\d+|lt|gt|amp|quot|apos);/g, (_, e: string) => {
@@ -92,11 +139,27 @@ function decodeXml(s: string): string {
     return Number.isFinite(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : ''
   })
 }
-const attr = (tag: string, name: string) => {
-  const m = new RegExp(`(?:^|\\s)${name}="([^"]*)"`).exec(tag)
-  return m ? decodeXml(m[1]) : undefined
+const attrPatterns = new Map<string, RegExp>()
+const attr = (attrs: string, name: string) => {
+  let re = attrPatterns.get(name)
+  if (!re) attrPatterns.set(name, re = new RegExp(`(?:^|\\s)${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`))
+  const m = re.exec(attrs)
+  return m ? decodeXml(m[1] ?? m[2]) : undefined
 }
-const texts = (xml: string) => [...xml.replace(/<rPh\b[\s\S]*?<\/rPh>/g, '').matchAll(/<t\b[^>]*>([\s\S]*?)<\/t>/g)].map(m => decodeXml(m[1])).join('')
+/** The text of a rich or plain string (<t> runs), without phonetic guides (<rPh>). */
+function texts(xml: string): string {
+  const kept: string[] = []
+  let last = 0, at = xml.indexOf('<rPh')
+  while (at >= 0) {
+    const end = xml.indexOf('</rPh>', at)
+    if (end < 0) throw new XlsxError(MALFORMED)
+    kept.push(xml.slice(last, at))
+    last = end + 6
+    at = xml.indexOf('<rPh', last)
+  }
+  kept.push(xml.slice(last))
+  return [...elements(kept.join(''), 't')].map(e => decodeXml(e.body)).join('')
+}
 
 // Built-in number formats that show dates (ECMA-376 + common locale ids).
 const BUILTIN_DATE_FORMATS = new Set([14, 15, 16, 17, 22, 27, 28, 29, 30, 31, 34, 35, 36, 50, 51, 52, 53, 54, 57, 58, 71, 72, 73, 74, 75])
@@ -112,13 +175,13 @@ export function isDateFormat(code: string | null): boolean {
 function readStyles(xml: string | null): (string | null)[] {
   if (!xml) return []
   const custom = new Map<number, string>()
-  for (const m of xml.matchAll(/<numFmt\b[^>]*\/?>/g)) {
-    const id = Number(attr(m[0], 'numFmtId')), code = attr(m[0], 'formatCode')
+  for (const fmts of elements(xml, 'numFmts')) for (const f of elements(fmts.body, 'numFmt')) {
+    const id = Number(attr(f.attrs, 'numFmtId')), code = attr(f.attrs, 'formatCode')
     if (Number.isFinite(id) && code !== undefined) custom.set(id, code)
   }
-  const xfs = /<cellXfs\b[^>]*>([\s\S]*?)<\/cellXfs>/.exec(xml)?.[1] ?? ''
-  return [...xfs.matchAll(/<xf\b[^>]*\/?>/g)].map(m => {
-    const id = Number(attr(m[0], 'numFmtId') ?? 0)
+  const xfs = elements(xml, 'cellXfs').next().value?.body ?? ''
+  return [...elements(xfs, 'xf')].map(x => {
+    const id = Number(attr(x.attrs, 'numFmtId') ?? 0)
     if (custom.has(id)) return custom.get(id)!
     if (BUILTIN_DATE_FORMATS.has(id)) return BUILTIN_FORMAT_CODES[id] ?? 'd/m/yyyy'
     return id === 49 ? '@' : null
@@ -135,67 +198,86 @@ const colIndex = (ref: string) => {
 function readSheet(xml: string, shared: string[], styles: (string | null)[]): { rows: (Cell | undefined)[][]; truncated: boolean } {
   const rows: (Cell | undefined)[][] = []
   let truncated = false
-  for (const rm of xml.matchAll(/<row\b([^>]*?)(?:\/>|>([\s\S]*?)<\/row>)/g)) {
-    const r = Number(attr(rm[1], 'r') ?? rows.length + 1) - 1
+  const data = elements(xml, 'sheetData').next().value?.body ?? ''
+  for (const rm of elements(data, 'row')) {
+    const r = Number(attr(rm.attrs, 'r') ?? rows.length + 1) - 1
     if (!Number.isInteger(r) || r < 0) continue
-    if (r >= XLSX_LIMITS.rows) { truncated = true; break }
-    const cells: (Cell | undefined)[] = []
-    for (const cm of (rm[2] ?? '').matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
-      const ref = attr(cm[1], 'r')
-      const c = ref ? colIndex(ref) : cells.length
-      if (c < 0 || c >= XLSX_LIMITS.columns) continue
-      const body = cm[2] ?? ''
-      const formula = /<f\b/.test(body)
-      const t = attr(cm[1], 't') ?? 'n'
-      const v = /<v>([\s\S]*?)<\/v>/.exec(body)?.[1]
-      const clip = (s: string) => (s.length > XLSX_LIMITS.cellText ? s.slice(0, XLSX_LIMITS.cellText) : s)
-      let cell: Cell | undefined
-      if (t === 's') { const i = Number(v); cell = Number.isInteger(i) && i >= 0 && i < shared.length ? { kind: 'text', text: clip(shared[i]), formula } : undefined }
-      else if (t === 'inlineStr') cell = { kind: 'text', text: clip(texts(body)), formula }
-      else if (t === 'str') cell = v === undefined ? undefined : { kind: 'text', text: clip(decodeXml(v)), formula }
-      else if (t === 'b') cell = { kind: 'bool', value: v === '1', formula }
-      else if (t === 'e') cell = { kind: 'error', formula }
-      else if (t === 'd') cell = v === undefined ? undefined : { kind: 'text', text: clip(decodeXml(v)), formula }
-      else if (v !== undefined && v.trim() !== '') {
-        const num = Number(v)
-        const s = Number(attr(cm[1], 's') ?? 0)
-        cell = Number.isFinite(num) ? { kind: 'number', num, format: styles[s] ?? null, formula } : undefined
-      }
-      if (cell && !(cell.kind === 'text' && cell.text.trim() === '' && !formula)) cells[c] = cell
+    const cells = readRow(rm.body, shared, styles)
+    // Past the limit: rows without values (formatting, formulas showing "") are skipped; content stops the read.
+    if (r >= XLSX_LIMITS.rows) {
+      if (cells.some(c => c && !(c.kind === 'text' && c.text.trim() === ''))) { truncated = true; break }
+      continue
     }
     rows[r] = cells
   }
   return { rows, truncated }
 }
 
-/** Reads all worksheets of an .xlsx file (cell values only). */
-export function readXlsx(buf: Buffer): Workbook {
+function readRow(rowXml: string, shared: string[], styles: (string | null)[]): (Cell | undefined)[] {
+  const cells: (Cell | undefined)[] = []
+  for (const cm of elements(rowXml, 'c')) {
+    const ref = attr(cm.attrs, 'r')
+    const c = ref ? colIndex(ref) : cells.length
+    if (c < 0 || c >= XLSX_LIMITS.columns) continue
+    const body = cm.body
+    const formula = body.includes('<f>') || body.includes('<f ') || body.includes('<f/')
+    const t = attr(cm.attrs, 't') ?? 'n'
+    const v = first(body, 'v')
+    const clip = (s: string) => (s.length > XLSX_LIMITS.cellText ? s.slice(0, XLSX_LIMITS.cellText) : s)
+    let cell: Cell | undefined
+    if (t === 's') { const i = Number(v); cell = Number.isInteger(i) && i >= 0 && i < shared.length ? { kind: 'text', text: clip(shared[i]), formula } : undefined }
+    else if (t === 'inlineStr') cell = { kind: 'text', text: clip(texts(body)), formula }
+    else if (t === 'str') cell = v === undefined ? undefined : { kind: 'text', text: clip(decodeXml(v)), formula }
+    else if (t === 'b') cell = { kind: 'bool', value: v === '1', formula }
+    else if (t === 'e') cell = { kind: 'error', formula }
+    else if (t === 'd') cell = v === undefined ? undefined : { kind: 'text', text: clip(decodeXml(v)), formula }
+    else if (v !== undefined && v.trim() !== '') {
+      const num = Number(v)
+      const s = Number(attr(cm.attrs, 's') ?? 0)
+      cell = Number.isFinite(num) ? { kind: 'number', num, format: styles[s] ?? null, formula } : undefined
+    }
+    if (cell && !(cell.kind === 'text' && cell.text.trim() === '' && !formula)) cells[c] = cell
+  }
+  return cells
+}
+
+/** Reads the worksheets of an .xlsx file (cell values only); with `onlySheet`, the other sheets are listed by name only. */
+export function readXlsx(buf: Buffer, opts: { onlySheet?: number } = {}): Workbook {
   if (buf.length > XLSX_LIMITS.fileBytes) throw new XlsxError('הקובץ גדול מדי (עד 5MB).')
   const entries = zipEntries(buf)
   if ([...entries.keys()].some(n => /vbaProject\.bin$/i.test(n))) throw new XlsxError('קבצים עם מאקרו (xlsm) אינם נתמכים. שמרו כ־xlsx רגיל ונסו שוב.')
   const budget = { left: XLSX_LIMITS.totalBytes }
-  const part = (name: string) => { const e = entries.get(name); return e ? readEntry(buf, e, budget) : null }
+  const part = (name: string) => { const e = entries.get(name); return e ? prepareXml(readEntry(buf, e, budget)) : null }
   const workbook = part('xl/workbook.xml')
   if (!workbook) throw new XlsxError('הקובץ אינו חוברת Excel תקינה.')
   const rels = part('xl/_rels/workbook.xml.rels') ?? ''
   const targets = new Map<string, string>()
-  for (const m of rels.matchAll(/<Relationship\b[^>]*\/?>/g)) {
-    const id = attr(m[0], 'Id'), target = attr(m[0], 'Target')
-    if (id && target) targets.set(id, target.startsWith('/') ? target.slice(1) : `xl/${target.replace(/^\.\//, '')}`)
+  for (const rel of elements(rels, 'Relationship')) {
+    const id = attr(rel.attrs, 'Id'), target = attr(rel.attrs, 'Target')
+    // External targets (links to other files or URLs) are never followed; only parts inside this file.
+    if (!id || !target || attr(rel.attrs, 'TargetMode') === 'External') continue
+    const inside = posix.normalize(target.startsWith('/') ? target.slice(1) : `xl/${target}`)
+    if (!inside.startsWith('..')) targets.set(id, inside)
   }
   const sharedXml = part('xl/sharedStrings.xml')
-  const shared = sharedXml ? [...sharedXml.matchAll(/<si\b[^>]*>([\s\S]*?)<\/si>|<si\s*\/>/g)].map(m => texts(m[1] ?? '')) : []
+  const shared: string[] = []
+  if (sharedXml) for (const si of elements(sharedXml, 'si')) shared.push(texts(si.body))
   const styles = readStyles(part('xl/styles.xml'))
-  const date1904 = /<workbookPr\b[^>]*\bdate1904="(1|true)"/.test(workbook)
-  const sheetTags = [...workbook.matchAll(/<sheet\b[^>]*\/?>/g)].map(m => m[0])
+  const pr = elements(workbook, 'workbookPr').next().value
+  const date1904 = !!pr && ['1', 'true'].includes(attr(pr.attrs, 'date1904') ?? '')
+  const sheetTags: string[] = []
+  for (const s of elements(workbook, 'sheet')) {
+    if (sheetTags.length >= XLSX_LIMITS.sheets) throw new XlsxError('בקובץ יש יותר מדי גיליונות.')
+    sheetTags.push(s.attrs)
+  }
   if (!sheetTags.length) throw new XlsxError('לא נמצאו גיליונות בקובץ.')
-  if (sheetTags.length > XLSX_LIMITS.sheets) throw new XlsxError('בקובץ יש יותר מדי גיליונות.')
   const sheets: Sheet[] = []
   for (const tag of sheetTags) {
     const name = attr(tag, 'name') ?? `גיליון ${sheets.length + 1}`
-    const rid = attr(tag, 'r:id') ?? /\bid="([^"]*)"/.exec(tag)?.[1]
+    const rid = attr(tag, 'r:id') ?? /(?:^|\s)[\w.-]+:id\s*=\s*"([^"]*)"/.exec(tag)?.[1]
     const target = rid ? targets.get(rid) : undefined
-    const xml = target ? part(target) : null
+    const wanted = opts.onlySheet === undefined || opts.onlySheet === sheets.length
+    const xml = target && wanted ? part(target) : null
     if (!xml) { sheets.push({ name, rows: [], truncated: false }); continue }
     sheets.push({ name, ...readSheet(xml, shared, styles) })
   }

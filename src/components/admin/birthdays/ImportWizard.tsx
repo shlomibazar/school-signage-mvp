@@ -238,6 +238,7 @@ export default function ImportWizard() {
                     )
                   })}
                 </div>
+                {sheet.truncated && <p role="alert" className="text-[13px] text-ui-danger">בגיליון יש נתונים מעבר לשורה 5000. פצלו את הקובץ לכמה קבצים (עד 3000 שורות בכל אחד).</p>}
                 {missing.length > 0 && <p role="alert" className="text-[13px] text-ui-danger">חסרות עמודות חובה: {missing.map(f => f.label).join(', ')}</p>}
                 {usedTwice && <p role="alert" className="text-[13px] text-ui-danger">אותה עמודה נבחרה ליותר משדה אחד</p>}
                 {kind === 'STUDENT' && mapping.grade == null && mapping.className == null && <p className="text-[13px] text-amber-700">לא נבחרו שכבה או כיתה: התלמידים יישמרו בלי כיתה.</p>}
@@ -245,7 +246,7 @@ export default function ImportWizard() {
             )}
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
               <Button variant="ghost" icon={<ArrowRight className="h-4 w-4" aria-hidden="true" />} onClick={() => setStep('upload')}>חזרה</Button>
-              <Button variant="primary" onClick={() => void makePreview()} loading={busy} disabled={sheet.headerRow < 0 || missing.length > 0 || usedTwice}>תצוגה מקדימה</Button>
+              <Button variant="primary" onClick={() => void makePreview()} loading={busy} disabled={sheet.headerRow < 0 || sheet.truncated || missing.length > 0 || usedTwice}>תצוגה מקדימה</Button>
             </div>
           </CardBody>
         </Card>

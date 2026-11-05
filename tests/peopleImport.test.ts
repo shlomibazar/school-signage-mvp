@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
-import { readXlsx, XlsxError, isDateFormat } from '@/lib/people/import/xlsx'
+import { readXlsx, XlsxError, XLSX_LIMITS, isDateFormat } from '@/lib/people/import/xlsx'
 import { detectColumns, validateMapping, fieldForHeader } from '@/lib/people/import/columns'
 import { idOf, dateOf, serialToDate } from '@/lib/people/import/cells'
 import { buildRows, canonicalClass } from '@/lib/people/import/rows'
@@ -148,6 +148,63 @@ test('XML entities, formulas and huge cells', () => {
   assert.ok(c0?.kind === 'text' && c0.text === 'שם &amp; פרטי')
   assert.ok(c1?.kind === 'text' && c1.formula && c1.text === 'x', 'formula never evaluated: cached value only')
   assert.ok(c2?.kind === 'text' && c2.text.length === 1000, 'cell text capped')
+})
+
+// A minimal workbook around one worksheet part (and optional extra parts), for parser edge cases.
+const oneSheet = (sheetXml: string, extra: { name: string; data: string }[] = [], rels = '<Relationship Id="rId1" Target="worksheets/sheet1.xml"/>') => zip([
+  { name: 'xl/workbook.xml', data: '<workbook xmlns:r="r"><sheets><sheet name="s" sheetId="1" r:id="rId1"/></sheets></workbook>' },
+  { name: 'xl/_rels/workbook.xml.rels', data: `<Relationships>${rels}</Relationships>` },
+  { name: 'xl/worksheets/sheet1.xml', data: sheetXml }, ...extra,
+])
+
+test('malformed XML fails fast (linear scanning, no backtracking over the part)', () => {
+  // Before: ~100 s of blocked CPU for each of these (a few KB compressed). Now: rejected at once.
+  for (const [label, xml, extra] of [
+    ['unclosed rows', '<sheetData>' + '<row>'.repeat(200_000), []],
+    ['unclosed cells', '<sheetData><row r="1">' + '<c r="A1">'.repeat(200_000) + '</row></sheetData>', []],
+    ['tags without ">"', '<sheetData>' + '<row '.repeat(200_000), []],
+    ['unclosed shared strings', '<sheetData/>', [{ name: 'xl/sharedStrings.xml', data: '<sst>' + '<si>'.repeat(200_000) }]],
+    ['unclosed number formats', '<sheetData/>', [{ name: 'xl/styles.xml', data: '<styleSheet><numFmts>' + '<numFmt '.repeat(200_000) }]],
+  ] as const) {
+    const t = performance.now()
+    assert.throws(() => readXlsx(oneSheet(xml, [...extra])), XlsxError, label)
+    assert.ok(performance.now() - t < 2000, `${label}: ${Math.round(performance.now() - t)} ms`)
+  }
+})
+
+test('row limit: content past it is reported (never silently dropped); empty formatted rows are ignored', () => {
+  const row = (r: number, inner: string) => `<row r="${r}">${inner}</row>`
+  const cell = (r: number) => `<c r="A${r}" t="inlineStr"><is><t>x</t></is></c>`
+  const past = XLSX_LIMITS.rows + 10
+  const content = readXlsx(oneSheet(`<sheetData>${row(1, cell(1))}${row(past, cell(past))}</sheetData>`)).sheets[0]
+  assert.equal(content.truncated, true)
+  const formatted = readXlsx(oneSheet(`<sheetData>${row(1, cell(1))}${row(past, `<c r="A${past}" s="3"/>`)}${row(past + 1, `<c r="A${past + 1}" t="str"><f>""</f><v></v></c>`)}</sheetData>`)).sheets[0]
+  assert.equal(formatted.truncated, false)
+  assert.equal(formatted.rows.length, 1)
+  // Only the requested sheet is parsed; the others are listed by name.
+  const two = workbook([{ name: 'א', rows: [['a']] }, { name: 'ב', rows: [['b']] }])
+  const only = readXlsx(two, { onlySheet: 1 })
+  assert.deepEqual(only.sheets.map(s => [s.name, s.rows.length]), [['א', 0], ['ב', 1]])
+})
+
+test('DTDs rejected; prefixed SpreadsheetML read; external relationships never followed', () => {
+  assert.throws(() => readXlsx(oneSheet('<!DOCTYPE x [<!ENTITY e "boom">]><worksheet><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>&e;</t></is></c></row></sheetData></worksheet>')), XlsxError)
+  const prefixed = readXlsx(zip([
+    { name: 'xl/workbook.xml', data: '<x:workbook xmlns:x="m" xmlns:r="r"><x:workbookPr date1904="1"/><x:sheets><x:sheet name="תלמידים" sheetId="1" r:id="rId1"/></x:sheets></x:workbook>' },
+    { name: 'xl/_rels/workbook.xml.rels', data: '<Relationships><Relationship Id="rId1" Target="/xl/worksheets/sheet1.xml"/></Relationships>' },
+    { name: 'xl/worksheets/sheet1.xml', data: '<x:worksheet xmlns:x="m"><x:sheetData><x:row r="2"><x:c r="B2" t="inlineStr"><x:is><x:t>שם</x:t></x:is></x:c><x:c r="C2"><x:v>7</x:v></x:c></x:row></x:sheetData></x:worksheet>' },
+  ]))
+  assert.equal(prefixed.date1904, true)
+  assert.equal(prefixed.sheets[0].name, 'תלמידים')
+  assert.deepEqual(prefixed.sheets[0].rows[1].slice(1), [{ kind: 'text', text: 'שם', formula: false }, { kind: 'number', num: 7, format: null, formula: false }])
+  const external = readXlsx(oneSheet('', [], '<Relationship Id="rId1" Target="http://example.invalid/sheet.xml" TargetMode="External"/>'))
+  assert.deepEqual(external.sheets[0].rows, [], 'external target ignored (never fetched)')
+  const outside = readXlsx(oneSheet('', [], '<Relationship Id="rId1" Target="../../etc/sheet.xml"/>'))
+  assert.deepEqual(outside.sheets[0].rows, [], 'path outside the package ignored')
+  // Rich text with phonetic guides, single-quoted attributes, <col> not mistaken for <c>
+  const rich = readXlsx(oneSheet("<worksheet><cols><col min='1' max='2'/></cols><sheetData><row r='1'><c r='A1' t='s'><v>0</v></c></row></sheetData></worksheet>",
+    [{ name: 'xl/sharedStrings.xml', data: '<sst><si><r><t>נו</t></r><r><t xml:space="preserve">עה </t></r><rPh sb="0" eb="1"><t>X</t></rPh></si></sst>' }]))
+  assert.deepEqual(rich.sheets[0].rows[0], [{ kind: 'text', text: 'נועה ', formula: false }])
 })
 
 // ── Planning (matching and source precedence) ────────────────────────────────────────────────

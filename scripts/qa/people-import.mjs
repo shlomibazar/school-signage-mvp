@@ -217,6 +217,21 @@ try {
   const noa2 = await db.person.findMany({ where: { schoolId, firstName: 'נועה' }, include: { roles: true } })
   t('…no duplicate person; dual role kept; all people present', noa2.length === 1 && noa2[0].roles.length === 2 && (await db.person.count({ where: { schoolId } })) === pv.summary.NEW + 2, `${noa2.length}`)
 
+  await db.pairingRateLimit.deleteMany({ where: { key: 'people-import:' + adminId } }) // this suite makes more requests than one window allows
+  // ── Class change + empty gender filled (bulk role and person updates), other role untouched ─
+  const noaId = noa2[0].id
+  await db.personRole.update({ where: { personId_role: { personId: noaId, role: 'STUDENT' } }, data: { grade: 'ז׳', parallel: 9, className: 'ז׳ 9' } })
+  await db.person.update({ where: { id: noaId }, data: { gender: null } })
+  const teacherRoleBefore = await db.personRole.findUnique({ where: { personId_role: { personId: noaId, role: 'TEACHER' } } })
+  const p11 = await preview(A, STUDENTS, 'STUDENT')
+  const a11 = await apply(A, p11.j.data.importId)
+  const noa3 = await db.person.findUnique({ where: { id: noaId }, include: { roles: true } })
+  const st3 = noa3.roles.find(r => r.role === 'STUDENT'), te3 = noa3.roles.find(r => r.role === 'TEACHER')
+  t('class changed in the file: student role updated (grade, parallel, class), gender filled', a11.s === 200 && st3.grade === 'ט׳' && st3.parallel === 2 && st3.className === 'ט׳ 2' && noa3.gender === 'FEMALE', `${a11.s} ${JSON.stringify(st3)} ${noa3.gender}`)
+  t('…teacher role of the same person untouched; audit ROLE_CHANGED with the fields', JSON.stringify(te3) === JSON.stringify(teacherRoleBefore)
+    && (await db.personAuditEvent.count({ where: { personId: noaId, action: 'ROLE_CHANGED', metadata: { path: ['importId'], equals: p11.j.data.importId } } })) === 1)
+  t('…updated person carries the import as last sync, by the importing admin', noa3.updatedById === adminId && Math.abs(noa3.lastSyncedAt - Date.now()) < 60_000 && Math.abs(noa3.updatedAt - Date.now()) < 60_000)
+
   // ── Expiry and cancel ─────────────────────────────────────────────────────────────────────
   const p6 = await preview(A, TEACHERS, 'TEACHER')
   await db.personImport.update({ where: { id: p6.j.data.importId }, data: { expiresAt: new Date(Date.now() - 1000) } })
@@ -228,6 +243,23 @@ try {
   const can = await db.personImport.findUnique({ where: { id: p7.j.data.importId } })
   t('cancel: 200, rows deleted, cannot be applied afterwards', c7.s === 200 && can.rows === null && (await apply(A, p7.j.data.importId)).s === 410)
   t('unknown import id: 404', (await apply(A, 'cnotarealimportid000000')).s === 404)
+
+  await db.pairingRateLimit.deleteMany({ where: { key: 'people-import:' + adminId } }) // this suite makes more requests than one window allows
+  // ── Cleanup of abandoned previews (any school's request cleans every school) ──────────────
+  const p8 = await preview(A, TEACHERS, 'TEACHER'), p9 = await preview(A, TEACHERS, 'TEACHER'), p10 = await preview(A, TEACHERS, 'TEACHER')
+  const ago = ms => new Date(Date.now() - ms)
+  await db.personImport.update({ where: { id: p8.j.data.importId }, data: { expiresAt: ago(1000) } })
+  await db.personImport.update({ where: { id: p9.j.data.importId }, data: { status: 'APPLYING', expiresAt: ago(60_000) } })
+  await db.personImport.update({ where: { id: p10.j.data.importId }, data: { status: 'APPLYING', expiresAt: ago(11 * 60_000) } })
+  await apply(B, 'cnotarealimportid000000') // another school's request
+  const [i8, i9, i10] = await Promise.all([p8, p9, p10].map(p => db.personImport.findUnique({ where: { id: p.j.data.importId } })))
+  t('abandoned preview cleaned by another school\'s request: EXPIRED, rows (names, dates) deleted', i8.status === 'EXPIRED' && i8.rows === null)
+  t('import being applied is not touched before its grace period', i9.status === 'APPLYING' && i9.rows !== null)
+  t('import interrupted while applying (past the grace period): EXPIRED, rows deleted', i10.status === 'EXPIRED' && i10.rows === null)
+  await db.$executeRaw`UPDATE "person_imports" SET "updatedAt" = NOW() - INTERVAL '8 days' WHERE "id" = ${i8.id}`
+  await apply(B, 'cnotarealimportid000000')
+  t('expired import records deleted after 7 days; applied ones kept', (await db.personImport.count({ where: { id: i8.id } })) === 0 && (await db.personImport.count({ where: { schoolId, status: 'APPLIED' } })) > 0)
+  await db.$executeRaw`UPDATE "person_imports" SET "status" = 'EXPIRED', "rows" = NULL WHERE "id" = ${i9.id}`
 
   // ── Rate limit (database-backed) ──────────────────────────────────────────────────────────
   await db.$executeRaw`INSERT INTO "pairing_rate_limits" ("key", "count", "windowStart") VALUES (${'people-import:' + adminId}, 60, ${new Date()})
