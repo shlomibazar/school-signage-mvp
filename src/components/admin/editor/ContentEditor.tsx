@@ -22,6 +22,7 @@ import EventsContentForm       from './content-forms/EventsContentForm'
 import TimetableContentForm    from './content-forms/TimetableContentForm'
 import IframeContentForm       from './content-forms/IframeContentForm'
 import { checkExternalUrl } from '@/lib/externalUrl'
+import { saveErrorMessage } from '@/lib/saveErrors'
 import { setDraftDirty, confirmDiscardDraft } from '@/lib/unsavedChanges'
 import { announcementIdsOf } from '@/lib/announcementMerge'
 import { contentTypeLabel } from '@/lib/contentTypes'
@@ -216,7 +217,7 @@ export default function ContentEditor({ screenId, section, selectedType, onClose
       }
       const res = await fetch(`/api/screens/${screenId}/sections/${section.id}/content`,
         { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? 'שגיאה') }
+      if (!res.ok) throw new Error(saveErrorMessage(res.status, await res.json().catch(() => null)))
       const saved = await res.json()
       // Show what was stored: the announcement list may include assignments made elsewhere meanwhile.
       const next = saved.data.contentType === 'ANNOUNCEMENT' ? { ...item, settings: saved.data.settings as ContentSettings } : item

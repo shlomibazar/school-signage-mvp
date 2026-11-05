@@ -50,7 +50,8 @@ const UpdateSchema = z.object({
   textContent:     z.string().nullable().optional(),
   textColor:       z.string().nullable().optional(),
   bgColor:         z.string().nullable().optional(),
-  fontSize:        z.number().int().nullable().optional(),
+  // Within INT4 (larger values used to reach the database and fail with a 500).
+  fontSize:        z.number().int().min(1).max(1000).nullable().optional(),
   galleryId:       z.string().nullable().optional(),
   slideDuration:   z.number().int().min(1).max(60).optional(),
   transitionStyle: z.string().optional(),
@@ -140,7 +141,7 @@ export async function PUT(
       },
     })
   } catch (e) {
-    return errorResponse(e, 'PUT content item')
+    return errorResponse(e, 'PUT content item', 'שמירת התוכן נכשלה בשרת. נסו שוב בעוד רגע.', 'השרת לא קיבל את התוכן (סוג תוכן או שדה לא מוכר). רעננו את הדף ונסו שוב; אם הבעיה חוזרת, פנו לתמיכה.')
   }
 }
 

@@ -18,8 +18,10 @@ export class HttpError extends Error {
 /**
  * @param context        label for the server log
  * @param serverMessage  message for the 500 response (e.g. a Hebrew one the admin UI shows)
+ * @param invalidMessage message for a request Prisma refuses (PrismaClientValidationError), e.g.
+ *                       a value the database client does not know
  */
-export function errorResponse(e: unknown, context: string, serverMessage = 'Server error'): NextResponse {
+export function errorResponse(e: unknown, context: string, serverMessage = 'Server error', invalidMessage = 'Invalid request'): NextResponse {
   const json = (error: string, status: number) => NextResponse.json({ error }, { status })
   if (e instanceof HttpError) return json(e.message, e.status)
   if (e instanceof SyntaxError) return json('Invalid JSON', 400)
@@ -32,7 +34,14 @@ export function errorResponse(e: unknown, context: string, serverMessage = 'Serv
     if (e.code === 'P2003') return json('Invalid reference', 400)
     if (e.code === 'P2002') return json('Already exists', 409)
   }
-  if (e instanceof Prisma.PrismaClientValidationError) return json('Invalid request', 400)
+  if (e instanceof Prisma.PrismaClientValidationError) {
+    // Logged (only Prisma's last line: the reason, without the query and its values), because this
+    // also happens when the running server's Prisma client is older than the schema, e.g. a dev
+    // server started before `prisma generate` — a 400 that is otherwise impossible to trace.
+    const reason = e.message.trim().split(/\r?\n/).map(l => l.trim()).filter(Boolean).pop() ?? 'validation error'
+    console.error(`${context} rejected by Prisma: ${reason.slice(0, 300)}`)
+    return json(invalidMessage, 400)
+  }
   console.error(`${context} failed:`, e)
   return json(serverMessage, 500)
 }
