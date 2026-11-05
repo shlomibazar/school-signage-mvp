@@ -7,6 +7,7 @@ import { normalizeName } from '@/lib/people/normalize'
 import { parseDateOnly } from '@/lib/people/birthdays'
 import { normalizeGrade, normalizeParallel, displayClass } from '@/lib/people/grades'
 import { peopleJson, peopleError } from '@/lib/people/apiResponses'
+import { peopleChangeBlocked } from '@/lib/people/rateLimit'
 
 const Id = z.string().min(1).max(64)
 
@@ -40,6 +41,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   try {
     const user = await requireRole('SCHOOL_ADMIN')
     const id = Id.parse((await params).id)
+    if (await peopleChangeBlocked(user.id)) return peopleJson({ error: 'יותר מדי שינויים בזמן קצר. נסו שוב בעוד כמה דקות.' }, 429)
     const body = PatchSchema.parse(await readJson(req))
     const fieldErrors: Record<string, string> = {}
     const patch: PersonPatch = {}

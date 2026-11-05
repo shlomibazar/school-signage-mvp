@@ -119,19 +119,52 @@ try {
   t('list items: day and month only (no birth year or full date)', !JSON.stringify(pg1.j.items).includes('1980') && pg1.j.items.every(i => !('birthDate' in i)))
   created.extra = many.map(m => m.id)
 
+  // ── Audit trail ────────────────────────────────────────────────────────────────────────────
+  const events = await db.personAuditEvent.findMany({ where: { personId: p1.id }, orderBy: { createdAt: 'asc' } })
+  const actions = events.map(e => e.action)
+  t('audit: create, identity, role, update, deactivate/reactivate, identity replaced recorded', ['CREATED', 'IDENTITY_SET', 'ROLE_ADDED', 'UPDATED', 'ROLE_CHANGED', 'DEACTIVATED', 'REACTIVATED', 'IDENTITY_REPLACED'].every(a => actions.includes(a)), actions.join())
+  t('audit: actor, school and person recorded', events.every(e => e.schoolId === ids.schoolA && e.personId === p1.id && !!e.actorId))
+  const auditText = JSON.stringify(events.map(e => e.metadata))
+  t('audit metadata: field names only — no names, dates or identifiers', !/נועה|כהן|2011|012345678|222333444|678|444/.test(auditText) && events.find(e => e.action === 'UPDATED')?.metadata?.fields?.includes('lastName'), auditText)
+  const before = await db.personAuditEvent.count({ where: { personId: p1.id } })
+  await call(A, `/api/people/${p1.id}`, 'PATCH', { lastName: 'כהן-לוי' })
+  await call(A, `/api/people/${p1.id}/active`, 'PATCH', { active: true })
+  t('audit: a request that changes nothing writes nothing', (await db.personAuditEvent.count({ where: { personId: p1.id } })) === before)
+  t('audit: rejected cross-school change left no event', (await db.personAuditEvent.count({ where: { personId: p1.id, schoolId: ids.schoolB } })) === 0)
+  const rm = await call(A, `/api/people/${p1.id}`, 'PATCH', { externalId: null })
+  t('identity removed: hint gone, audited', rm.j?.data?.hasIdentity === false && rm.j?.data?.identityHint === null && (await db.personAuditEvent.count({ where: { personId: p1.id, action: 'IDENTITY_REMOVED' } })) === 1)
+
+  // ── Races and limits ───────────────────────────────────────────────────────────────────────
+  const racers = await Promise.all(['א', 'ב', 'ג', 'ד', 'ה', 'ו'].map(l => call(A, '/api/people', 'POST', person({ externalId: '555666777', firstName: `${TAG}מרוץ${l}` }))))
+  t('6 concurrent creates with one ID: exactly one person, the rest 409', racers.filter(r => r.s === 201).length === 1 && racers.filter(r => r.s === 409).length === 5, racers.map(r => r.s).join())
+  const userA = await db.user.findUnique({ where: { email: creds.A.email }, select: { id: true } })
+  // Seeded the way the limiter writes (raw SQL, same timestamp conversion), at the limit.
+  await db.$executeRaw`INSERT INTO "pairing_rate_limits" ("key", "count", "windowStart") VALUES (${'people:' + userA.id}, 300, ${new Date()})
+    ON CONFLICT ("key") DO UPDATE SET "count" = 300, "windowStart" = ${new Date()}`
+  const limited = await call(A, '/api/people', 'POST', person({ firstName: `${TAG}מוגבל` }))
+  t('rate limit: over 300 changes in 15 minutes → 429 (database-backed), nothing created', limited.s === 429 && (await db.person.count({ where: { firstName: `${TAG}מוגבל` } })) === 0, `${limited.s}`)
+  await db.pairingRateLimit.deleteMany({ where: { key: 'people:' + userA.id } })
+  t('rate limit: reads are not limited', (await call(A, '/api/people?role=STUDENT')).s === 200)
+
   // ── Public screens and existing birthday content ───────────────────────────────────────────
   const scr = await db.screen.create({ data: { schoolId: ids.schoolA, name: `${TAG} screen`, slug: `qap-${Date.now()}`, layout: { create: { headerEnabled: true, footerEnabled: true, mainSections: 1, footerShowBirthdays: true } }, sections: { create: [{ position: 0, widthPct: 100 }] } }, include: { sections: true } })
   created.screen = scr.id
-  const bd = await call(A, `/api/screens/${scr.id}/sections/${scr.sections[0].id}/content`, 'POST', { contentType: 'BIRTHDAYS', settings: { personName: 'דני', grade: 'ה׳', birthDate: '', greetingText: 'מזל טוב' } })
-  t('existing birthday content type still saves', [200, 201].includes(bd.s), bd.text)
+  const bd = await call(A, `/api/screens/${scr.id}/sections/${scr.sections[0].id}/content`, 'POST', { contentType: 'BIRTHDAYS', settings: { personName: 'דני', grade: 'ה׳', birthDate: '2015-04-12', greetingText: 'מזל טוב' } })
+  t('existing birthday content type still saves (with its stored birth date)', [200, 201].includes(bd.s) && (await db.contentItem.findFirst({ where: { sectionId: scr.sections[0].id } })).settings?.birthDate === '2015-04-12', bd.text)
   const tv = await call(null, `/screen/${scr.slug}`)
-  t('TV page renders existing birthday content', tv.s === 200 && tv.text.includes('דני'))
+  t('TV page renders existing birthday content (name, class, greeting)', tv.s === 200 && tv.text.includes('דני') && tv.text.includes('מזל טוב'))
+  t('TV page payload: no birth date or year of the legacy card', !tv.text.includes('2015-04-12') && !tv.text.includes('birthDate') && !tv.text.includes('2015'))
+  const adminRead = await call(A, `/api/screens/${scr.id}/sections/${scr.sections[0].id}/content`)
+  t('…while the editor (signed in) still gets the stored value', adminRead.j?.data?.settings?.birthDate === '2015-04-12')
   t('TV page exposes none of the new person records', !tv.text.includes(TAG + 'נועה') && !tv.text.includes('identityHint') && !tv.text.includes(RAW_ID))
 } catch (e) {
   t('no unexpected error', false, e?.stack || String(e))
 } finally {
   if (created.screen) await db.screen.deleteMany({ where: { id: created.screen } })
   await db.person.deleteMany({ where: { firstName: { startsWith: TAG } } })
+  const actorA = await db.user.findUnique({ where: { email: creds.A.email }, select: { id: true } })
+  await db.personAuditEvent.deleteMany({ where: { actorId: { in: [...users, actorA.id] } } })
+  await db.pairingRateLimit.deleteMany({ where: { key: { startsWith: 'people:' } } })
   await db.user.deleteMany({ where: { id: { in: users } } })
   t('cleanup: no QAP people, sources or users left', (await db.person.count({ where: { firstName: { startsWith: TAG } } })) + (await db.user.count({ where: { name: { startsWith: TAG } } })) === 0 &&
     (await db.personSource.count({ where: { person: { firstName: { startsWith: TAG } } } })) === 0)

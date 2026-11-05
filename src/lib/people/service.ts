@@ -125,7 +125,28 @@ const roleData = (r: NormalizedPersonRecord) => r.role === 'STUDENT'
   ? { grade: r.grade, parallel: r.parallel, className: r.className }
   : { grade: null, parallel: null, className: null }
 
-/** Adds a person by hand. An identifier already used in the school is a 409 (no duplicate is made). */
+type Tx = Prisma.TransactionClient
+type AuditAction = 'CREATED' | 'UPDATED' | 'ROLE_ADDED' | 'ROLE_CHANGED' | 'DEACTIVATED' | 'REACTIVATED' | 'IDENTITY_SET' | 'IDENTITY_REPLACED' | 'IDENTITY_REMOVED'
+
+/** Audit records in the same transaction as the change. Metadata: field names and role types only. */
+function audit(tx: Tx, schoolId: string, personId: string, actorId: string, events: { action: AuditAction; metadata?: Record<string, unknown> }[]) {
+  if (!events.length) return Promise.resolve()
+  return tx.personAuditEvent.createMany({
+    data: events.map(e => ({ schoolId, personId, actorId, action: e.action, ...(e.metadata ? { metadata: e.metadata as Prisma.InputJsonValue } : {}) })),
+  })
+}
+
+/** Locks the person row for the rest of the transaction (concurrent edits of one person queue up). */
+async function lockPerson(tx: Tx, schoolId: string, id: string) {
+  const rows = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM people WHERE id = ${id} AND "schoolId" = ${schoolId} FOR UPDATE`
+  if (!rows.length) throw new HttpError(404, 'האדם לא נמצא')
+}
+
+const duplicateFrom = (e: unknown) => e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002'
+  ? new HttpError(409, 'כבר קיים בבית הספר אדם עם המזהה הזה') : e
+
+/** Adds a person by hand. An identifier already used in the school is a 409 (no duplicate is made;
+ *  the unique index on (schoolId, identityKey) also settles concurrent requests). */
 export async function createPerson(schoolId: string, userId: string, r: NormalizedPersonRecord): Promise<PersonDetail> {
   const identity = identityFor(schoolId, r.externalId)
   if (identity) {
@@ -143,14 +164,14 @@ export async function createPerson(schoolId: string, userId: string, r: Normaliz
         select: { id: true },
       })
       await tx.personSource.create({ data: { schoolId, personId: p.id, sourceType: 'MANUAL', recordKey: sourceRecordKey(schoolId, 'MANUAL', p.id) } })
+      await audit(tx, schoolId, p.id, userId, [
+        { action: 'CREATED', metadata: { role: r.role, source: 'MANUAL' } },
+        ...(identity ? [{ action: 'IDENTITY_SET' as const }] : []),
+      ])
       return p.id
     })
     return getPerson(schoolId, id)
-  } catch (e) {
-    // A concurrent request with the same identifier (database uniqueness).
-    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') throw new HttpError(409, 'כבר קיים בבית הספר אדם עם המזהה הזה')
-    throw e
-  }
+  } catch (e) { throw duplicateFrom(e) }
 }
 
 export type PersonPatch = {
@@ -161,44 +182,62 @@ export type PersonPatch = {
   role?: { role: PersonRoleType; grade: string | null; parallel: number | null; className: string | null; active: boolean }
 }
 
-/** Updates the allowed fields of a person of the school. */
+/** Updates the allowed fields of a person of the school. Only real changes are written and audited. */
 export async function updatePerson(schoolId: string, userId: string, id: string, patch: PersonPatch): Promise<PersonDetail> {
-  const existing = await db.person.findFirst({ where: { id, schoolId }, select: { id: true } })
-  if (!existing) throw new HttpError(404, 'האדם לא נמצא')
-  const data: Prisma.PersonUpdateInput = {}
-  if (patch.firstName !== undefined) data.firstName = patch.firstName
-  if (patch.lastName !== undefined) data.lastName = patch.lastName
-  if (patch.birthDate !== undefined) data.birthDate = parseDateOnly(patch.birthDate)!
-  if (patch.gender !== undefined) data.gender = patch.gender
-  if (patch.externalId !== undefined) {
-    const identity = identityFor(schoolId, patch.externalId)
-    if (identity) {
-      const owner = await identityOwner(schoolId, identity.identityKey, id)
-      if (owner) throw new DuplicateIdentityError({ id: owner.id, name: `${owner.firstName} ${owner.lastName}`, roles: owner.roles.map(x => x.role) })
-      Object.assign(data, identity)
-    } else Object.assign(data, { identityKey: null, identityKeyVersion: null, identityHint: null })
+  // Outside the transaction: hashing and the duplicate lookup (a clear 409 with the other record).
+  const identity = patch.externalId !== undefined ? identityFor(schoolId, patch.externalId) : undefined
+  if (identity) {
+    const owner = await identityOwner(schoolId, identity.identityKey, id)
+    if (owner) throw new DuplicateIdentityError({ id: owner.id, name: `${owner.firstName} ${owner.lastName}`, roles: owner.roles.map(x => x.role) })
   }
-  data.updatedById = userId
   try {
     await db.$transaction(async tx => {
-      await tx.person.update({ where: { id }, data })
+      await lockPerson(tx, schoolId, id)
+      const cur = await tx.person.findUniqueOrThrow({ where: { id }, select: { firstName: true, lastName: true, birthDate: true, gender: true, identityKey: true, roles: { select: { role: true, grade: true, parallel: true, className: true, active: true } } } })
+      const data: Prisma.PersonUpdateInput = {}
+      const changed: string[] = []
+      if (patch.firstName !== undefined && patch.firstName !== cur.firstName) { data.firstName = patch.firstName; changed.push('firstName') }
+      if (patch.lastName !== undefined && patch.lastName !== cur.lastName) { data.lastName = patch.lastName; changed.push('lastName') }
+      if (patch.birthDate !== undefined && patch.birthDate !== formatDateOnly(cur.birthDate)) { data.birthDate = parseDateOnly(patch.birthDate)!; changed.push('birthDate') }
+      if (patch.gender !== undefined && patch.gender !== cur.gender) { data.gender = patch.gender; changed.push('gender') }
+      const events: { action: AuditAction; metadata?: Record<string, unknown> }[] = []
+      if (changed.length) events.push({ action: 'UPDATED', metadata: { fields: changed } })
+      if (identity !== undefined) {
+        if (identity && identity.identityKey !== cur.identityKey) { Object.assign(data, identity); events.push({ action: cur.identityKey ? 'IDENTITY_REPLACED' : 'IDENTITY_SET' }) }
+        if (!identity && cur.identityKey) { Object.assign(data, { identityKey: null, identityKeyVersion: null, identityHint: null }); events.push({ action: 'IDENTITY_REMOVED' }) }
+      }
       if (patch.role) {
         const r = patch.role
         const fields = r.role === 'STUDENT' ? { grade: r.grade, parallel: r.parallel, className: r.className, active: r.active } : { grade: null, parallel: null, className: null, active: r.active }
-        await tx.personRole.upsert({ where: { personId_role: { personId: id, role: r.role } }, create: { personId: id, role: r.role, ...fields }, update: fields })
+        const before = cur.roles.find(x => x.role === r.role)
+        if (!before) {
+          await tx.personRole.create({ data: { personId: id, role: r.role, ...fields } })
+          events.push({ action: 'ROLE_ADDED', metadata: { role: r.role } })
+        } else {
+          const roleChanged = (Object.keys(fields) as (keyof typeof fields)[]).filter(k => fields[k] !== before[k])
+          if (roleChanged.length) {
+            await tx.personRole.update({ where: { personId_role: { personId: id, role: r.role } }, data: fields })
+            events.push({ action: 'ROLE_CHANGED', metadata: { role: r.role, fields: roleChanged } })
+          }
+        }
       }
+      if (!events.length) return // nothing changed: no write, no audit
+      await tx.person.update({ where: { id }, data: { ...data, updatedById: userId } })
+      await audit(tx, schoolId, id, userId, events)
     })
-  } catch (e) {
-    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') throw new HttpError(409, 'כבר קיים בבית הספר אדם עם המזהה הזה')
-    throw e
-  }
+  } catch (e) { throw duplicateFrom(e) }
   return getPerson(schoolId, id)
 }
 
-/** Deactivates or reactivates a person (never deletes). */
+/** Deactivates or reactivates a person (never deletes). A request that changes nothing is not audited. */
 export async function setPersonActive(schoolId: string, userId: string, id: string, active: boolean): Promise<PersonDetail> {
-  const result = await db.person.updateMany({ where: { id, schoolId }, data: { active, deactivatedAt: active ? null : new Date(), updatedById: userId } })
-  if (!result.count) throw new HttpError(404, 'האדם לא נמצא')
+  await db.$transaction(async tx => {
+    await lockPerson(tx, schoolId, id)
+    const cur = await tx.person.findUniqueOrThrow({ where: { id }, select: { active: true } })
+    if (cur.active === active) return
+    await tx.person.update({ where: { id }, data: { active, deactivatedAt: active ? null : new Date(), updatedById: userId } })
+    await audit(tx, schoolId, id, userId, [{ action: active ? 'REACTIVATED' : 'DEACTIVATED' }])
+  })
   return getPerson(schoolId, id)
 }
 

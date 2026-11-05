@@ -5,6 +5,7 @@ import { readJson } from '@/lib/apiErrors'
 import { peopleSchoolId, listPeople, createPerson, gradeFilter } from '@/lib/people/service'
 import { normalizePersonRecord } from '@/lib/people/normalize'
 import { peopleJson, peopleError } from '@/lib/people/apiResponses'
+import { peopleChangeBlocked } from '@/lib/people/rateLimit'
 
 // Birthday people of the signed-in user's school. SCHOOL_ADMIN and up only (personal data, including
 // minors); editors and viewers manage screen content, not people.
@@ -49,6 +50,7 @@ export async function POST(req: NextRequest) {
   try {
     const user = await requireRole('SCHOOL_ADMIN')
     const schoolId = peopleSchoolId(user)
+    if (await peopleChangeBlocked(user.id)) return peopleJson({ error: 'יותר מדי שינויים בזמן קצר. נסו שוב בעוד כמה דקות.' }, 429)
     const body = CreateSchema.parse(await readJson(req))
     const result = normalizePersonRecord(body)
     if (!result.ok) return peopleJson({ error: 'יש לתקן את השדות המסומנים', fieldErrors: result.errors }, 400)

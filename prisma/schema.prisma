@@ -95,6 +95,7 @@ model School {
   theme         SchoolTheme?
   people        Person[]
   personSources PersonSource[]
+  personAudit   PersonAuditEvent[]
 
   @@map("schools")
 }
@@ -468,4 +469,34 @@ model PersonSource {
   @@unique([schoolId, sourceType, recordKey])
   @@index([personId])
   @@map("person_sources")
+}
+
+enum PersonAuditAction {
+  CREATED
+  UPDATED
+  ROLE_ADDED
+  ROLE_CHANGED
+  DEACTIVATED
+  REACTIVATED
+  IDENTITY_SET
+  IDENTITY_REPLACED
+  IDENTITY_REMOVED
+}
+
+/// Who changed which person record, and how. Written in the same transaction as the change.
+/// metadata holds only field names and role types — never names, dates or identifiers.
+/// personId has no foreign key on purpose: the trail outlives the person record.
+model PersonAuditEvent {
+  id        String            @id @default(cuid())
+  schoolId  String
+  school    School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  personId  String
+  actorId   String?
+  action    PersonAuditAction
+  metadata  Json?
+  createdAt DateTime          @default(now())
+
+  @@index([schoolId, createdAt])
+  @@index([personId, createdAt])
+  @@map("person_audit_events")
 }

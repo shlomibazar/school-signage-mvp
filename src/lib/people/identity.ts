@@ -27,11 +27,15 @@ export function normalizeExternalId(raw: unknown): string | null {
   return value
 }
 
-let warned = false
+let warned = false, reported = false
 function personIdKey(): Buffer {
   const configured = process.env.PERSON_ID_KEY
   if (configured && configured.length >= 32) return Buffer.from(configured, 'utf8')
-  if (process.env.NODE_ENV === 'production') throw new IdentityError('PERSON_ID_KEY is not configured')
+  if (process.env.NODE_ENV === 'production') {
+    // Logged once, without any value. Requests get a fixed Hebrew 503 (see service.identityFor).
+    if (!reported) { console.error(configured ? 'PERSON_ID_KEY is too short (at least 32 characters are required).' : 'PERSON_ID_KEY is not configured.'); reported = true }
+    throw new IdentityError('PERSON_ID_KEY is not configured')
+  }
   const jwt = process.env.JWT_SECRET
   if (!jwt) throw new IdentityError('PERSON_ID_KEY is not configured')
   if (!warned) { console.warn('PERSON_ID_KEY is not set; using a development key. Set it before using real data.'); warned = true }
