@@ -78,9 +78,14 @@ interface Props {
   onClose: () => void; onSaved: (item: ContentItem | null) => void; onDraftChange?: (item: EditableItem) => void
   /** Reports whether the form has unsaved changes. */
   onDirtyChange?: (dirty: boolean) => void
+  /** Lets the region header offer the same save (a second "שמירת תוכן" at the top of the form):
+   *  the very same handleSave, with its guards, confirmations and error handling. */
+  onSaveControl?: (control: SaveControl | null) => void
 }
 
-export default function ContentEditor({ screenId, section, selectedType, onClose, onSaved, onDraftChange, onDirtyChange }: Props) {
+export type SaveControl = { save: () => void; saving: boolean; canSave: boolean }
+
+export default function ContentEditor({ screenId, section, selectedType, onClose, onSaved, onDraftChange, onDirtyChange, onSaveControl }: Props) {
   const [loading,    setLoading]    = useState(true)
   const [saving,     setSaving]     = useState(false)
   const [existingId, setExistingId] = useState<string | null>(null)
@@ -176,6 +181,16 @@ export default function ContentEditor({ screenId, section, selectedType, onClose
 
   const asSettings = <T,>(fallback: T): T =>
     ((item.settings && Object.keys(item.settings).length > 0 ? item.settings : fallback) as unknown) as T
+
+  // The header's save button calls the latest handleSave (through a ref), so there is one save path.
+  const saveRef = useRef<() => void>(() => {})
+  saveRef.current = () => { void handleSave() }
+  const controlCallback = useRef(onSaveControl)
+  controlCallback.current = onSaveControl
+  useEffect(() => {
+    controlCallback.current?.({ save: () => saveRef.current(), saving, canSave: !loading && dirty && !saving })
+  }, [saving, loading, dirty])
+  useEffect(() => () => controlCallback.current?.(null), [])
 
   async function handleSave() {
     if (savingRef.current || selectedType === 'EMPTY') return

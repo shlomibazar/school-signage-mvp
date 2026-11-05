@@ -1,13 +1,13 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import { Pencil, Repeat2, Eraser, AlertTriangle, X } from 'lucide-react'
+import { Pencil, Repeat2, Eraser, AlertTriangle, X, Save, Check } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { isDraftDirty, confirmDiscardDraft } from '@/lib/unsavedChanges'
 import { confirmDialog } from '@/components/ui/ConfirmHost'
 import { Button } from '@/components/ui/Button'
 import { contentTypeLabel } from '@/lib/contentTypes'
 import type { ContentItem, ContentType, ScreenSection } from '@/types'
-import ContentEditor from './ContentEditor'
+import ContentEditor, { type SaveControl } from './ContentEditor'
 import ContentTypePicker, { CONTENT_ICONS } from './ContentTypePicker'
 
 interface Props {
@@ -39,6 +39,7 @@ export default function SectionEditor({ screenId, section, index, widthPct, isTe
   const [pickerOpen, setPickerOpen] = useState(!initial)
   const [editorOpen, setEditorOpen] = useState(!!initial)
   const [dirty, setDirty] = useState(false)
+  const [saveControl, setSaveControl] = useState<SaveControl | null>(null)
   const sectionRef = useRef(section)
   sectionRef.current = section
   // Keyboard focus after the picker closes (its buttons disappear): the new form, or "החלפת סוג".
@@ -106,12 +107,23 @@ export default function SectionEditor({ screenId, section, index, widthPct, isTe
 
   return (
     <section ref={rootRef} aria-label={regionName} className="rounded-ui-lg border border-ui-border bg-ui-surface">
-      <header className="flex items-center justify-between gap-2 border-b border-ui-border px-4 py-3">
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-ui-border px-4 py-3">
         <div className="flex min-w-0 items-center gap-2">
           <h3 className="text-sm font-semibold text-ui-ink">{regionName}</h3>
           {widthPct != null && <span className="text-xs text-ui-muted">{Math.round(widthPct)}%</span>}
         </div>
-        {dirty && <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700"><span className="h-2 w-2 rounded-full bg-amber-500" aria-hidden="true" />תוכן לא נשמר</span>}
+        <div className="flex items-center gap-2" aria-live="polite">
+          {dirty
+            ? <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700"><span className="h-2 w-2 rounded-full bg-amber-500" aria-hidden="true" />תוכן לא נשמר</span>
+            : saved && <span className="inline-flex items-center gap-1 text-xs text-ui-success"><Check className="h-3.5 w-3.5" aria-hidden="true" />התוכן שמור</span>}
+          {/* Same save as the button at the bottom of the form (one handler, one set of checks). */}
+          {editorOpen && saveControl && (
+            <Button size="sm" variant="primary" loading={saveControl.saving} disabled={!saveControl.canSave} onClick={saveControl.save}
+              icon={<Save className="h-3.5 w-3.5" aria-hidden="true" />} aria-label={`שמירת תוכן של ${regionName}`}>
+              {saveControl.saving ? 'שומר...' : 'שמירת תוכן'}
+            </Button>
+          )}
+        </div>
       </header>
 
       {isTemp ? (
@@ -158,7 +170,7 @@ export default function SectionEditor({ screenId, section, index, widthPct, isTe
             <ContentEditor
               key={`${section.id}::${selectedType}`}
               screenId={screenId} section={section} selectedType={selectedType}
-              onClose={closeEditor} onSaved={handleSaved} onDirtyChange={handleDirty}
+              onClose={closeEditor} onSaved={handleSaved} onDirtyChange={handleDirty} onSaveControl={setSaveControl}
               onDraftChange={draft => {
                 const original = saved ?? buildStub(section.id)
                 preview([{ ...original, ...draft, id: original.id, sectionId: section.id } as ContentItem])
