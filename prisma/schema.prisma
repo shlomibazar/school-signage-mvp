@@ -93,6 +93,8 @@ model School {
   mediaFiles    MediaFile[]
   galleries     Gallery[]
   theme         SchoolTheme?
+  people        Person[]
+  personSources PersonSource[]
 
   @@map("schools")
 }
@@ -130,7 +132,7 @@ model Screen {
   createdAt         DateTime                 @default(now())
   updatedAt         DateTime                 @updatedAt
   operatingSchedule ScreenOperatingSchedule?
-  pairingCodes ScreenPairingCode[]
+  pairingCodes      ScreenPairingCode[]
 
   layout        ScreenLayout?
   sections      ScreenSection[]
@@ -344,23 +346,126 @@ model ScreenOperatingSchedule {
   @@map("ScreenOperatingSchedule")
 }
 
-
 model ScreenPairingCode {
-  id String @id @default(cuid())
-  screenId String
-  screen Screen @relation(fields: [screenId], references: [id], onDelete: Cascade)
-  codeHash String @unique
+  id        String    @id @default(cuid())
+  screenId  String
+  screen    Screen    @relation(fields: [screenId], references: [id], onDelete: Cascade)
+  codeHash  String    @unique
   expiresAt DateTime
-  usedAt DateTime?
-  createdAt DateTime @default(now())
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
 
   @@index([screenId, expiresAt])
   @@map("screen_pairing_codes")
 }
 
 model PairingRateLimit {
-  key String @id
-  count Int @default(0)
+  key         String   @id
+  count       Int      @default(0)
   windowStart DateTime
+
   @@map("pairing_rate_limits")
+}
+
+// ── Birthday management ─────────────────────────────────────────────────────────────────────────
+// People of a school (students and teachers) whose birthdays may be shown on screens. Personal data,
+// including minors: managed only by SCHOOL_ADMIN and up, always scoped to one school, never sent to
+// public screens as is (see src/lib/people/*).
+
+enum PersonRoleType {
+  STUDENT
+  TEACHER
+}
+
+enum PersonGender {
+  MALE
+  FEMALE
+}
+
+/// Where a person's data comes from. Precedence for imports: SMARTSCHOOL > EXCEL > MANUAL.
+enum PersonSourceType {
+  MANUAL
+  EXCEL
+  SMARTSCHOOL
+}
+
+enum PersonSourceStatus {
+  ACTIVE
+  MISSING
+  INACTIVE
+}
+
+model Person {
+  id                 String           @id @default(cuid())
+  schoolId           String
+  school             School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  firstName          String
+  lastName           String
+  /// Date only (no time, no time zone). Read with UTC getters; the year is internal only.
+  birthDate          DateTime         @db.Date
+  gender             PersonGender?
+  /// Keyed HMAC-SHA256 of the normalized external identifier (e.g. ת״ז), scoped to the school.
+  /// The raw identifier is never stored. Null for people added without an identifier.
+  identityKey        String?
+  identityKeyVersion Int?
+  /// The identifier's last 3 characters, so admins can tell people with the same name apart.
+  identityHint       String?
+  active             Boolean          @default(true)
+  deactivatedAt      DateTime?
+  /// The source that last wrote the core fields (names, birth date, gender); see sourcePrecedence.
+  dataSource         PersonSourceType @default(MANUAL)
+  lastSyncedAt       DateTime?
+  createdById        String?
+  updatedById        String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  roles   PersonRole[]
+  sources PersonSource[]
+
+  @@unique([schoolId, identityKey])
+  @@index([schoolId, active])
+  @@index([schoolId, lastName, firstName])
+  @@map("people")
+}
+
+/// A person's role in the school. One row per role, so a person can be both student and teacher
+/// (or change role) without being duplicated.
+model PersonRole {
+  id        String         @id @default(cuid())
+  personId  String
+  person    Person         @relation(fields: [personId], references: [id], onDelete: Cascade)
+  role      PersonRoleType
+  /// Students: canonical grade (e.g. "ט׳"), parallel number and display class (e.g. "ט׳ 2").
+  grade     String?
+  parallel  Int?
+  className String?
+  active    Boolean        @default(true)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@unique([personId, role])
+  @@index([role, grade])
+  @@map("person_roles")
+}
+
+/// A record of a person in one data source. recordKey identifies the record within the source:
+/// "manual:<personId>" for manual entries, a keyed HMAC of the source's record identifier otherwise.
+model PersonSource {
+  id             String             @id @default(cuid())
+  schoolId       String
+  school         School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  personId       String
+  person         Person             @relation(fields: [personId], references: [id], onDelete: Cascade)
+  sourceType     PersonSourceType
+  recordKey      String
+  status         PersonSourceStatus @default(ACTIVE)
+  lastSeenAt     DateTime?
+  lastImportedAt DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@unique([schoolId, sourceType, recordKey])
+  @@index([personId])
+  @@map("person_sources")
 }

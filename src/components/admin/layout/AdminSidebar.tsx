@@ -7,7 +7,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Monitor, PenSquare, Megaphone,
-  ImageIcon, Users, Settings, LockKeyhole, HelpCircle, Menu, X, PanelRightClose, PanelRightOpen,
+  ImageIcon, Users, Settings, LockKeyhole, HelpCircle, Menu, X, PanelRightClose, PanelRightOpen, Cake,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { AuthUser } from '@/types'
@@ -33,6 +33,8 @@ const NAV: NavItem[] = [
   // { href: '/admin/users', label: 'משתמשים', icon: Users, section: 'ניהול', roles: ['SCHOOL_ADMIN', 'SUPER_ADMIN'] },
   // Editors manage the school's logo and weather city here (as the API allows); screen settings are
   // read-only for them.
+  // Personal data (students and teachers): school admins only, as in /api/people.
+  { href: '/admin/birthdays',     label: 'ימי הולדת',      icon: Cake,         section: 'ניהול', roles: ['SCHOOL_ADMIN', 'SUPER_ADMIN'] },
   { href: '/admin/settings',      label: 'הגדרות',         icon: Settings,     section: 'ניהול', roles: ['EDITOR', 'SCHOOL_ADMIN', 'SUPER_ADMIN'] },
   { href: '/admin/change-password', label: 'שינוי סיסמה', icon: LockKeyhole },
 ]
