@@ -45,6 +45,7 @@ enum ContentType {
   EVENTS
   BIRTHDAYS
   ANNOUNCEMENT
+  IFRAME
   EMPTY
 }
 

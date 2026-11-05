@@ -20,6 +20,8 @@ import AnnouncementContentForm from './content-forms/AnnouncementContentForm'
 import BirthdayContentForm     from './content-forms/BirthdayContentForm'
 import EventsContentForm       from './content-forms/EventsContentForm'
 import TimetableContentForm    from './content-forms/TimetableContentForm'
+import IframeContentForm       from './content-forms/IframeContentForm'
+import { checkExternalUrl } from '@/lib/externalUrl'
 import { setDraftDirty, confirmDiscardDraft } from '@/lib/unsavedChanges'
 import { announcementIdsOf } from '@/lib/announcementMerge'
 import { contentTypeLabel } from '@/lib/contentTypes'
@@ -46,6 +48,7 @@ function defaultSettingsFor(type: ContentType): ContentSettings {
     case 'BIRTHDAYS':     return { ...DEFAULT_BIRTHDAY }
     case 'EVENTS':        return { ...DEFAULT_EVENT }
     case 'TIMETABLE':     return { ...DEFAULT_TIMETABLE }
+    case 'IFRAME':        return { url: '' } as unknown as ContentSettings
     default:              return {} as Record<string,never>
   }
 }
@@ -168,11 +171,18 @@ export default function ContentEditor({ screenId, section, selectedType, onClose
   const patchSchedule = useCallback((patch: Partial<SchedulingValues>) => setItem(prev => ({ ...prev, ...patch })), [])
   const patchSettings = useCallback((s: ContentSettings) => setItem(prev => ({ ...prev, settings: s })), [])
 
+  const iframeUrl = typeof (item.settings as { url?: unknown } | null)?.url === 'string' ? (item.settings as unknown as { url: string }).url : ''
+
   const asSettings = <T,>(fallback: T): T =>
     ((item.settings && Object.keys(item.settings).length > 0 ? item.settings : fallback) as unknown) as T
 
   async function handleSave() {
     if (savingRef.current || selectedType === 'EMPTY') return
+    // The server checks the address again; this only spares a request that would be refused.
+    if (selectedType === 'IFRAME') {
+      const check = checkExternalUrl(iframeUrl, [window.location.host])
+      if (!check.ok) { toast.error(check.error); return }
+    }
     // Saving another type over stored content replaces it: ask first.
     if (existingId && storedType && storedType !== selectedType) {
       const ok = await confirmDialog({
@@ -245,6 +255,7 @@ export default function ContentEditor({ screenId, section, selectedType, onClose
             {selectedType==='BIRTHDAYS'     && <BirthdayContentForm settings={asSettings<BirthdaySettings>(DEFAULT_BIRTHDAY)} onSettings={patchSettings}/>}
             {selectedType==='EVENTS'        && <EventsContentForm settings={asSettings<EventSettings>(DEFAULT_EVENT)} onSettings={patchSettings}/>}
             {selectedType==='TIMETABLE'     && <TimetableContentForm settings={asSettings<TimetableSettings>(DEFAULT_TIMETABLE)} onSettings={patchSettings}/>}
+            {selectedType==='IFRAME'        && <IframeContentForm url={iframeUrl} onChange={url => patchSettings({ url } as unknown as ContentSettings)}/>}
             {selectedType!=='ANNOUNCEMENT' && <SchedulingPanel values={schedulingFrom(item)} onChange={patchSchedule}/>}
           </>
         )}

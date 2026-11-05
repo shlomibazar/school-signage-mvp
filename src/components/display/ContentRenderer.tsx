@@ -1,5 +1,6 @@
 'use client'
 import WebtopTimetable from './WebtopTimetable'
+import IframeContent from './IframeContent'
 import { youtubeId } from '@/lib/youtubeVideo'
 import { cleanAnnouncementHtml } from '@/lib/announcementRichText'
 import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from 'react'
@@ -22,6 +23,7 @@ export default function ContentRenderer({item,offline=false,screenId}:{item:Cont
     case 'TIMETABLE':     return <TimetableContent item={item} offline={offline} screenId={screenId}/>
     case 'RSS_FEED':      return <RssContent item={item}/>
     case 'VIDEO':         return offline ? <OfflineMedia /> : <VideoContent item={item}/>
+    case 'IFRAME':        return offline ? <OfflineMedia /> : <IframeContent item={item}/>
     default: return <div className="w-full h-full flex items-center justify-center text-white/30 text-sm">{item.contentType}</div>
   }
 }

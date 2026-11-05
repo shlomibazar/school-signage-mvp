@@ -247,9 +247,9 @@ export default function ScreenLayoutEditor({ screen, layout: initLayout, section
                     return (
                       <button type="button" key={s.id} role="radio" aria-checked={on} tabIndex={on ? 0 : -1} onClick={() => setRegion(i)}
                         aria-label={`אזור ${i + 1}: ${type === 'EMPTY' ? 'ריק' : contentTypeLabel(type)}${draftDirty[s.id] ? ', תוכן לא נשמר' : ''}`}
-                        className={cn('ui-focus relative flex min-h-[52px] min-w-0 items-center gap-2 rounded-ui-sm border px-2.5 py-2 text-right transition-colors',
+                        className={cn('ui-focus relative flex min-h-[52px] min-w-0 items-center gap-2 rounded-ui-sm border px-2 py-2 text-right transition-colors sm:px-2.5',
                           on ? 'border-ui-primary bg-ui-primary-soft' : 'border-ui-border hover:bg-ui-subtle')}>
-                        <span className={cn('grid h-7 w-7 shrink-0 place-items-center rounded-md text-xs font-bold', on ? 'bg-ui-primary text-white' : 'bg-ui-subtle text-ui-ink-2')}>{i + 1}</span>
+                        <span className={cn('hidden h-7 w-7 shrink-0 place-items-center rounded-md text-xs font-bold sm:grid', on ? 'bg-ui-primary text-white' : 'bg-ui-subtle text-ui-ink-2')}>{i + 1}</span>
                         <span className="min-w-0">
                           <span className="block truncate text-[13px] font-semibold text-ui-ink">אזור {i + 1}</span>
                           <span className="flex items-center gap-1 truncate text-[11.5px] text-ui-muted">{Icon && <Icon className="h-3 w-3 shrink-0" aria-hidden="true" />}{type === 'EMPTY' ? 'ריק' : contentTypeLabel(type)}</span>

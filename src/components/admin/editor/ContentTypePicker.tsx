@@ -1,7 +1,7 @@
 'use client'
 import { useId, useRef, useState } from 'react'
 import {
-  Images, Megaphone, CalendarClock, Cake, Type, Video, Rss, CalendarDays, Clock, CalendarRange, CloudSun, ChevronDown,
+  Images, Megaphone, CalendarClock, Cake, Type, Video, Rss, CalendarDays, Clock, CalendarRange, CloudSun, ChevronDown, Globe,
 } from 'lucide-react'
 import type { ContentType } from '@/types'
 import { offeredContentTypes, type ContentTypeInfo } from '@/lib/contentTypes'
@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 
 export const CONTENT_ICONS: Record<ContentTypeInfo['type'], React.ComponentType<{ className?: string }>> = {
   IMAGE_GALLERY: Images, ANNOUNCEMENT: Megaphone, TIMETABLE: CalendarClock, BIRTHDAYS: Cake, TEXT: Type,
-  VIDEO: Video, RSS_FEED: Rss, EVENTS: CalendarDays, CLOCK: Clock, DATE: CalendarRange, WEATHER: CloudSun,
+  VIDEO: Video, RSS_FEED: Rss, EVENTS: CalendarDays, CLOCK: Clock, DATE: CalendarRange, WEATHER: CloudSun, IFRAME: Globe,
 }
 
 // The content-type choice of one region: cards with an icon, a label and a short description, as a

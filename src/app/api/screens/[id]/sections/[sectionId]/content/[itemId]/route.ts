@@ -9,6 +9,7 @@ import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { toISOStringOrNull } from '@/lib/utils'
 import { galleryBelongsToSchool, contentSettingsBelongToSchool } from '@/lib/schoolScope'
+import { validateExternalUrl, requestHosts } from '@/lib/externalUrlServer'
 
 function apiError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status })
@@ -89,6 +90,12 @@ export async function PUT(
     // Folder, image and announcement ids in settings must also belong to the screen's school.
     if (!(await contentSettingsBelongToSchool(parsed.settings as Record<string, unknown> | null | undefined, existing.section.screen.schoolId)))
       return apiError('Invalid content references', 400)
+    // An "אתר חיצוני" item keeps only a checked URL, also when updated here.
+    if (existing.contentType === 'IFRAME' && parsed.settings !== undefined) {
+      const check = await validateExternalUrl(parsed.settings?.url, requestHosts(req.headers))
+      if (!check.ok) return apiError(check.error, 400)
+      parsed.settings = { url: check.url }
+    }
 
     const data: Record<string, unknown> = {}
     if (parsed.active          !== undefined) data.active          = parsed.active

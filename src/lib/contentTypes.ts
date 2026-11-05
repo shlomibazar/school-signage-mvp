@@ -19,6 +19,7 @@ export const CONTENT_TYPES: ContentTypeInfo[] = [
   { type: 'TEXT', label: 'טקסט', description: 'טקסט חופשי בגודל ובצבע לבחירה', category: 'main' },
   { type: 'VIDEO', label: 'וידאו', description: 'סרטון מקישור', category: 'main' },
   { type: 'RSS_FEED', label: 'חדשות RSS', description: 'כותרות מפיד חדשות', category: 'main' },
+  { type: 'IFRAME', label: 'אתר חיצוני', description: 'דף אינטרנט מאובטח (https) בתוך האזור', category: 'main' },
   { type: 'EVENTS', label: 'אירועים', description: 'אירוע קרוב עם תאריך ומיקום', category: 'more' },
   { type: 'CLOCK', label: 'שעון', description: 'שעון גדול', category: 'legacy' },
   { type: 'DATE', label: 'תאריך', description: 'תאריך עברי ולועזי', category: 'legacy' },

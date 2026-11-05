@@ -5,6 +5,7 @@ import { errorResponse, HttpError } from '@/lib/apiErrors'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
+import { validateExternalUrl, requestHosts } from '@/lib/externalUrlServer'
 import { toISOStringOrNull } from '@/lib/utils'
 import { Prisma } from '@prisma/client'
 import { galleryBelongsToSchool, contentSettingsBelongToSchool } from '@/lib/schoolScope'
@@ -39,7 +40,7 @@ const ContentSchema = z.object({
   contentType: z.enum([
     'TEXT', 'IMAGE_GALLERY', 'VIDEO', 'CLOCK', 'DATE',
     'WEATHER', 'RSS_FEED', 'TIMETABLE', 'EVENTS',
-    'BIRTHDAYS', 'ANNOUNCEMENT', 'EMPTY',
+    'BIRTHDAYS', 'ANNOUNCEMENT', 'IFRAME', 'EMPTY',
   ]),
   active:          z.boolean().default(true),
   startDate:       dateField,
@@ -133,6 +134,13 @@ export async function POST(
     // Folder, image and announcement ids in settings must also belong to the screen's school.
     if (!(await contentSettingsBelongToSchool(parsed.settings, section.screen.schoolId)))
       return apiError('Invalid content references', 400)
+    // "אתר חיצוני": the URL is checked here (https, public host, not this app) and is the only
+    // setting stored; nothing else of the request's settings is kept for this type.
+    if (parsed.contentType === 'IFRAME') {
+      const check = await validateExternalUrl(parsed.settings?.url, requestHosts(req.headers))
+      if (!check.ok) return apiError(check.error, 400)
+      parsed.settings = { url: check.url }
+    }
 
     const fields = {
       contentType:     parsed.contentType,

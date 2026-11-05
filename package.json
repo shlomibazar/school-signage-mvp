@@ -19,7 +19,8 @@
     "test:qa:permissions": "node scripts/qa/screen-permissions.mjs",
     "test:qa:dashboard": "node scripts/qa/dashboard.mjs",
     "test:qa:settings": "node scripts/qa/settings.mjs",
-    "test:qa:editor": "node scripts/qa/editor.mjs"
+    "test:qa:editor": "node scripts/qa/editor.mjs",
+    "test:qa:iframe": "node scripts/qa/iframe.mjs"
   },
   "dependencies": {
     "@prisma/client": "^5.15.0",

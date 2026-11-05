@@ -15,7 +15,7 @@ const labels: Record<string, string> = {
   IMAGE_GALLERY: 'גלריית תמונות', EVENTS: 'אירועים', RSS_FEED: 'חדשות',
   TEXT: 'טקסט', ANNOUNCEMENTS: 'הודעות', ANNOUNCEMENT: 'הודעות',
   GALLERY: 'גלריית תמונות', TIMETABLE: 'שינויי מערכת', SCHEDULE_CHANGES: 'שינויי מערכת',
-  WEATHER: 'מזג אוויר', RSS: 'חדשות', VIDEO: 'וידאו', BIRTHDAYS: 'ימי הולדת', EMPTY: 'אזור ריק',
+  WEATHER: 'מזג אוויר', RSS: 'חדשות', VIDEO: 'וידאו', BIRTHDAYS: 'ימי הולדת', IFRAME: 'אתר חיצוני', EMPTY: 'אזור ריק',
 }
 
 /** Static, server-rendered summary of the saved layout. No iframe, animation or browser capture. */

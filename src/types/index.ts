@@ -2,7 +2,7 @@ export type Role = 'SUPER_ADMIN'|'SCHOOL_ADMIN'|'EDITOR'|'VIEWER'
 export type Orientation = 'LANDSCAPE'|'PORTRAIT'
 export type Priority = 'LOW'|'MEDIUM'|'HIGH'|'EMERGENCY'
 export type MediaType = 'IMAGE'|'VIDEO'
-export type ContentType = 'TEXT'|'IMAGE_GALLERY'|'VIDEO'|'CLOCK'|'DATE'|'WEATHER'|'RSS_FEED'|'TIMETABLE'|'EVENTS'|'BIRTHDAYS'|'ANNOUNCEMENT'|'EMPTY'
+export type ContentType = 'TEXT'|'IMAGE_GALLERY'|'VIDEO'|'CLOCK'|'DATE'|'WEATHER'|'RSS_FEED'|'TIMETABLE'|'EVENTS'|'BIRTHDAYS'|'ANNOUNCEMENT'|'IFRAME'|'EMPTY'
 export type DateType = 'HEBREW'|'GREGORIAN'|'BOTH'
 
 export interface AuthUser { id:string; email:string; name:string; role:Role; schoolId:string|null }
