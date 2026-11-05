@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
-import { readXlsx, XlsxError, XLSX_LIMITS, isDateFormat } from '@/lib/people/import/xlsx'
+import { readXlsx, readXlsxAsync, XlsxError, XLSX_LIMITS, isDateFormat } from '@/lib/people/import/xlsx'
 import { detectColumns, validateMapping, fieldForHeader } from '@/lib/people/import/columns'
 import { idOf, dateOf, serialToDate } from '@/lib/people/import/cells'
 import { buildRows, canonicalClass } from '@/lib/people/import/rows'
@@ -170,6 +170,21 @@ test('malformed XML fails fast (linear scanning, no backtracking over the part)'
     assert.throws(() => readXlsx(oneSheet(xml, [...extra])), XlsxError, label)
     assert.ok(performance.now() - t < 2000, `${label}: ${Math.round(performance.now() - t)} ms`)
   }
+})
+
+test('async reading gives the event loop back (TV requests keep being served) and reads the same', async () => {
+  const rows = Array.from({ length: 5000 }, (_, r) => Array.from({ length: 40 }, (_, c) => (r === 0 ? `כותרת${c}` : `ערך ${r}-${c}`)))
+  const big = workbook([{ name: 'א', rows }, { name: 'ב', rows }])
+  let maxGap = 0, last = performance.now()
+  const timer = setInterval(() => { const now = performance.now(); maxGap = Math.max(maxGap, now - last); last = now }, 1)
+  const t = performance.now()
+  const wb = await readXlsxAsync(big)
+  const total = performance.now() - t
+  clearInterval(timer)
+  assert.ok(total > 200, `the file is large enough to matter (${Math.round(total)} ms)`)
+  // Synchronous reading would hold the event loop for the whole parse.
+  assert.ok(maxGap < 500 && maxGap < total / 3, `longest pause of the event loop: ${Math.round(maxGap)} ms of ${Math.round(total)} ms`)
+  assert.deepEqual(wb, readXlsx(big))
 })
 
 test('row limit: content past it is reported (never silently dropped); empty formatted rows are ignored', () => {

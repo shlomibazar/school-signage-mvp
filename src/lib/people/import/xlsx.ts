@@ -17,8 +17,9 @@ export class XlsxError extends Error {}
 export const XLSX_LIMITS = {
   fileBytes: 5 * 1024 * 1024,
   entries: 400,
-  entryBytes: 16 * 1024 * 1024,
-  totalBytes: 40 * 1024 * 1024,
+  // A 3,000-row export with 60 columns is about 5–13MB of sheet XML; anything beyond costs memory and CPU only.
+  entryBytes: 12 * 1024 * 1024,
+  totalBytes: 24 * 1024 * 1024,
   sheets: 30,
   rows: 5_000, // worksheet row numbers; an import holds at most 3,000 data rows
   columns: 60,
@@ -96,7 +97,8 @@ const MALFORMED = 'הקובץ פגום או אינו קובץ Excel תקין.'
 function prepareXml(xml: string): string {
   if (/<!(?:DOCTYPE|ENTITY)/i.test(xml)) throw new XlsxError('הקובץ מכיל הגדרות XML שאינן נתמכות. שמרו אותו מחדש ב־Excel ונסו שוב.')
   // <x:row> (OpenXML SDK and other generators) → <row>; attributes such as r:id are left untouched.
-  return xml.replace(/<(\/?)[A-Za-z_][\w.-]*:(?=[A-Za-z_])/g, '<$1')
+  const prefixed = /<(\/?)[A-Za-z_][\w.-]*:(?=[A-Za-z_])/
+  return prefixed.test(xml) ? xml.replace(new RegExp(prefixed.source, 'g'), '<$1') : xml
 }
 
 type El = { attrs: string; body: string }
@@ -195,11 +197,18 @@ const colIndex = (ref: string) => {
   return n - 1
 }
 
-function readSheet(xml: string, shared: string[], styles: (string | null)[]): { rows: (Cell | undefined)[][]; truncated: boolean } {
+// Parsing is written as generators that yield at regular points ("steps"): readXlsx runs them to the
+// end at once, readXlsxAsync gives the event loop back every few milliseconds, so a large file never
+// stops the server from answering other requests (TV screens) while it is read.
+type Steps<T> = Generator<void, T, void>
+const STEP_ROWS = 50
+
+function* readSheet(xml: string, shared: string[], styles: (string | null)[]): Steps<{ rows: (Cell | undefined)[][]; truncated: boolean }> {
   const rows: (Cell | undefined)[][] = []
-  let truncated = false
+  let truncated = false, n = 0
   const data = elements(xml, 'sheetData').next().value?.body ?? ''
   for (const rm of elements(data, 'row')) {
+    if (++n % STEP_ROWS === 0) yield
     const r = Number(attr(rm.attrs, 'r') ?? rows.length + 1) - 1
     if (!Number.isInteger(r) || r < 0) continue
     const cells = readRow(rm.body, shared, styles)
@@ -241,8 +250,29 @@ function readRow(rowXml: string, shared: string[], styles: (string | null)[]): (
   return cells
 }
 
+type ReadOptions = { onlySheet?: number }
+
 /** Reads the worksheets of an .xlsx file (cell values only); with `onlySheet`, the other sheets are listed by name only. */
-export function readXlsx(buf: Buffer, opts: { onlySheet?: number } = {}): Workbook {
+export function readXlsx(buf: Buffer, opts: ReadOptions = {}): Workbook {
+  const steps = workbookSteps(buf, opts)
+  for (;;) { const r = steps.next(); if (r.done) return r.value }
+}
+
+/** As readXlsx, giving the event loop back at least every `sliceMs` milliseconds of work. */
+export async function readXlsxAsync(buf: Buffer, opts: ReadOptions = {}, sliceMs = 10): Promise<Workbook> {
+  const steps = workbookSteps(buf, opts)
+  let start = performance.now()
+  for (;;) {
+    const r = steps.next()
+    if (r.done) return r.value
+    if (performance.now() - start >= sliceMs) {
+      await new Promise<void>(resolve => setImmediate(resolve))
+      start = performance.now()
+    }
+  }
+}
+
+function* workbookSteps(buf: Buffer, opts: ReadOptions): Steps<Workbook> {
   if (buf.length > XLSX_LIMITS.fileBytes) throw new XlsxError('הקובץ גדול מדי (עד 5MB).')
   const entries = zipEntries(buf)
   if ([...entries.keys()].some(n => /vbaProject\.bin$/i.test(n))) throw new XlsxError('קבצים עם מאקרו (xlsm) אינם נתמכים. שמרו כ־xlsx רגיל ונסו שוב.')
@@ -261,7 +291,8 @@ export function readXlsx(buf: Buffer, opts: { onlySheet?: number } = {}): Workbo
   }
   const sharedXml = part('xl/sharedStrings.xml')
   const shared: string[] = []
-  if (sharedXml) for (const si of elements(sharedXml, 'si')) shared.push(texts(si.body))
+  if (sharedXml) for (const si of elements(sharedXml, 'si')) { shared.push(texts(si.body)); if (shared.length % 500 === 0) yield }
+  yield
   const styles = readStyles(part('xl/styles.xml'))
   const pr = elements(workbook, 'workbookPr').next().value
   const date1904 = !!pr && ['1', 'true'].includes(attr(pr.attrs, 'date1904') ?? '')
@@ -279,7 +310,8 @@ export function readXlsx(buf: Buffer, opts: { onlySheet?: number } = {}): Workbo
     const wanted = opts.onlySheet === undefined || opts.onlySheet === sheets.length
     const xml = target && wanted ? part(target) : null
     if (!xml) { sheets.push({ name, rows: [], truncated: false }); continue }
-    sheets.push({ name, ...readSheet(xml, shared, styles) })
+    yield
+    sheets.push({ name, ...(yield* readSheet(xml, shared, styles)) })
   }
   return { sheets, date1904 }
 }

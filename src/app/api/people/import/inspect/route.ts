@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     peopleSchoolId(user)
     if (await peopleImportBlocked(user.id)) return peopleJson({ error: 'יותר מדי בקשות ייבוא בזמן קצר. נסו שוב בעוד כמה דקות.' }, 429)
     const { buf, kind } = await readImportForm(req)
-    return peopleJson({ data: inspectFile(buf, kind) })
+    return peopleJson({ data: await inspectFile(buf, kind) })
   } catch (e) {
     return peopleError(e, 'People import inspect')
   }

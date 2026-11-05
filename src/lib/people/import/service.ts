@@ -5,7 +5,7 @@ import { HttpError } from '@/lib/apiErrors'
 import { identityKeyFor, identityHintFor, sourceRecordKey, IDENTITY_KEY_VERSION, IdentityError } from '../identity'
 import { formatDateOnly, parseDateOnly } from '../birthdays'
 import type { CoreFields } from '../sourcePrecedence'
-import { readXlsx, type Workbook } from './xlsx'
+import { readXlsxAsync, type Workbook } from './xlsx'
 import { detectColumns, validateMapping, type ImportKind } from './columns'
 import { buildRows, type ImportIssue } from './rows'
 import { planImport, planHash, summarize, STATUS_LABELS, type ExistingPerson, type PlannedRow, type RoleFields, type RowStatus } from './plan'
@@ -46,8 +46,34 @@ function keysFor(schoolId: string, normalizedId: string) {
   }
 }
 
-function parseWorkbook(buf: Buffer, onlySheet?: number): Workbook {
-  return readXlsx(buf, { onlySheet })
+// One file is parsed at a time in this server process: parsing needs memory in proportion to the file
+// (up to ~150MB for the largest permitted one), and the free instance has 512MB in all. A request that
+// finds the slot taken waits its turn, up to PARSE_WAIT_MS, then gets a "busy" answer.
+const PARSE_WAIT_MS = 20_000
+let parseQueue: Promise<unknown> = Promise.resolve()
+let parsePending = 0
+const MAX_PARSE_PENDING = 4
+
+async function parseWorkbook(buf: Buffer, onlySheet?: number): Promise<Workbook> {
+  if (parsePending >= MAX_PARSE_PENDING) throw new HttpError(503, 'המערכת מעבדת כרגע קבצים אחרים. נסו שוב בעוד דקה.')
+  parsePending++
+  const turn = parseQueue
+  let release!: () => void
+  parseQueue = new Promise<void>(r => { release = r })
+  try {
+    let timer: NodeJS.Timeout | undefined
+    const waited = await Promise.race([
+      turn.then(() => true, () => true),
+      new Promise<false>(r => { timer = setTimeout(() => r(false), PARSE_WAIT_MS) }),
+    ])
+    clearTimeout(timer)
+    if (!waited) throw new HttpError(503, 'המערכת מעבדת כרגע קובץ אחר. נסו שוב בעוד דקה.')
+    return await readXlsxAsync(buf, { onlySheet })
+  } finally {
+    parsePending--
+    // A request that gave up still releases its place only after the one before it finished.
+    void turn.then(release, release)
+  }
 }
 
 const APPLY_TIMEOUT_MS = 120_000
@@ -76,8 +102,8 @@ export async function cleanupImports(now = new Date()) {
 }
 
 /** Sheets, header rows and the detected column mapping. Nothing is stored. */
-export function inspectFile(buf: Buffer, kind: ImportKind) {
-  const wb = parseWorkbook(buf)
+export async function inspectFile(buf: Buffer, kind: ImportKind) {
+  const wb = await parseWorkbook(buf)
   return {
     sheets: wb.sheets.map((s, index) => {
       const c = detectColumns(s, kind)
@@ -120,7 +146,7 @@ function previewRows(rows: StoredRow[], plan: PlannedRow[]): PreviewRow[] {
 /** Parses, validates and plans an import, and stores it for confirmation. No person is changed. */
 export async function createPreview(input: { schoolId: string; userId: string; kind: ImportKind; fileName: string; buf: Buffer; sheetIndex: number; mapping: unknown }): Promise<ImportPreview> {
   const { schoolId, kind } = input
-  const wb = parseWorkbook(input.buf, input.sheetIndex)
+  const wb = await parseWorkbook(input.buf, input.sheetIndex)
   const sheet = wb.sheets[input.sheetIndex]
   if (!sheet) throw new HttpError(400, 'הגיליון שנבחר אינו קיים בקובץ')
   if (sheet.truncated) throw new HttpError(400, 'בגיליון יש נתונים מעבר לשורה 5000. פצלו את הקובץ לכמה קבצים (עד 3000 שורות בכל אחד).')
