@@ -103,6 +103,11 @@ export async function GET(
     if (extension === '.svg' || extension === '.pdf') {
       headers.set('Content-Disposition', 'attachment')
     }
+    // An SVG opened as a document (not as an <img>) never runs scripts on this origin, even if a
+    // browser ignored the attachment disposition (e.g. a framed page redirected here).
+    if (extension === '.svg') {
+      headers.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox")
+    }
 
     const range = req.headers.get('range')
     let start = 0
