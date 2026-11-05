@@ -96,6 +96,7 @@ model School {
   people        Person[]
   personSources PersonSource[]
   personAudit   PersonAuditEvent[]
+  personImports PersonImport[]
 
   @@map("schools")
 }
@@ -463,6 +464,8 @@ model PersonSource {
   status         PersonSourceStatus @default(ACTIVE)
   lastSeenAt     DateTime?
   lastImportedAt DateTime?
+  /// The import (person_imports.id) that last saw this record, for Excel and other batch sources.
+  lastImportId   String?
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
 
@@ -499,4 +502,39 @@ model PersonAuditEvent {
   @@index([schoolId, createdAt])
   @@index([personId, createdAt])
   @@map("person_audit_events")
+}
+
+enum PersonImportStatus {
+  PREVIEWED
+  APPLYING
+  APPLIED
+  FAILED
+  EXPIRED
+}
+
+/// One spreadsheet import: created by the preview, applied once after confirmation, then kept as a
+/// record of the batch. rows holds the normalized rows needed to apply it (keyed identities only —
+/// never raw identifiers) and is cleared when the import is applied, cancelled or expired.
+model PersonImport {
+  id          String             @id @default(cuid())
+  schoolId    String
+  school      School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  createdById String
+  kind        PersonRoleType
+  status      PersonImportStatus @default(PREVIEWED)
+  fileName    String
+  fileSha256  String
+  sheetName   String
+  rows        Json?
+  planHash    String
+  summary     Json
+  error       String?
+  expiresAt   DateTime
+  appliedAt   DateTime?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([schoolId, createdAt])
+  @@index([schoolId, fileSha256])
+  @@map("person_imports")
 }

@@ -1,9 +1,9 @@
 'use client'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
-import { Plus, Search, Pencil, Power, ChevronRight, ChevronLeft, GraduationCap, Users, Cake, AlertCircle, Loader2 } from 'lucide-react'
+import { Plus, Search, Pencil, Power, ChevronRight, ChevronLeft, GraduationCap, Users, Cake, AlertCircle, Loader2, FileSpreadsheet } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
-import { Button } from '@/components/ui/Button'
+import { Button, ButtonLink } from '@/components/ui/Button'
 import { Badge, EmptyState } from '@/components/ui/Display'
 import { Input, Select } from '@/components/ui/Field'
 import { confirmDialog } from '@/components/ui/ConfirmHost'
@@ -104,9 +104,12 @@ export default function BirthdaysManager() {
             )
           })}
         </div>
-        <Button variant="primary" icon={<Plus className="h-4 w-4" aria-hidden="true" />} onClick={() => setDialog({ mode: 'add' })}>
-          הוספת {students ? 'תלמיד' : 'מורה'}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <ButtonLink href="/admin/birthdays/import" icon={<FileSpreadsheet className="h-4 w-4" aria-hidden="true" />}>ייבוא מאקסל</ButtonLink>
+          <Button variant="primary" icon={<Plus className="h-4 w-4" aria-hidden="true" />} onClick={() => setDialog({ mode: 'add' })}>
+            הוספת {students ? 'תלמיד' : 'מורה'}
+          </Button>
+        </div>
       </div>
 
       <Card id="people-panel" role="tabpanel" aria-labelledby={`people-tab-${role}`} className="overflow-hidden">
