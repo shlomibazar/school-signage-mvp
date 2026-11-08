@@ -149,14 +149,20 @@ try {
   // ── Public screens and existing birthday content ───────────────────────────────────────────
   const scr = await db.screen.create({ data: { schoolId: ids.schoolA, name: `${TAG} screen`, slug: `qap-${Date.now()}`, layout: { create: { headerEnabled: true, footerEnabled: true, mainSections: 1, footerShowBirthdays: true } }, sections: { create: [{ position: 0, widthPct: 100 }] } }, include: { sections: true } })
   created.screen = scr.id
+  // Birthday regions take people from the central registry: names/classes/dates typed into a save
+  // request are not stored (only display settings). Cards saved before the registry still render.
   const bd = await call(A, `/api/screens/${scr.id}/sections/${scr.sections[0].id}/content`, 'POST', { contentType: 'BIRTHDAYS', settings: { personName: 'דני', grade: 'ה׳', birthDate: '2015-04-12', greetingText: 'מזל טוב' } })
-  t('existing birthday content type still saves (with its stored birth date)', [200, 201].includes(bd.s) && (await db.contentItem.findFirst({ where: { sectionId: scr.sections[0].id } })).settings?.birthDate === '2015-04-12', bd.text)
+  const saved = (await db.contentItem.findFirst({ where: { sectionId: scr.sections[0].id } })).settings
+  t('birthday region saves display settings only (no manually typed person or birth date)', [200, 201].includes(bd.s) && saved?.mode === 'registry' && !('personName' in saved) && !('birthDate' in saved), bd.text)
+  // An existing legacy card, as stored before the registry (never re-saved since).
+  await db.contentItem.updateMany({ where: { sectionId: scr.sections[0].id }, data: { settings: { personName: 'דני', grade: 'ה׳', birthDate: '2015-04-12', greetingText: 'מזל טוב' } } })
   const tv = await call(null, `/screen/${scr.slug}`)
   t('TV page renders existing birthday content (name, class, greeting)', tv.s === 200 && tv.text.includes('דני') && tv.text.includes('מזל טוב'))
   t('TV page payload: no birth date or year of the legacy card', !tv.text.includes('2015-04-12') && !tv.text.includes('birthDate') && !tv.text.includes('2015'))
   const adminRead = await call(A, `/api/screens/${scr.id}/sections/${scr.sections[0].id}/content`)
   t('…while the editor (signed in) still gets the stored value', adminRead.j?.data?.settings?.birthDate === '2015-04-12')
-  t('TV page exposes none of the new person records', !tv.text.includes(TAG + 'נועה') && !tv.text.includes('identityHint') && !tv.text.includes(RAW_ID))
+  // (QAP people are born on 1.3; on that day the footer would rightly list the first name.)
+  t('TV page exposes no identity data of person records', !tv.text.includes('identityHint') && !tv.text.includes('identityKey') && !tv.text.includes(RAW_ID) && !tv.text.includes('2011-03-01'))
 } catch (e) {
   t('no unexpected error', false, e?.stack || String(e))
 } finally {

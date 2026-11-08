@@ -12,6 +12,9 @@ import { unifiedPalette } from '@/lib/unifiedPalette'
 import { getDisplayTemplate, getTemplateWidths, getDisplaySurface, isStackedLayout } from '@/lib/displayTemplates'
 import { resolveActiveContent } from '@/lib/scheduling'
 import ContentRenderer from '@/components/display/ContentRenderer'
+import type { ContentItem } from '@/types'
+import { isLegacyBirthdayCard, normalizeBirthdayConfig, birthdayTickerText, footerBirthdayConfig } from '@/lib/birthdayDisplay'
+import { useBirthdayPreview } from './content-forms/useBirthdayPreview'
 
 // The TV CSS sizes chrome and gaps with vw/vh, which inside the editor would refer to the
 // admin window. These mirror those clamp() rules for the preview's real reference canvas.
@@ -139,7 +142,7 @@ export default function ScreenPreview({ screen, layout, sections, zoom = 'fit', 
               const item=(now ? resolveActiveContent(activeItems,now) : activeItems[0]) ?? section.contentItems[0]
               return <div key={section.id} className={`${stacked ? 'w-full min-h-0' : 'h-full min-w-0'} overflow-hidden tv-content-panel`} style={{position:'relative',flex:`${templateWidths[i] ?? section.widthPct} ${templateWidths[i] ?? section.widthPct} 0%`}}>
                 {item && item.contentType !== 'EMPTY' ? (
-                  <ContentRenderer key={`${section.id}-${item.id}-${item.contentType}`} item={item} />
+                  <PreviewContent key={`${section.id}-${item.id}-${item.contentType}`} item={item} screenId={screen.id} />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center opacity-50" style={{fontSize:30}}>בחר תוכן לאזור זה</div>
                 )}
@@ -154,11 +157,31 @@ export default function ScreenPreview({ screen, layout, sections, zoom = 'fit', 
           {layout.footerEnabled && <div className={`absolute bottom-0 w-full border-t flex items-center justify-between ${broadcast ? 'tv-preview-broadcast-footer' : ''}`} style={{height:footerPx,paddingInline:58,gap:30,background:footerBg,color:footerInk,borderColor:unified ? 'transparent' : selectedTheme.border}}>
             {/* The TV paints every footer element with the footer ink, including the clock. */}
             {layout.footerShowSchoolName && <span className="shrink-0 font-semibold" style={{fontSize:24}}>{screen.name}</span>}
-            <span className="min-w-0 flex-1 truncate text-center" style={{fontSize:25}}>{layout.footerFeedMode === 'rss' ? '📰 כותרות RSS בגלילה' : layout.footerFeedMode === 'both' ? `${layout.footerTicker ?? ''}  ✦  📰 כותרות RSS בגלילה` : (layout.footerTicker ?? '')}</span>
+            <PreviewTicker layout={layout} screenId={screen.id} />
             {layout.footerShowClock && <span className="shrink-0 tabular-nums" style={{fontSize:25}}>{hh}:{mm}</span>}
           </div>}
         </div>
       </div>
     </div>
   )
+}
+
+// A region as the TV shows it. "ימי הולדת" regions get the list the public screen would receive now
+// (fetched for the editor with the draft's settings, same public projection as the TV).
+function PreviewContent({ item, screenId }: { item: ContentItem; screenId: string }) {
+  const registry = item.contentType === 'BIRTHDAYS' && !isLegacyBirthdayCard(item.settings)
+  const { list } = useBirthdayPreview(registry ? screenId : null, registry ? normalizeBirthdayConfig(item.settings) : null, 150)
+  if (!registry) return <ContentRenderer item={item} />
+  return <ContentRenderer item={{ ...item, settings: { ...(item.settings as object), list } as ContentItem['settings'] }} />
+}
+
+// The footer text in the same order as the TV: birthdays (when on and not empty), then the school's
+// messages and/or the RSS placeholder of the feed mode.
+function PreviewTicker({ layout, screenId }: { layout: ScreenLayout; screenId: string }) {
+  const config = layout.footerShowBirthdays ? footerBirthdayConfig(layout) : null
+  const { list } = useBirthdayPreview(config ? screenId : null, config, 150)
+  const birthdays = config ? birthdayTickerText(list, config.period) : ''
+  const mode = layout.footerFeedMode ?? 'manual'
+  const parts = [birthdays, mode !== 'rss' ? layout.footerTicker?.trim() ?? '' : '', mode !== 'manual' ? '📰 כותרות RSS בגלילה' : ''].filter(Boolean)
+  return <span className="min-w-0 flex-1 truncate text-center" style={{fontSize:25}}>{parts.join('  ✦  ')}</span>
 }

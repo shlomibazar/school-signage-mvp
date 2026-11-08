@@ -27,6 +27,7 @@ import { setDraftDirty, confirmDiscardDraft } from '@/lib/unsavedChanges'
 import { announcementIdsOf } from '@/lib/announcementMerge'
 import { contentTypeLabel } from '@/lib/contentTypes'
 import { confirmDialog } from '@/components/ui/ConfirmHost'
+import { DEFAULT_BIRTHDAY_REGION } from '@/lib/birthdayDisplay'
 
 const DEFAULT_CLOCK:        ClockSettings               = { hourFormat: '24', showSeconds: false }
 const DEFAULT_DATE:         DateSettings                = { dateFormat: 'full', locale: 'he' }
@@ -34,7 +35,7 @@ const DEFAULT_RSS:          RssSettings                 = { refreshInterval: 15,
 const DEFAULT_VIDEO:        VideoSettings               = { showControls: false }
 const DEFAULT_GALLERY:      GallerySettings             = { showCaptions: true, showDots: true, imageIds: [], folderIds: [], imageFit: "contain", displayMode: "slideshow", imageOrder: "random", showGallery: true, showSectionTitle: true, sectionTitle: "גלריית תמונות", sectionTitleSize: "normal" }
 const DEFAULT_ANNOUNCEMENT: AnnouncementContentSettings = { title: '', priority: 'info', style: 'banner', icon: '📢', items: [], rotationSecs: 10, showSectionTitle: true, sectionTitle: 'הודעות כלליות', sectionTitleSize: 'normal' }
-const DEFAULT_BIRTHDAY:     BirthdaySettings            = { personName: '', grade: '', birthDate: '', greetingText: 'יום הולדת שמח! 🎂' }
+const DEFAULT_BIRTHDAY:     BirthdaySettings            = { ...DEFAULT_BIRTHDAY_REGION }
 const DEFAULT_EVENT:        EventSettings               = { eventTitle: '', eventDate: '', eventTime: '', location: '', description: '' }
 const DEFAULT_TIMETABLE:    TimetableSettings           = { title: '', menuText: '', items: [] }
 
@@ -268,7 +269,7 @@ export default function ContentEditor({ screenId, section, selectedType, onClose
             {selectedType==='VIDEO'         && <VideoContentForm item={item} settings={asSettings<VideoSettings>(DEFAULT_VIDEO)} onChange={patchItem} onSettings={patchSettings}/>}
             {selectedType==='IMAGE_GALLERY' && <GalleryContentForm item={item} settings={asSettings<GallerySettings>(DEFAULT_GALLERY)} onChange={patchItem} onSettings={patchSettings}/>}
             {selectedType==='ANNOUNCEMENT'  && <AnnouncementContentForm settings={asSettings<AnnouncementContentSettings>(DEFAULT_ANNOUNCEMENT)} onSettings={patchSettings}/>}
-            {selectedType==='BIRTHDAYS'     && <BirthdayContentForm settings={asSettings<BirthdaySettings>(DEFAULT_BIRTHDAY)} onSettings={patchSettings}/>}
+            {selectedType==='BIRTHDAYS'     && <BirthdayContentForm screenId={screenId} settings={asSettings<BirthdaySettings>(DEFAULT_BIRTHDAY)} onSettings={s => patchSettings(s as ContentSettings)}/>}
             {selectedType==='EVENTS'        && <EventsContentForm settings={asSettings<EventSettings>(DEFAULT_EVENT)} onSettings={patchSettings}/>}
             {selectedType==='TIMETABLE'     && <TimetableContentForm settings={asSettings<TimetableSettings>(DEFAULT_TIMETABLE)} onSettings={patchSettings}/>}
             {selectedType==='IFRAME'        && <IframeContentForm url={iframeUrl} onChange={url => patchSettings({ url } as unknown as ContentSettings)}/>}

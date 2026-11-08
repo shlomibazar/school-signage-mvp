@@ -5,6 +5,8 @@ import { youtubeId } from '@/lib/youtubeVideo'
 import { cleanAnnouncementHtml } from '@/lib/announcementRichText'
 import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from 'react'
 import type { ContentItem,ClockSettings,DateSettings,AnnouncementContentSettings,SingleAnnouncement,BirthdaySettings,EventSettings,TimetableSettings,RssSettings,GallerySettings,RssFeedItem } from '@/types'
+import BirthdayBoard from './BirthdayBoard'
+import { isLegacyBirthdayCard } from '@/lib/birthdayDisplay'
 import { sanitizeHTML, formatHebrewDate, formatGregorianDate } from '@/lib/utils'
 import { displayImageUrl, backdropImageUrl, clientDpr, preloadImages } from '@/lib/imageDelivery'
 import { zonedParts, zonedCalendarDate, DEFAULT_TIME_ZONE } from '@/lib/zonedTime'
@@ -394,7 +396,10 @@ function AnnouncementContent({item,offline,screenId}:{item:ContentItem;offline:b
     </div>}
   </div>
 }
+// The central registry's birthdays (the server attaches the list), or a legacy single-person card
+// saved before the registry existed (rendered as before until it is re-saved in the editor).
 function BirthdayContent({item}:{item:ContentItem}){
+  if(!isLegacyBirthdayCard(item.settings))return <BirthdayBoard settings={item.settings} list={(item.settings as BirthdaySettings|null)?.list}/>
   const s=(item.settings??{}) as Partial<BirthdaySettings>
   return <div className="tv-birthday w-full h-full flex flex-col items-center justify-center text-center p-8" style={{color:'var(--tv-panel-ink, #edf5ff)'}}>
     <div className="tv-birthday-icon" style={{fontSize:64,marginBottom:16}}>🎂</div>

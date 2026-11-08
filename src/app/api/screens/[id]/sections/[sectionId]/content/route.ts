@@ -10,6 +10,7 @@ import { toISOStringOrNull } from '@/lib/utils'
 import { Prisma } from '@prisma/client'
 import { galleryBelongsToSchool, contentSettingsBelongToSchool } from '@/lib/schoolScope'
 import { editorAnnouncementSettings } from '@/lib/announcementMerge'
+import { normalizeBirthdayRegion } from '@/lib/birthdayDisplay'
 
 function apiError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status })
@@ -142,6 +143,10 @@ export async function POST(
       if (!check.ok) return apiError(check.error, 400)
       parsed.settings = { url: check.url }
     }
+    // "ימי הולדת": only the display settings are stored (audience, range, grades, name format, heading).
+    // The people come from the central registry; names, classes or dates typed into a request (or a
+    // legacy single-person card being re-saved) are never kept, nor a list attached for display.
+    if (parsed.contentType === 'BIRTHDAYS') parsed.settings = normalizeBirthdayRegion(parsed.settings)
 
     const fields = {
       contentType:     parsed.contentType,

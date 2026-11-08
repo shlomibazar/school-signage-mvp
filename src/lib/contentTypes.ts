@@ -15,7 +15,7 @@ export const CONTENT_TYPES: ContentTypeInfo[] = [
   { type: 'IMAGE_GALLERY', label: 'גלריית תמונות', description: 'תמונות וסרטונים מתיקיות בספריית המדיה', category: 'main' },
   { type: 'ANNOUNCEMENT', label: 'הודעות', description: 'הודעות בית הספר שהוקצו למסך', category: 'main' },
   { type: 'TIMETABLE', label: 'שינויי מערכת', description: 'שינויים במערכת השעות, לוח או תפריט', category: 'main' },
-  { type: 'BIRTHDAYS', label: 'ימי הולדת', description: 'ברכת יום הולדת', category: 'main' },
+  { type: 'BIRTHDAYS', label: 'ימי הולדת', description: 'ימי הולדת מהרשימה המרכזית', category: 'main' },
   { type: 'TEXT', label: 'טקסט', description: 'טקסט חופשי בגודל ובצבע לבחירה', category: 'main' },
   { type: 'VIDEO', label: 'וידאו', description: 'סרטון מקישור', category: 'main' },
   { type: 'RSS_FEED', label: 'חדשות RSS', description: 'כותרות מפיד חדשות', category: 'main' },

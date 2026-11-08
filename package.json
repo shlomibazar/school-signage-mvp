@@ -22,7 +22,8 @@
     "test:qa:editor": "node scripts/qa/editor.mjs",
     "test:qa:iframe": "node scripts/qa/iframe.mjs",
     "test:qa:people": "node scripts/qa/people.mjs",
-    "test:qa:people-import": "node scripts/qa/people-import.mjs"
+    "test:qa:people-import": "node scripts/qa/people-import.mjs",
+    "test:qa:birthday-display": "node scripts/qa/birthday-display.mjs"
   },
   "dependencies": {
     "@prisma/client": "^5.15.0",

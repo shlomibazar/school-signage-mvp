@@ -1,6 +1,10 @@
 'use client'
+import { useId } from 'react'
 import { Switch } from '@/components/ui/Switch'
 import type { ScreenLayout } from '@/types'
+import { footerBirthdayConfig, type BirthdayDisplayConfig } from '@/lib/birthdayDisplay'
+import { BirthdayDisplayFields, BirthdayPreviewSummary } from './content-forms/BirthdayContentForm'
+import { useBirthdayPreview } from './content-forms/useBirthdayPreview'
 
 interface Props { layout: ScreenLayout; onChange: (p: Partial<ScreenLayout>) => void }
 
@@ -71,7 +75,6 @@ export default function FooterEditor({ layout, onChange }: Props) {
           {[
             { key: 'footerShowSchoolName', label: 'הצג שם המסך' },
             { key: 'footerShowClock',      label: 'הצג שעון' },
-            { key: 'footerShowBirthdays',  label: '🎂 הצג ימי הולדת בגלילה' },
           ].map(item => (
             <div key={item.key} className="flex items-center justify-between">
               <span className="text-xs text-gray-700">{item.label}</span>
@@ -82,7 +85,36 @@ export default function FooterEditor({ layout, onChange }: Props) {
             </div>
           ))}
         </div>
+
+        <FooterBirthdays layout={layout} onChange={onChange} />
       </div>
+    </div>
+  )
+}
+
+// The birthday segment of the ticker: people from the central registry, by audience, range and grade.
+// Independent of birthday regions; shown before the school's messages and RSS headlines, never
+// replacing them, and left out entirely when nobody has a birthday in the range.
+function FooterBirthdays({ layout, onChange }: Props) {
+  const id = useId()
+  const on = !!layout.footerShowBirthdays
+  const config = footerBirthdayConfig(layout)
+  const preview = useBirthdayPreview(on ? layout.screenId : null, config)
+  const patch = (p: Partial<BirthdayDisplayConfig>) => onChange({
+    ...(p.audience ? { footerBirthdayAudience: p.audience } : {}), ...(p.period ? { footerBirthdayPeriod: p.period } : {}),
+    ...(p.grades ? { footerBirthdayGrades: p.grades } : {}), ...(p.nameFormat ? { footerBirthdayNameFormat: p.nameFormat } : {}),
+  })
+  return (
+    <div className="rounded-xl border border-pink-100 bg-pink-50/40 p-3 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <span id={`${id}-label`} className="text-sm font-semibold text-gray-800">🎂 ימי הולדת בפס התחתון</span>
+        <Switch checked={on} onCheckedChange={v => onChange({ footerShowBirthdays: v })} aria-label="ימי הולדת בפס התחתון" />
+      </div>
+      <p className="text-xs text-gray-500">שמות מהרשימה המרכזית יגללו בתחילת הפס, ואחריהם הודעות בית הספר וה־RSS כרגיל. כשאין ימי הולדת בטווח — הפס מציג רק את התוכן הרגיל.</p>
+      {on && <>
+        <BirthdayDisplayFields value={config} onChange={patch} grades={preview.grades} idPrefix={id} compact />
+        <BirthdayPreviewSummary preview={preview} />
+      </>}
     </div>
   )
 }

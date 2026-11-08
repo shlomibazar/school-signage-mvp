@@ -84,15 +84,6 @@ export default function ScreenDisplay({ data, refreshSecs, schedule }: Props) {
     wasOffline.current = offline
   }, [offline, refresh])
 
-  // Collect birthdays from content items for footer ticker
-  const birthdays: { name: string; grade?: string }[] = []
-  sections.forEach(s => {
-    if (s.activeContent?.contentType === 'BIRTHDAYS') {
-      const settings = s.activeContent.settings as any
-      if (settings?.personName) birthdays.push({ name: settings.personName, grade: settings.grade })
-    }
-  })
-
   const template = getDisplayTemplate(layout?.bgColor)
   const widths = getTemplateWidths(template,sections.length)
   const stacked = isStackedLayout(screen.orientation)
@@ -158,7 +149,7 @@ export default function ScreenDisplay({ data, refreshSecs, schedule }: Props) {
       {/* Footer */}
       {layout?.footerEnabled && (
         <PanelBoundary name="footer" resetKey={JSON.stringify(layout)} fallback={<div style={{ height: layout.footerHeight ?? 48, background: 'var(--tv-header, #183452)' }} />}>
-          <DisplayFooter layout={layout} school={school} screenName={screen.name} birthdays={birthdays} />
+          <DisplayFooter layout={layout} school={school} screenName={screen.name} birthdays={data.footerBirthdays ?? null} />
         </PanelBoundary>
       )}
     </div>

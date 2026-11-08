@@ -1,3 +1,5 @@
+import type { BirthdayAudience, BirthdayRange, BirthdayNameFormat, BirthdayRegionSettings, PublicBirthdayList } from '@/lib/birthdayDisplay'
+
 export type Role = 'SUPER_ADMIN'|'SCHOOL_ADMIN'|'EDITOR'|'VIEWER'
 export type Orientation = 'LANDSCAPE'|'PORTRAIT'
 export type Priority = 'LOW'|'MEDIUM'|'HIGH'|'EMERGENCY'
@@ -22,6 +24,7 @@ export interface ScreenLayout {
   mainSections:number
   footerEnabled:boolean; footerHeight:number; footerTicker:string|null
   footerShowSchoolName:boolean; footerShowClock:boolean; footerShowBirthdays:boolean
+  footerBirthdayAudience?:BirthdayAudience; footerBirthdayPeriod?:BirthdayRange; footerBirthdayGrades?:string[]; footerBirthdayNameFormat?:BirthdayNameFormat
   footerFeedMode?:'manual'|'rss'|'both'; footerRssUrl?:string|null; footerRssMaxItems?:number; footerRssRefreshMinutes?:number; footerTickerSpeed?:'slow'|'normal'|'fast'
   bgColor:string|null; bgImageUrl:string|null; fontFamily?:string
 }
@@ -36,7 +39,9 @@ export interface VideoSettings { showControls:boolean }
 export interface GallerySettings { showCaptions:boolean; showDots:boolean; imageIds:string[]; imageFit?: "cover" | "contain"; mosaicCount?:4|6|9; groupDuration?:number; folderIds?:string[]; displayMode?:"slideshow"|"mosaic"|"collage"; imageOrder?:"random"|"newest"|"oldest"|"name"; showGallery?:boolean; showSectionTitle?:boolean; sectionTitle?:string; sectionTitleSize?:"normal"|"large"|"xlarge" }
 export interface SingleAnnouncement { id:string; title:string; showTitle:boolean; body:string; priority:'info'|'warning'|'urgent'; icon:string; attachments?:{id:string;url:string;kind:string}[]; attachmentDisplayMode?:'together'|'slideshow'; attachmentSlideSeconds?:number }
 export interface AnnouncementContentSettings { title:string; priority:'info'|'warning'|'urgent'; style:'banner'|'card'; icon:string; items:SingleAnnouncement[]; selectedAnnouncementIds?:string[]; rotationSecs:number; showSectionTitle?:boolean; sectionTitle?:string; sectionTitleSize?:'normal'|'large'|'xlarge' }
-export interface BirthdaySettings { personName:string; grade:string; birthDate:string; greetingText:string }
+/** A "ימי הולדת" region: display settings (the people come from the central registry). Legacy cards
+ *  saved before the registry had personName/grade/greetingText instead; `list` is attached by the server. */
+export type BirthdaySettings = Partial<BirthdayRegionSettings> & { personName?:string; grade?:string; greetingText?:string; list?:PublicBirthdayList }
 export interface EventSettings { eventTitle:string; eventDate:string; eventTime:string; location:string; description:string }
 export interface TimetableSettings { title:string; menuText:string; items:string[]; displayMode?:'list'|'long'|'webtop-list'|'webtop-grid'; pageSeconds?:number; linesPerPage?:number; institutionCode?:string; grades?:number[]; refreshSeconds?:number; minColumnWidth?:number; columnsPerPage?:number; headerFontSize?:number; bodyFontSize?:number; detailFontSize?:number; scrollSpeed?:number; showExams?:boolean; showEvents?:boolean; showChanges?:boolean; showMessages?:boolean; showStudyGroup?:boolean; showEmptyHours?:boolean; groupIdenticalRows?:boolean; showUnpublished?:boolean; scrollDelaySeconds?:number; listFontSize?:number; dateMode?:"today"|"tomorrow"|"specific"; specificDate?:string; hourFrom?:number; hourTo?:number }
 export type ContentSettings = ClockSettings|DateSettings|RssSettings|VideoSettings|GallerySettings|AnnouncementContentSettings|BirthdaySettings|EventSettings|TimetableSettings|Record<string,never>
@@ -52,6 +57,6 @@ export interface MediaLibraryImage { mimeType?:string; id:string; filename:strin
 export interface Gallery { id:string; schoolId:string; name:string; description?:string|null; coverUrl?:string|null; createdAt:string; files?:MediaFile[]; fileCount?:number }
 
 export interface ApiResponse<T=unknown> { data?:T; error?:string; message?:string }
-export interface PublicScreenData { screen:Screen; school:School; activeAnnouncements:Announcement[]; emergencyAlert:Announcement|null; sections:PublicSection[] }
+export interface PublicScreenData { screen:Screen; school:School; activeAnnouncements:Announcement[]; emergencyAlert:Announcement|null; sections:PublicSection[]; footerBirthdays?:PublicBirthdayList|null }
 export interface PublicSection { position:number; widthPct:number; activeContent:ContentItem|null; items?:ContentItem[] }
 export interface RssFeedItem { title:string; link:string; description:string; pubDate:string }

@@ -172,6 +172,14 @@ model ScreenLayout {
   footerShowSchoolName    Boolean @default(true)
   footerShowClock         Boolean @default(false)
   footerShowBirthdays     Boolean @default(false)
+  /// Birthday segment of the footer ticker (see lib/birthdayDisplay.ts): ALL | STUDENT | TEACHER
+  footerBirthdayAudience   String   @default("ALL")
+  /// today | next7 | week | month
+  footerBirthdayPeriod     String   @default("today")
+  /// Canonical student grades; empty = all grades (teachers are never filtered by grade)
+  footerBirthdayGrades     String[] @default([])
+  /// first | full
+  footerBirthdayNameFormat String   @default("first")
   footerFeedMode          String  @default("manual")
   footerRssUrl            String?
   footerRssMaxItems       Int     @default(8)

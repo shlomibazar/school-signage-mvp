@@ -1,10 +1,13 @@
 'use client'
 import { useEffect, useMemo, useState, useRef } from 'react'
 import { zonedClock } from '@/lib/zonedTime'
-import type { ScreenLayout, School, Screen } from '@/types'
-interface Birthday { name:string; grade?:string }
-interface Props { layout:ScreenLayout; school:School; screenName?:string; birthdays?:Birthday[] }
-export default function DisplayFooter({ layout, school, screenName, birthdays=[] }:Props) {
+import type { ScreenLayout, School } from '@/types'
+import { birthdayTickerText, footerBirthdayConfig, type PublicBirthdayList } from '@/lib/birthdayDisplay'
+// birthdays: the footer's birthday list from the central registry (computed by the server for this
+// screen; null when the segment is off). It is its own ticker segment, shown first and in every feed
+// mode; the school's messages and the RSS headlines follow unchanged. No birthdays = no segment.
+interface Props { layout:ScreenLayout; school:School; screenName?:string; birthdays?:PublicBirthdayList|null }
+export default function DisplayFooter({ layout, school, screenName, birthdays=null }:Props) {
   const [now,setNow] = useState<Date|null>(null)
   const [headlines,setHeadlines] = useState<string[]>([])
   const mode=layout.footerFeedMode??'manual'
@@ -24,9 +27,9 @@ export default function DisplayFooter({ layout, school, screenName, birthdays=[]
     void load();const t=setInterval(load,Math.max(5,refresh)*60000)
     return()=>{alive=false;clearInterval(t)}
   },[mode,rssUrl,refresh,layout.screenId])
-  const birthdayText=layout.footerShowBirthdays && birthdays.length ? birthdays.map(b=>`🎂 יום הולדת שמח ${b.name}${b.grade?` (${b.grade})`:''}!`).join(' • ') : ''
-  const manual=[layout.footerTicker?.trim(),birthdayText].filter(Boolean).join('   ✦   ')
-  const ticker=useMemo(()=>[...(mode!=='rss'&&manual?[manual]:[]),...(mode!=='manual'?headlines:[])].join('   ✦   '),[mode,manual,headlines])
+  const birthdayText=layout.footerShowBirthdays ? birthdayTickerText(birthdays, footerBirthdayConfig(layout).period) : ''
+  const manual=layout.footerTicker?.trim() ?? ''
+  const ticker=useMemo(()=>[...(birthdayText?[birthdayText]:[]),...(mode!=='rss'&&manual?[manual]:[]),...(mode!=='manual'?headlines:[])].join('   ✦   '),[birthdayText,mode,manual,headlines])
   const speed=layout.footerTickerSpeed??'normal'
   const tickerViewportRef=useRef<HTMLDivElement>(null)
   const tickerTextRef=useRef<HTMLSpanElement>(null)

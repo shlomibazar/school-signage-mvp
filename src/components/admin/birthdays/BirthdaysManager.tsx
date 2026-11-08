@@ -143,7 +143,7 @@ export default function BirthdaysManager() {
             <div className="flex items-center justify-center gap-2 p-10 text-sm text-ui-muted"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />טוען…</div>
           ) : data.items.length === 0 ? (
             <EmptyState icon={<Cake className="h-6 w-6" />} title={filtered ? 'לא נמצאו רשומות' : `עדיין אין ${students ? 'תלמידים' : 'מורים'} ברשימה`}
-              description={filtered ? 'נסו לשנות את החיפוש או המסננים.' : 'אפשר להוסיף רשומות ידנית. ייבוא מאקסל יתווסף בהמשך.'} />
+              description={filtered ? 'נסו לשנות את החיפוש או המסננים.' : 'אפשר להוסיף רשומות ידנית או לייבא רשימה מקובץ Excel.'} />
           ) : (
             <>
               {/* Desktop: table */}
