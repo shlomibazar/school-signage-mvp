@@ -6,6 +6,8 @@ import { requireRole } from '@/lib/auth'
 import { schoolWhere } from '@/lib/schoolScope'
 import { toISOStringOrNull } from '@/lib/utils'
 import { getDisplayTemplate, getTemplateWidths } from '@/lib/displayTemplates'
+import { normalizeRegionBackground } from '@/lib/regionBackground'
+import { Prisma } from '@prisma/client'
 
 const LayoutSchema = z.object({
   layout: z.object({
@@ -42,7 +44,7 @@ const LayoutSchema = z.object({
     bgImageUrl:          z.string().nullable(),
     fontFamily: z.enum(["Heebo","Assistant","Rubik","Arial"]).default("Heebo"),
   }),
-  sections: z.array(z.object({ position: z.number().int(), widthPct: z.number().min(1).max(100) })),
+  sections: z.array(z.object({ position: z.number().int(), widthPct: z.number().min(1).max(100), background: z.unknown().optional() })),
 })
 
 function err(m:string,s:number){ return NextResponse.json({error:m},{status:s}) }
@@ -59,7 +61,13 @@ export async function PUT(req: NextRequest, { params: paramsPromise }: { params:
     const body = await req.json()
     const { layout, sections } = LayoutSchema.parse(body)
     const cw = getTemplateWidths(getDisplayTemplate(layout.bgColor),layout.mainSections)
-    const cs = sections.map((s, i) => ({ ...s, widthPct: Math.round(i < layout.mainSections ? (cw[i] ?? s.widthPct) : s.widthPct) }))
+    const cs = sections.map((s, i) => ({ ...s, widthPct: Math.round(i < layout.mainSections ? (cw[i] ?? s.widthPct) : s.widthPct), background: normalizeRegionBackground(s.background) }))
+    // A background image must be one of this school's media files (no outside or other-school URLs).
+    const urls = [...new Set(cs.map(s => s.background?.imageUrl).filter((u): u is string => !!u))]
+    if (urls.length) {
+      const known = await db.mediaFile.findMany({ where: { schoolId: screen.schoolId, url: { in: urls } }, select: { url: true } })
+      if (known.length !== urls.length) return err('תמונת הרקע חייבת להיות מספריית המדיה של בית הספר', 400)
+    }
 
     await db.$transaction(async tx => {
       await tx.screenLayout.upsert({
@@ -71,8 +79,8 @@ export async function PUT(req: NextRequest, { params: paramsPromise }: { params:
       for (const s of cs) {
         await tx.screenSection.upsert({
           where:  { screenId_position: { screenId: params.id, position: s.position } },
-          update: { widthPct: s.widthPct },
-          create: { screenId: params.id, position: s.position, widthPct: s.widthPct },
+          update: { widthPct: s.widthPct, ...(s.background !== undefined ? { background: s.background ?? Prisma.DbNull } : {}) },
+          create: { screenId: params.id, position: s.position, widthPct: s.widthPct, background: s.background ?? Prisma.DbNull },
         })
       }
     })
@@ -85,7 +93,7 @@ export async function PUT(req: NextRequest, { params: paramsPromise }: { params:
     return NextResponse.json({
       ok: true,
       sections: saved.map(s => ({
-        id: s.id, screenId: s.screenId, position: s.position, widthPct: s.widthPct,
+        id: s.id, screenId: s.screenId, position: s.position, widthPct: s.widthPct, background: normalizeRegionBackground(s.background),
         contentItems: s.contentItems.map(ci => ({
           ...ci,
           startDate: toISOStringOrNull(ci.startDate), endDate: toISOStringOrNull(ci.endDate),

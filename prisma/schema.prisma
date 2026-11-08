@@ -199,6 +199,8 @@ model ScreenSection {
   screen   Screen @relation(fields: [screenId], references: [id], onDelete: Cascade)
   position Int
   widthPct Int    @default(100)
+  /// Region background (lib/regionBackground.ts): theme default when null
+  background Json?
 
   contentItems ContentItem[]
 

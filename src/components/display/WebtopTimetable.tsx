@@ -1,5 +1,5 @@
 'use client'
-import { useCallback,useEffect,useMemo,useRef,useState } from 'react'
+import { useCallback,useEffect,useLayoutEffect,useMemo,useRef,useState } from 'react'
 import type { ContentItem,TimetableSettings } from '@/types'
 
 type Change={id?:number;changeType?:number|null;type?:string|null;definition?:string|null;content?:string|null;note?:string|null;room?:string|null;privateName?:string|null;lastName?:string|null;group?:string|null;hour?:number|null;original_hour?:number|null;hourName?:string|null;originalHourName?:string|null;fillUpType?:string|null;isClassCancel?:boolean|null;isRoomChange?:boolean|null;isFillUp?:boolean|null}
@@ -59,7 +59,8 @@ function detailLines(value:unknown,kind:'event'|'exam'|'message'):string[]{
   return main||extra.length?[main,...extra].filter(Boolean):[]
 }
 function shownPageKey(pages:ClassRow[][],page:number){return (pages[Math.min(page,pages.length-1)]??[]).map(c=>c.key).join(',')}
-function accent(c:Change,cellHour:number){if(isGroupMerge(c))return '#fbbf24';if(isCancelledHere(c,cellHour))return '#fb7185';if(isFillUp(c))return '#fde68a';if(moved(c))return '#c4b5fd';const t=`${c.type??''} ${c.definition??''}`;return c.isRoomChange||/חדר/.test(t)?'#67e8f9':/פינוי/.test(t)?'#fde68a':'#c4b5fd'}
+// Theme status colours when the theme defines them (curated themes); the original colours otherwise.
+function accent(c:Change,cellHour:number){if(isGroupMerge(c))return 'var(--tv-st-sub,#fbbf24)';if(isCancelledHere(c,cellHour))return 'var(--tv-st-cancel,#fb7185)';if(isFillUp(c))return 'var(--tv-st-sub,#fde68a)';if(moved(c))return 'var(--tv-st-move,#c4b5fd)';const t=`${c.type??''} ${c.definition??''}`;return c.isRoomChange||/חדר/.test(t)?'var(--tv-st-room,#67e8f9)':/פינוי/.test(t)?'var(--tv-st-sub,#fde68a)':'var(--tv-st-move,#c4b5fd)'}
 export default function WebtopTimetable({item,settings,offline=false,screenId}:{item:ContentItem;settings:Partial<TimetableSettings>;offline?:boolean;screenId?:string}){
   const [data,setData]=useState<Data|null>(null)
   const [error,setError]=useState('')
@@ -85,7 +86,7 @@ export default function WebtopTimetable({item,settings,offline=false,screenId}:{
     void load();const t=setInterval(load,refresh)
     return()=>{alive=false;clearInterval(t)}
   },[item.id,refresh,offline,screenId])
-  useEffect(()=>{const el=host.current;if(!el)return;const ro=new ResizeObserver(entries=>setWidth(entries[0]?.contentRect.width??800));ro.observe(el);return()=>ro.disconnect()},[])
+  useEffect(()=>{const el=host.current;if(!el)return;const ro=new ResizeObserver(entries=>{setWidth(entries[0]?.contentRect.width??800);setBoxHeight(Math.round(entries[0]?.contentRect.height??0))});ro.observe(el);return()=>ro.disconnect()},[])
   const classes=useMemo(()=>Object.entries(data?.grades??{}).flatMap(([grade,v])=>(v.classes??[]).map(c=>({key:`${grade}-${c.classNum}`,name:`${letters[Number(grade)]??grade}׳${c.classNum}`,grade:Number(grade),num:c.classNum,hours:c.hours??[]}))).sort((a,b)=>a.grade-b.grade||a.num-b.num),[data])
   const isGrid=settings.displayMode==='webtop-grid'
   const showChanges=settings.showChanges!==false,showExams=settings.showExams!==false,showEvents=settings.showEvents!==false,showMessages=settings.showMessages!==false
@@ -164,7 +165,15 @@ export default function WebtopTimetable({item,settings,offline=false,screenId}:{
         ?a.hour-b.hour||a.text.localeCompare(b.text,'he')
         :classNumber(a)-classNumber(b)||a.hour-b.hour||a.name.localeCompare(b.name,'he',{numeric:true})))
   },[entries])
-  const listPerPage=Math.max(3,Math.min(15,settings.linesPerPage??7))
+  const configuredPerPage=Math.max(3,Math.min(15,settings.linesPerPage??7))
+  // Automatic capacity: lines per page is a maximum. When the rows of a page do not fit the region
+  // (taller rows of a theme, a narrow region), the page size steps down until they do — every entry
+  // still appears exactly once, on a later page instead of being hidden.
+  const listBox=useRef<HTMLDivElement>(null)
+  const [fit,setFit]=useState(configuredPerPage)
+  const [boxHeight,setBoxHeight]=useState(0)
+  useEffect(()=>{setFit(configuredPerPage)},[configuredPerPage,width,boxHeight])
+  const listPerPage=Math.max(1,Math.min(configuredPerPage,fit))
   const listPages=useMemo(()=>{
     const p:Entry[][]=[]
     // Keep each grade on its own pages, preserving the grade order.
@@ -176,6 +185,11 @@ export default function WebtopTimetable({item,settings,offline=false,screenId}:{
   },[listEntries,classes,listPerPage])
   const pages=isGrid?gridPages:listPages
   useEffect(()=>setPage(0),[isGrid,classes.length,perPage,listPerPage,entries.length])
+  useLayoutEffect(()=>{
+    const el=listBox.current
+    if(isGrid||!el||fit<=1)return
+    if(el.scrollHeight>el.clientHeight+2||el.scrollWidth>el.clientWidth+2)setFit(f=>Math.max(1,Math.min(f,configuredPerPage)-1))
+  },[isGrid,fit,configuredPerPage,page,listEntries])
   // Grid pages with long content scroll to the bottom before advancing to the next class group.
   const currentPageKey=shownPageKey(gridPages,page)
   useEffect(()=>{
@@ -216,11 +230,11 @@ export default function WebtopTimetable({item,settings,offline=false,screenId}:{
         return g===grade
       })
       const gradePageIndex=gradePages.findIndex(x=>x.i===shown)+1
-      return `שכבת ${gradeLabel(grade)} · ${gradeClasses} כיתות · ${gradePageIndex}/${gradePages.length}`
+      return <><b className="tv-tt-grade">שכבת {gradeLabel(grade)}</b> · {gradeClasses} כיתות · {gradePageIndex}/{gradePages.length}</>
     })()}</span></header>
     {(offline || !!error || stale) && data && <div className="px-3 py-1 text-amber-200 text-xs">{offline || !!error ? 'אין חיבור לאינטרנט · מוצגים שינויי המערכת האחרונים שנשמרו' : 'מוצגים נתונים אחרונים · המידע טרם התעדכן'}</div>}
     {!data?<div className="flex-1 grid place-items-center text-white/60 text-sm">{offline || !!error ? 'ממתינים לחיבור לאינטרנט' : 'טוען נתונים מ־Webtop…'}</div>:isGrid?
-      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden tv-webtop-grid">
         {/* Keep column labels outside the scrolling area: no gap or text bleed above them. */}
         <div className="grid gap-px shrink-0" style={{gridTemplateColumns:`64px repeat(${(gridPages[shown]??[]).length},minmax(0,1fr))`,background:'rgba(255,255,255,.13)'}}>
           <div className="flex items-center justify-center font-bold text-xs bg-slate-700 min-h-10">שעה</div>
@@ -239,18 +253,18 @@ export default function WebtopTimetable({item,settings,offline=false,screenId}:{
           </div>
         </div>
       </div>:
-      <div className="flex-1 min-h-0 overflow-hidden p-2 flex flex-col gap-1">
+      <div ref={listBox} className="flex-1 min-h-0 overflow-hidden p-2 flex flex-col gap-1 tv-tt-list">
         {(listPages[shown]??[]).map((e,i,pageEntries)=>{
           const shared=e.kind==='event'&&!!e.sharedClasses?.length
           const previous=pageEntries[i-1]
           const previousShared=previous?.kind==='event'&&!!previous.sharedClasses?.length
           const classChanged=i>0&&!shared&&!previousShared&&e.name!==previous?.name
           const startsShared=i>0&&shared&&!previousShared
-          return <div key={e.key} className="rounded-lg px-3 py-2 border-r-4 flex gap-3 items-start" style={{
+          return <div key={e.key} className="rounded-lg px-3 py-2 border-r-4 flex gap-3 items-start tv-tt-row" style={{
             marginTop:startsShared?12:classChanged?8:0,
             background:'rgba(255,255,255,.08)',
-            borderColor:e.change?accent(e.change,e.hour):e.kind==='exam'?'#fde68a':e.kind==='event'?'#86efac':'#93c5fd'
-          }}><strong className="shrink-0">{e.name}</strong><span className="shrink-0 opacity-70">שעה {e.hour}</span><span style={{color:e.change?accent(e.change,e.hour):e.kind==='exam'?'#fde68a':e.kind==='event'?'#86efac':'#93c5fd',overflowWrap:'anywhere'}}>{e.text}</span></div>
+            borderColor:e.change?accent(e.change,e.hour):e.kind==='exam'?'var(--tv-st-exam,#fde68a)':e.kind==='event'?'var(--tv-st-event,#86efac)':'var(--tv-pri-info,#93c5fd)'
+          }}><strong className="shrink-0 tv-tt-class">{e.name}</strong><span className="shrink-0 opacity-70 tv-tt-hour">שעה {e.hour}</span><span className="tv-tt-text" style={{color:e.change?accent(e.change,e.hour):e.kind==='exam'?'var(--tv-st-exam,#fde68a)':e.kind==='event'?'var(--tv-st-event,#86efac)':'var(--tv-pri-info,#93c5fd)',overflowWrap:'anywhere'}}>{e.text}</span></div>
         })}
         {listEntries.length===0&&<div className="flex-1 grid place-items-center opacity-60">אין שינויים להצגה</div>}
       </div>}

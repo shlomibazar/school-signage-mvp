@@ -8,6 +8,7 @@ import ScreenLayoutEditor from '@/components/admin/editor/ScreenLayoutEditor'
 import ScreenSelector from '@/components/admin/editor/ScreenSelector'
 import ViewOnlyNotice from '@/components/admin/ViewOnlyNotice'
 import type { Screen, ScreenLayout, ScreenSection, ContentItem } from '@/types'
+import { normalizeRegionBackground } from '@/lib/regionBackground'
 
 interface Props {
   searchParams: Promise<{ screen?: string }>
@@ -112,6 +113,7 @@ export default async function EditorPage({ searchParams: searchParamsPromise }: 
       screenId: raw.id,
       position: i,
       widthPct: widths[i],
+      background: normalizeRegionBackground(existing?.background),
       contentItems: (existing?.contentItems ?? []).map((ci): ContentItem => ({
         id:             ci.id,
         sectionId:      ci.sectionId,

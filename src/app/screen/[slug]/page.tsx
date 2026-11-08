@@ -1,5 +1,6 @@
 import { publicContentSettings } from "@/lib/publicContent"
 import { attachScreenBirthdays } from "@/lib/people/screenBirthdays"
+import { normalizeRegionBackground } from "@/lib/regionBackground"
 import DisabledScreen from '@/components/display/DisabledScreen'
 import { notFound } from 'next/navigation'
 import { db } from '@/lib/db'
@@ -23,7 +24,7 @@ async function getScreenData(slug:string):Promise<PublicScreenData|null>{
   // Sections with scheduled items also send the candidates, so the TV switches at the scheduled
   // minute (re-checked locally every 30 s) instead of waiting for the next page refresh.
   const scheduled=(ci:ContentItem)=>!!(ci.startDate||ci.endDate||ci.startTime||ci.endTime||ci.daysOfWeek.length)
-  const data:PublicScreenData={screen,school,emergencyAlert:resolveEmergency(allAnn,now,tz),activeAnnouncements:getActiveAnnouncements(allAnn,raw.id,now,tz),sections:raw.sections.slice(0,raw.layout?.mainSections ?? raw.sections.length).map(s=>{const items=s.contentItems.map(ci=>serializeCI(ci,raw.schoolId));return{position:s.position,widthPct:s.widthPct,activeContent:resolveActiveContent(items,now,tz),...(items.some(scheduled)?{items}:{})}})}
+  const data:PublicScreenData={screen,school,emergencyAlert:resolveEmergency(allAnn,now,tz),activeAnnouncements:getActiveAnnouncements(allAnn,raw.id,now,tz),sections:raw.sections.slice(0,raw.layout?.mainSections ?? raw.sections.length).map(s=>{const items=s.contentItems.map(ci=>serializeCI(ci,raw.schoolId));return{position:s.position,widthPct:s.widthPct,background:normalizeRegionBackground(s.background),activeContent:resolveActiveContent(items,now,tz),...(items.some(scheduled)?{items}:{})}})}
   // Birthdays come from the central registry, computed here (server) for this screen only.
   await attachScreenBirthdays(data,now)
   return data

@@ -323,7 +323,7 @@ function AnnouncementContent({item,offline,screenId}:{item:ContentItem;offline:b
   const savedBg=(item.bgColor??'').trim().toLowerCase()
   const legacyDefaults=['#000000','#000','#1e3a5f','#172c48','#0b1b34','#091728','#152b44','black','transparent']
   const customBg=savedBg&&!legacyDefaults.includes(savedBg)?item.bgColor:undefined
-  const bg=priority==='urgent'?'#b91c1c':priority==='warning'?'#b45309':(customBg??'var(--tv-panel, #172c48)')
+  const bg=priority==='urgent'?'var(--tv-pri-urgent-bg,#b91c1c)':priority==='warning'?'var(--tv-pri-warning-bg,#b45309)':(customBg??'var(--tv-panel, #172c48)')
   const ink=(priority==='urgent'||priority==='warning')?'#ffffff':(customBg?(item.textColor??'#ffffff'):'var(--tv-ink, #edf5ff)')
   // Sizes depend on the actual panel, not the browser viewport. The same
   // sizes are used on every page of an announcement.
@@ -332,7 +332,17 @@ function AnnouncementContent({item,offline,screenId}:{item:ContentItem;offline:b
   const bodySize=Math.max(14,Math.min(attachments.length?25:30,Math.round((attachments.length?23:27)*unit)))
   const showSectionTitle=s.showSectionTitle ?? true
   const sectionTitle=s.sectionTitle ?? 'הודעות כלליות'
-  const headingHeight=showSectionTitle && sectionTitle.trim()?box.height*0.09:0
+  // Curated themes draw a taller heading: its measured height keeps the title clear of it.
+  // Legacy themes keep the original 9% proportion (measuredHeading stays 0).
+  const headingRef=useRef<HTMLDivElement>(null)
+  const [measuredHeading,setMeasuredHeading]=useState(0)
+  useLayoutEffect(()=>{
+    const el=headingRef.current
+    const v6=!!el&&getComputedStyle(el).getPropertyValue('--v6-accent').trim()!==''
+    const h=v6&&el?el.offsetHeight:0
+    if(h!==measuredHeading)setMeasuredHeading(h)
+  },[box.width,box.height,sectionTitle,measuredHeading])
+  const headingHeight=showSectionTitle && sectionTitle.trim()?Math.max(box.height*0.09,measuredHeading):0
   const padding=Math.max(12,Math.min(32,Math.round(26*unit)))
   const dotsHeight=items.length>1?22:0
   const bodyHeight=attachments.length?Math.max(70,Math.min(box.height*0.48,box.height*(body.length>220?0.43:body.length>100?0.31:0.19))):Math.max(40,box.height-headingHeight-2*padding-(visibleTitle?titleSize*2.5+12:0)-dotsHeight)
@@ -377,7 +387,7 @@ function AnnouncementContent({item,offline,screenId}:{item:ContentItem;offline:b
   },[idx,body,overflow,items.length,rot,cycle,attachmentPages,slideSeconds])
   if(offline && !visibleTitle.trim() && !body.trim())return <OfflineMedia />
   return <div ref={host} className="tv-announcement relative w-full h-full min-h-0 overflow-hidden flex flex-col items-center justify-center text-center" dir="rtl" style={{background:bg,color:ink,padding:isPdfPage?4:padding}}>
-    {headingHeight>0&&<div className="absolute top-0 inset-x-0 z-10"><SectionHeading>{sectionTitle}</SectionHeading></div>}
+    {headingHeight>0&&<div ref={headingRef} className="absolute top-0 inset-x-0 z-10"><SectionHeading>{sectionTitle}</SectionHeading></div>}
     <div className="w-full min-h-0 flex flex-col items-center overflow-hidden" style={{height:'100%',paddingTop:headingHeight,paddingBottom:dotsHeight}}>
       {visibleTitle&&<div className="shrink-0 font-bold" style={{fontSize:titleSize,lineHeight:1.2,marginBottom:12*unit,overflowWrap:'anywhere'}}>{visibleTitle}</div>}
       {attachments.length>0&&<div className={`w-full flex-1 min-h-0 overflow-hidden flex items-center justify-center ${isPdfPage?'':'mb-2'}`}>
@@ -425,11 +435,11 @@ function parseChange(raw:string){
   const parts=raw.split('|').map(p=>p.trim()).filter(Boolean)
   const kind:ChangeKind=/מבוטל|ביטול/.test(raw)?'cancel':/ממלא|מחליפ|מילוי מקום/.test(raw)?'substitute':/חדר|הועבר|מעבר/.test(raw)?'room':/מבחן|בוחן/.test(raw)?'exam':'general'
   const styles:Record<ChangeKind,{label:string;accent:string;surface:string}>={
-    cancel:{label:'ביטול',accent:'#f9a8d4',surface:'#47283e'},
-    substitute:{label:'מילוי מקום',accent:'#fde047',surface:'#463c24'},
-    room:{label:'שינוי חדר',accent:'#67e8f9',surface:'#203f4e'},
-    exam:{label:'מבחן',accent:'#c4b5fd',surface:'#353151'},
-    general:{label:'עדכון',accent:'#93c5fd',surface:'#253d58'}
+    cancel:{label:'ביטול',accent:'var(--tv-st-cancel,#f9a8d4)',surface:'var(--tv-st-cancel-soft,#47283e)'},
+    substitute:{label:'מילוי מקום',accent:'var(--tv-st-sub,#fde047)',surface:'var(--tv-st-sub-soft,#463c24)'},
+    room:{label:'שינוי חדר',accent:'var(--tv-st-room,#67e8f9)',surface:'var(--tv-st-room-soft,#203f4e)'},
+    exam:{label:'מבחן',accent:'var(--tv-st-exam,#c4b5fd)',surface:'var(--tv-st-exam-soft,#353151)'},
+    general:{label:'עדכון',accent:'var(--tv-pri-info,#93c5fd)',surface:'var(--tv-pri-info-soft,#253d58)'}
   }
   return {raw,parts,kind,...styles[kind]}
 }
@@ -471,23 +481,23 @@ function ManualTimetableContent({item}:{item:ContentItem}){
     return()=>clearInterval(timer)
   },[longMode,pages.length,s.pageSeconds])
 if(longMode)return <div ref={container} className="w-full h-full flex flex-col overflow-hidden" dir="rtl" style={{background:'var(--tv-panel, #172c48)',color:'var(--tv-ink, #edf5ff)'}}>    <SectionHeading aside={<>{page+1} / {pages.length}</>}>📋 {s.title||'שינויי מערכת שעות'}</SectionHeading>
-    <div className="flex-1 min-h-0 overflow-y-auto flex flex-col justify-start gap-1 p-2">
+    <div className="flex-1 min-h-0 overflow-y-auto flex flex-col justify-start gap-1 p-2 tv-tt-list">
       {pages[Math.min(page,pages.length-1)].map((line,i)=>{
         const c=parseChange(line)
         const structured=c.parts.length>=3
-        return <article key={`${page}-${i}`} className="rounded-lg border-r-[3px] px-3 py-1 shadow-sm shrink-0" style={{borderColor:c.accent,background:'rgba(255,255,255,.09)'}}>
+        return <article key={`${page}-${i}`} className="rounded-lg border-r-[3px] px-3 py-1 shadow-sm shrink-0 tv-tt-row tv-tt-manual" style={{borderColor:c.accent,background:'rgba(255,255,255,.09)'}}>
           <div className="flex items-center gap-2 flex-wrap mb-0.5">
-            <span className="rounded-md px-2 py-0.5 font-semibold" style={{background:c.surface,color:c.accent,fontSize:small?11:12}}>{c.label}</span>
-            {structured&&<strong style={{fontSize:small?14:16}}>{c.parts[0]}</strong>}
-            {structured&&<span className="text-slate-300" style={{fontSize:small?11:13}}>{c.parts[1]}</span>}
+            <span className="rounded-md px-2 py-0.5 font-semibold tv-tt-tag" style={{background:c.surface,color:c.accent,fontSize:small?11:12}}>{c.label}</span>
+            {structured&&<strong className="tv-tt-class" style={{fontSize:small?14:16}}>{c.parts[0]}</strong>}
+            {structured&&<span className="text-slate-300 tv-tt-hour" style={{fontSize:small?11:13}}>{c.parts[1]}</span>}
           </div>
-          <p className="leading-snug" style={{fontSize:small?'clamp(12px,1vw,15px)':'clamp(13px,1.05vw,17px)',overflowWrap:'anywhere',display:'-webkit-box',WebkitBoxOrient:'vertical',WebkitLineClamp:undefined,overflowY:'visible'}}>{structured?c.parts.slice(2).join(' | '):line}</p>
+          <p className="leading-snug tv-tt-text" style={{fontSize:small?'clamp(12px,1vw,15px)':'clamp(13px,1.05vw,17px)',overflowWrap:'anywhere',display:'-webkit-box',WebkitBoxOrient:'vertical',WebkitLineClamp:undefined,overflowY:'visible'}}>{structured?c.parts.slice(2).join(' | '):line}</p>
         </article>
       })}
       {lines.length===0&&<div className="flex-1 grid place-items-center text-white/50">אין שינויי מערכת להצגה</div>}
     </div>
     {pages.length>1&&<footer className="flex items-center justify-center gap-1.5 py-2 shrink-0" aria-label={`עמוד ${page+1} מתוך ${pages.length}`}>
-      {pages.length<=12?pages.map((_,i)=><span key={i} className="rounded-full" style={{width:i===page?20:6,height:6,background:i===page?'#67e8f9':'#64748b'}}/>):<span className="text-xs text-slate-300">המשך העדכונים בעוד {s.pageSeconds??12} שניות</span>}
+      {pages.length<=12?pages.map((_,i)=><span key={i} className="rounded-full" style={{width:i===page?20:6,height:6,background:i===page?'var(--v6-accent,#67e8f9)':'var(--v6-line,#64748b)'}}/>):<span className="text-xs text-slate-300">המשך העדכונים בעוד {s.pageSeconds??12} שניות</span>}
     </footer>}
   </div>
   return <div className="w-full h-full flex flex-col p-6 overflow-hidden">

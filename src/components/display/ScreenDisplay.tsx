@@ -9,9 +9,10 @@ import DisplayHeader from './DisplayHeader'
 import DisplayFooter from './DisplayFooter'
 import EmergencyOverlay from './EmergencyOverlay'
 import ContentRenderer from './ContentRenderer'
-import { resolveScreenTheme, screenStageBackground } from '@/lib/screenThemes'
+import { resolveScreenTheme, screenStageBackground, themeDesignVars } from '@/lib/screenThemes'
+import RegionFrame from './RegionFrame'
 import { unifiedPalette } from '@/lib/unifiedPalette'
-import { getDisplayTemplate, getTemplateWidths, getDisplaySurface, isStackedLayout } from '@/lib/displayTemplates'
+import { getDisplayTemplate, getTemplateWidths, getDisplaySurface, isStackedLayout, regionGrid } from '@/lib/displayTemplates'
 import PanelBoundary from './PanelBoundary'
 import { resolveActiveContent } from '@/lib/scheduling'
 
@@ -97,7 +98,10 @@ export default function ScreenDisplay({ data, refreshSecs, schedule }: Props) {
     '--tv-radius':theme.radius,
     '--tv-unified-ink':palette.ink, '--tv-unified-muted':palette.muted,
     '--tv-unified-card':palette.card, '--tv-unified-stroke':palette.stroke,
+    ...themeDesignVars(theme),
+    '--u': stacked ? 'calc(100vw / 1080)' : 'calc(100vw / 1920)',
   } as React.CSSProperties
+  const grid = regionGrid(template, sections.length, stacked)
 
   if (!operating) {
     const time = new Intl.DateTimeFormat('he-IL', { timeZone: school.timezone || 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hour12: false }).format(now!)
@@ -110,7 +114,7 @@ export default function ScreenDisplay({ data, refreshSecs, schedule }: Props) {
   }
 
   return (
-    <div className="w-screen h-screen flex flex-col overflow-hidden tv-display tv-display-premium tv-screen-stage" data-display-template={template} data-surface-style={getDisplaySurface(layout?.bgColor)} data-screen-theme={theme.id} style={themeStyle}>
+    <div className="w-screen h-screen flex flex-col overflow-hidden tv-display tv-display-premium tv-screen-stage" data-display-template={template} data-surface-style={getDisplaySurface(layout?.bgColor)} data-screen-theme={theme.id} data-design={theme.design} style={themeStyle}>
       {/* Emergency overlay */}
       {emergencyAlert && <PanelBoundary name="emergency" fallback={null}><EmergencyOverlay announcement={emergencyAlert} /></PanelBoundary>}
 
@@ -122,12 +126,13 @@ export default function ScreenDisplay({ data, refreshSecs, schedule }: Props) {
       )}
 
       {/* Main sections */}
-      <div className={`flex ${stacked ? 'flex-col' : ''} flex-1 min-h-0 overflow-hidden tv-content-grid`} data-orientation={screen.orientation}>
+      <div className={`flex ${stacked ? 'flex-col' : ''} flex-1 min-h-0 overflow-hidden tv-content-grid`} data-orientation={screen.orientation} data-template={template} style={grid?.container}>
         {sections.map((section, i) => (
-          <div
+          <RegionFrame
             key={i}
-            className={`${stacked ? 'w-full min-h-0' : 'h-full min-w-0'} overflow-hidden tv-content-panel`}
-            style={{ flex: `${widths[i] ?? section.widthPct} ${widths[i] ?? section.widthPct} 0%` }}
+            background={section.background}
+            className={`${grid ? 'min-h-0 min-w-0' : stacked ? 'w-full min-h-0' : 'h-full min-w-0'} overflow-hidden tv-content-panel`}
+            style={grid ? grid.cell(i) : { flex: `${widths[i] ?? section.widthPct} ${widths[i] ?? section.widthPct} 0%` }}
           >
             {(() => {
               // Scheduled sections are re-checked with the local 30 s clock in the school's time
@@ -141,7 +146,7 @@ export default function ScreenDisplay({ data, refreshSecs, schedule }: Props) {
             })() ?? (
               <div className="w-full h-full" />
             )}
-          </div>
+          </RegionFrame>
         ))}
       </div>
 

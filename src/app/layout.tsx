@@ -1,6 +1,6 @@
 // src/app/layout.tsx
 import type { Metadata } from 'next'
-import { Heebo, Assistant, Rubik } from 'next/font/google'
+import { Heebo, Assistant, Rubik, Suez_One } from 'next/font/google'
 import { Toaster } from 'react-hot-toast'
 import './globals.css'
 
@@ -12,6 +12,8 @@ const heebo = Heebo({
 
 const assistant = Assistant({ subsets: ['hebrew', 'latin'], variable: '--font-assistant', display: 'swap' })
 const rubik = Rubik({ subsets: ['hebrew', 'latin'], variable: '--font-rubik', display: 'swap' })
+// Display face of some curated screen themes (headings, grade letters).
+const suez = Suez_One({ weight: '400', subsets: ['hebrew', 'latin'], variable: '--font-suez', display: 'swap' })
 
 export const metadata: Metadata = {
   title:       'SchoolScreen — שילוט דיגיטלי לבתי ספר',
@@ -20,7 +22,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="he" dir="rtl" className={`${heebo.variable} ${assistant.variable} ${rubik.variable}`}>
+    <html lang="he" dir="rtl" className={`${heebo.variable} ${assistant.variable} ${rubik.variable} ${suez.variable}`}>
       <body className="font-heebo antialiased">
         {children}
         <Toaster

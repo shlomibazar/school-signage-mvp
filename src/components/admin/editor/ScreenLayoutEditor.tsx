@@ -9,10 +9,11 @@ import SnapshotButton from './SnapshotButton'
 import HeaderEditor from './HeaderEditor'
 import FooterEditor from './FooterEditor'
 import SectionEditor from './SectionEditor'
+import RegionBackgroundEditor from './RegionBackgroundEditor'
 import DesignPanel from './DesignPanel'
 import { CONTENT_ICONS } from './ContentTypePicker'
 import { Switch } from '@/components/ui/Switch'
-import { getDisplayTemplate, withDisplayTemplate, getTemplateWidths, isStackedLayout } from '@/lib/displayTemplates'
+import { getDisplayTemplate, withDisplayTemplate, getTemplateWidths, isStackedLayout, TEMPLATE_SECTION_COUNT, type DisplayTemplate } from '@/lib/displayTemplates'
 import { contentTypeLabel } from '@/lib/contentTypes'
 import { confirmDiscardDraft } from '@/lib/unsavedChanges'
 import { cn } from '@/lib/utils'
@@ -82,7 +83,7 @@ export default function ScreenLayoutEditor({ screen, layout: initLayout, section
 
   // Keep all sections (including hidden ones) in state. Changing the layout
   // only changes how many sections are visible; it never deletes content.
-  const applyVisibleCount = (count: 1 | 2 | 3, template: 'classic'|'information'|'visual') => {
+  const applyVisibleCount = (count: 1 | 2 | 3, template: DisplayTemplate) => {
     const widths = getTemplateWidths(template, count)
     setSections(prev => {
       const next = [...prev]
@@ -112,9 +113,9 @@ export default function ScreenLayoutEditor({ screen, layout: initLayout, section
     updateLayout({ mainSections: count })
   }
 
-  const changeTemplate = async (next: 'classic'|'information'|'visual') => {
+  const changeTemplate = async (next: DisplayTemplate) => {
     const current = getDisplayTemplate(layout.bgColor)
-    const count = next === 'information' ? 2 : next === 'visual' ? 3 : Math.min(3, Math.max(1, sections.length)) as 1|2|3
+    const count = (next === 'classic' ? Math.min(3, Math.max(1, sections.length)) : TEMPLATE_SECTION_COUNT[next]) as 1|2|3
     if (next === current && count === layout.mainSections) return
     if (!(await confirmHide(count))) return
     setRegion(r => Math.min(r, count - 1))
@@ -133,7 +134,7 @@ export default function ScreenLayoutEditor({ screen, layout: initLayout, section
     try {
       const res = await fetch(`/api/screens/${screen.id}/layout`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ layout: { ...layout, footerShowBirthdays: layout.footerShowBirthdays ?? false }, sections: sections.map(s => ({ position: s.position, widthPct: s.widthPct })) }),
+        body: JSON.stringify({ layout: { ...layout, footerShowBirthdays: layout.footerShowBirthdays ?? false }, sections: sections.map(s => ({ position: s.position, widthPct: s.widthPct, background: s.background ?? null })) }),
       })
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
@@ -265,6 +266,7 @@ export default function ScreenLayoutEditor({ screen, layout: initLayout, section
                 <div key={section.id} hidden={region !== i}>
                   <SectionEditor screenId={screen.id} section={section} index={i} widthPct={widths[i] ?? section.widthPct}
                     isTemp={isTempId(section.id)} onUpdate={handleSectionUpdate} onDirtyChange={onRegionDirty} />
+                  <div className="mt-3"><RegionBackgroundEditor value={section.background} onChange={bg => { setSections(prev => prev.map(x => x.id === section.id ? { ...x, background: bg } : x)); setIsDirty(true) }} /></div>
                 </div>
               ))}
             </div>

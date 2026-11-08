@@ -1,3 +1,4 @@
+import type { RegionBackground } from '@/lib/regionBackground'
 import type { BirthdayAudience, BirthdayRange, BirthdayNameFormat, BirthdayRegionSettings, PublicBirthdayList } from '@/lib/birthdayDisplay'
 
 export type Role = 'SUPER_ADMIN'|'SCHOOL_ADMIN'|'EDITOR'|'VIEWER'
@@ -29,7 +30,7 @@ export interface ScreenLayout {
   bgColor:string|null; bgImageUrl:string|null; fontFamily?:string
 }
 
-export interface ScreenSection { id:string; screenId:string; position:number; widthPct:number; contentItems:ContentItem[] }
+export interface ScreenSection { id:string; screenId:string; position:number; widthPct:number; contentItems:ContentItem[]; background?:RegionBackground|null }
 
 // Per-type settings
 export interface ClockSettings { hourFormat:'12'|'24'; showSeconds:boolean }
@@ -58,5 +59,5 @@ export interface Gallery { id:string; schoolId:string; name:string; description?
 
 export interface ApiResponse<T=unknown> { data?:T; error?:string; message?:string }
 export interface PublicScreenData { screen:Screen; school:School; activeAnnouncements:Announcement[]; emergencyAlert:Announcement|null; sections:PublicSection[]; footerBirthdays?:PublicBirthdayList|null }
-export interface PublicSection { position:number; widthPct:number; activeContent:ContentItem|null; items?:ContentItem[] }
+export interface PublicSection { position:number; widthPct:number; activeContent:ContentItem|null; items?:ContentItem[]; background?:RegionBackground|null }
 export interface RssFeedItem { title:string; link:string; description:string; pubDate:string }

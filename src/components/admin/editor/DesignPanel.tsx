@@ -2,12 +2,12 @@
 import { useState } from 'react'
 import { ChevronDown, Palette, LayoutTemplate, PaintBucket, Type } from 'lucide-react'
 import { SCREEN_FONTS } from '@/lib/screenFont'
-import { SCREEN_THEMES } from '@/lib/screenThemes'
-import { DISPLAY_TEMPLATES, getDisplayTemplate, getDisplayThemeValue, withDisplayTheme, getDisplaySurface, withDisplaySurface } from '@/lib/displayTemplates'
+import { SCREEN_THEMES, CURATED_THEMES } from '@/lib/screenThemes'
+import { DISPLAY_TEMPLATES, type DisplayTemplate, getDisplayTemplate, getDisplayThemeValue, withDisplayTheme, getDisplaySurface, withDisplaySurface } from '@/lib/displayTemplates'
 import type { ScreenLayout } from '@/types'
 import { cn } from '@/lib/utils'
 
-type Template = 'classic' | 'information' | 'visual'
+type Template = DisplayTemplate
 
 // The "עיצוב" tab: the existing design controls, grouped. Every control writes the same layout
 // fields as before (bgColor encodes template, theme and surface; fontFamily; mainSections).
@@ -28,20 +28,27 @@ export default function DesignPanel({ layout, onChange, stacked, onTemplate, onS
   return (
     <div className="grid gap-3">
       <Group icon={Palette} title="ערכת נושא" summary={theme?.name} defaultOpen>
-        <p className="mb-2 text-xs text-ui-muted">צבעי הרקע, הכותרות, הכרטיסים והטקסט במסך.</p>
+        <p className="mb-2 text-xs text-ui-muted">צבעים, טיפוגרפיה, כותרות, כרטיסים וצבעי הסטטוסים — לכל המסך.</p>
+        {theme?.legacy && (
+          <div className="mb-2 rounded-ui-sm border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            המסך משתמש בערכה קודמת: <b>{theme.name}</b>. היא נשארת כמו שהיא עד שתבחרו אחת מהערכות החדשות.
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {SCREEN_THEMES.map(t => {
+          {CURATED_THEMES.map(t => {
             const on = themeValue === `theme:${t.id}`
             return (
               <button key={t.id} type="button" onClick={() => onChange({ bgColor: withDisplayTheme(layout.bgColor, `theme:${t.id}`) })} aria-pressed={on}
                 className={cn('ui-focus rounded-ui-sm border p-1.5 text-right transition-colors', on ? 'border-ui-primary ring-2 ring-ui-primary-line' : 'border-ui-border hover:border-ui-border-strong')}>
-                <div className="flex h-14 flex-col gap-1 rounded-md p-1.5" style={{ background: t.bg }}>
-                  <div className="h-2 rounded-sm" style={{ background: t.header }} />
+                <div className="flex h-16 flex-col gap-1 rounded-md p-1.5" style={{ background: t.bg }}>
+                  <div className="flex h-2.5 items-center justify-between rounded-sm px-1" style={{ background: t.header }}><span className="block h-1 w-4 rounded-full" style={{ background: t.accent }} /><span className="block h-1 w-2 rounded-full" style={{ background: t.header === t.bg ? t.text : '#ffffff', opacity: .7 }} /></div>
                   <div className="flex flex-1 gap-1">
-                    <div className="flex-1 rounded-sm" style={{ background: t.panel, border: `1px solid ${t.border}` }} />
-                    <div className="flex-1 rounded-sm" style={{ background: t.panel, border: `1px solid ${t.border}` }} />
+                    <div className="flex flex-[7] flex-col justify-center gap-0.5 rounded-sm px-1" style={{ background: t.panel, border: `1px solid ${t.border}` }}>
+                      <span className="block h-0.5 w-2/3 rounded-full" style={{ background: t.text, opacity: .55 }} /><span className="block h-0.5 w-1/2 rounded-full" style={{ background: t.tokens?.cancel }} /><span className="block h-0.5 w-3/5 rounded-full" style={{ background: t.tokens?.room }} />
+                    </div>
+                    <div className="flex flex-[3] flex-col gap-1"><div className="flex-1 rounded-sm" style={{ background: t.accent }} /><div className="flex-1 rounded-sm" style={{ background: t.panel, border: `1px solid ${t.border}` }} /></div>
                   </div>
-                  <div className="flex h-2 items-center rounded-sm px-1" style={{ background: t.footer, borderTop: `1px solid ${t.border}` }}><span className="block h-1 w-5 rounded-full" style={{ background: t.accent }} /></div>
+                  <div className="h-2 rounded-sm" style={{ background: t.footer, border: `1px solid ${t.border}` }} />
                 </div>
                 <span className="mt-1 block truncate text-xs text-ui-ink-2">{t.name}</span>
               </button>
@@ -79,7 +86,7 @@ export default function DesignPanel({ layout, onChange, stacked, onTemplate, onS
             <p className="mt-2 text-xs text-ui-muted">הסתרת אזור לא מוחקת את התוכן שלו; הוא יחזור אם תגדילו שוב את מספר האזורים.</p>
           </div>
         ) : (
-          <p className="mt-3 text-xs text-ui-muted">{template === 'information' ? 'שני אזורים: 70% ו־30%.' : 'שלושה אזורים: 20%, 60%, 20%.'} מספר האזורים נקבע לפי התבנית.</p>
+          <p className="mt-3 text-xs text-ui-muted">{template === 'information' ? 'שני אזורים: 70% ו־30%.' : template === 'split' ? 'שלושה אזורים: אזור 1 ראשי (70%), אזורים 2 ו־3 זה מעל זה בעמודה של 30%.' : 'שלושה אזורים: 20%, 60%, 20%.'} מספר האזורים נקבע לפי התבנית.</p>
         )}
         <button type="button" onClick={onGoToContent} className="ui-focus mt-3 rounded text-[13px] font-medium text-ui-primary hover:underline">מעבר לתוכן האזורים</button>
       </Group>

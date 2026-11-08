@@ -7,9 +7,13 @@ import { formatGregorianDate } from '@/lib/utils'
 import { formatHebrewDateLetters } from '@/lib/hebrew-date-display'
 import HeaderWeather from '@/components/display/HeaderWeather'
 import WeeklyParasha from '@/components/display/WeeklyParasha'
-import { resolveScreenTheme, screenStageBackground } from '@/lib/screenThemes'
+import { resolveScreenTheme, screenStageBackground, themeDesignVars } from '@/lib/screenThemes'
+import RegionFrame from '@/components/display/RegionFrame'
+import DisplayHeader from '@/components/display/DisplayHeader'
+import DisplayFooter from '@/components/display/DisplayFooter'
+import type { School } from '@/types'
 import { unifiedPalette } from '@/lib/unifiedPalette'
-import { getDisplayTemplate, getTemplateWidths, getDisplaySurface, isStackedLayout } from '@/lib/displayTemplates'
+import { getDisplayTemplate, getTemplateWidths, getDisplaySurface, isStackedLayout, regionGrid } from '@/lib/displayTemplates'
 import { resolveActiveContent } from '@/lib/scheduling'
 import ContentRenderer from '@/components/display/ContentRenderer'
 import type { ContentItem } from '@/types'
@@ -76,6 +80,10 @@ export default function ScreenPreview({ screen, layout, sections, zoom = 'fit', 
   const templateWidths = getTemplateWidths(displayTemplate,visibleSections.length)
   const stacked = isStackedLayout(screen.orientation)
   const selectedTheme = resolveScreenTheme(layout.bgColor)
+  // Curated (v6) themes: the preview renders the TV's own header and footer components.
+  const v6 = selectedTheme.design === 'v6'
+  const grid = regionGrid(displayTemplate, visibleSections.length, stacked)
+  const previewSchool: School = { id: screen.schoolId, name: screen.name, slug: '', logoUrl: logoUrl ?? null, weatherCity: weatherCity ?? null, locale: 'he', timezone: 'Asia/Jerusalem', active: true }
   const palette = unifiedPalette(selectedTheme.bg)
   const theme = selectedTheme.bg
   // Unified surface: the TV paints header and footer with the base color and unified ink.
@@ -108,9 +116,10 @@ export default function ScreenPreview({ screen, layout, sections, zoom = 'fit', 
       {/* Sizer has the scaled dimensions, so layout and scrollbars match what is drawn.
           margin:auto centers it when smaller without cutting it off when larger. */}
       <div className="relative shrink-0" style={{ width: baseWidth * scale, height: baseHeight * scale, margin: 'auto' }}>
-        <div dir="rtl" className={`absolute top-0 left-0 overflow-hidden shadow-xl border tv-display-premium tv-screen-stage ${broadcast ? 'tv-broadcast-preview' : ''}`} data-display-template={displayTemplate} data-surface-style={getDisplaySurface(layout.bgColor)}
-          style={{ width:baseWidth, height:baseHeight, transform:`scale(${scale})`, transformOrigin:'top left', background:screenStageBackground(layout.bgImageUrl, theme), fontFamily:screenFont(layout.fontFamily), borderColor:selectedTheme.border, borderRadius:22, color:selectedTheme.panelText, boxSizing:'border-box', ...themeVars, ...(broadcast ? broadcastVars : {}) }}>
-          {layout.headerEnabled && (
+        <div dir="rtl" className={`absolute top-0 left-0 overflow-hidden shadow-xl border tv-display-premium tv-screen-stage ${broadcast ? 'tv-broadcast-preview' : ''}`} data-display-template={displayTemplate} data-design={selectedTheme.design} data-surface-style={getDisplaySurface(layout.bgColor)}
+          style={{ width:baseWidth, height:baseHeight, transform:`scale(${scale})`, transformOrigin:'top left', background:screenStageBackground(layout.bgImageUrl, theme), fontFamily:screenFont(layout.fontFamily), borderColor:selectedTheme.border, borderRadius:22, color:selectedTheme.panelText, boxSizing:'border-box', ...themeVars, ...themeDesignVars(selectedTheme), ...({ '--u': '1px' } as React.CSSProperties), ...(broadcast ? broadcastVars : {}) }}>
+          {layout.headerEnabled && v6 && <DisplayHeader screen={screen} layout={layout} school={previewSchool} />}
+          {layout.headerEnabled && !v6 && (
             <div className={`flex items-center justify-between border-b ${broadcast ? 'tv-preview-broadcast-header' : ''}`} style={{height:headerPx, paddingInline:58, gap:40, background:headerBg,color:headerInk,borderColor:unified ? 'transparent' : selectedTheme.border,position:'relative'}}>
               <div className="min-w-0 text-right" style={{maxWidth:'32%',display:'flex',alignItems:'center',gap:14}}>
                 {layout.headerShowLogo && logoUrl && <img src={logoUrl} alt="" style={{maxHeight:Math.max(25,headerPx-14),maxWidth:110,objectFit:"contain"}}/>}
@@ -133,14 +142,14 @@ export default function ScreenPreview({ screen, layout, sections, zoom = 'fit', 
               </div>
             </div>
           )}
-          <div className={`flex ${stacked ? 'flex-col' : ''} tv-content-grid ${broadcast ? 'tv-preview-broadcast-main' : ''}`} data-orientation={screen.orientation} style={{height:baseHeight-(layout.headerEnabled?headerPx:0)-(layout.footerEnabled?footerPx:0),gap:classicGap,padding:classicGap,boxSizing:'border-box'}}>
+          <div className={`flex ${stacked ? 'flex-col' : ''} tv-content-grid ${broadcast ? 'tv-preview-broadcast-main' : ''}`} data-orientation={screen.orientation} data-template={displayTemplate} style={{height:baseHeight-(layout.headerEnabled?headerPx:0)-(layout.footerEnabled?footerPx:0),gap:classicGap,padding:classicGap,boxSizing:'border-box',...(grid?.container ?? {})}}>
             {visibleSections.map((section,i)=>{
               // Same choice as the public screen (active and in schedule now). Unlike the TV, the
               // editor falls back to the first item even outside its schedule so it can be edited.
               // Before hydration there is no local time yet, so take the first active item.
               const activeItems=section.contentItems.filter(ci=>ci.active)
               const item=(now ? resolveActiveContent(activeItems,now) : activeItems[0]) ?? section.contentItems[0]
-              return <div key={section.id} className={`${stacked ? 'w-full min-h-0' : 'h-full min-w-0'} overflow-hidden tv-content-panel`} style={{position:'relative',flex:`${templateWidths[i] ?? section.widthPct} ${templateWidths[i] ?? section.widthPct} 0%`}}>
+              return <RegionFrame key={section.id} background={section.background} className={`${grid ? 'min-h-0 min-w-0' : stacked ? 'w-full min-h-0' : 'h-full min-w-0'} overflow-hidden tv-content-panel`} style={{position:'relative',...(grid ? grid.cell(i) : {flex:`${templateWidths[i] ?? section.widthPct} ${templateWidths[i] ?? section.widthPct} 0%`})}}>
                 {item && item.contentType !== 'EMPTY' ? (
                   <PreviewContent key={`${section.id}-${item.id}-${item.contentType}`} item={item} screenId={screen.id} />
                 ) : (
@@ -151,10 +160,11 @@ export default function ScreenPreview({ screen, layout, sections, zoom = 'fit', 
                     boxShadow:highlightIndex===i?'inset 0 0 0 8px #3b82f6':undefined,borderRadius:'inherit'}}>
                   {highlightIndex===i && <span style={{position:'absolute',top:14,right:14,background:'#3b82f6',color:'#fff',fontSize:26,fontWeight:700,padding:'4px 14px',borderRadius:10}}>אזור {i+1}</span>}
                 </button>}
-              </div>
+              </RegionFrame>
             })}
           </div>
-          {layout.footerEnabled && <div className={`absolute bottom-0 w-full border-t flex items-center justify-between ${broadcast ? 'tv-preview-broadcast-footer' : ''}`} style={{height:footerPx,paddingInline:58,gap:30,background:footerBg,color:footerInk,borderColor:unified ? 'transparent' : selectedTheme.border}}>
+          {layout.footerEnabled && v6 && <div style={{position:'absolute',bottom:0,width:'100%'}}><V6PreviewFooter layout={layout} school={previewSchool} screenName={screen.name} screenId={screen.id} /></div>}
+          {layout.footerEnabled && !v6 && <div className={`absolute bottom-0 w-full border-t flex items-center justify-between ${broadcast ? 'tv-preview-broadcast-footer' : ''}`} style={{height:footerPx,paddingInline:58,gap:30,background:footerBg,color:footerInk,borderColor:unified ? 'transparent' : selectedTheme.border}}>
             {/* The TV paints every footer element with the footer ink, including the clock. */}
             {layout.footerShowSchoolName && <span className="shrink-0 font-semibold" style={{fontSize:24}}>{screen.name}</span>}
             <PreviewTicker layout={layout} screenId={screen.id} />
@@ -184,4 +194,11 @@ function PreviewTicker({ layout, screenId }: { layout: ScreenLayout; screenId: s
   const mode = layout.footerFeedMode ?? 'manual'
   const parts = [birthdays, mode !== 'rss' ? layout.footerTicker?.trim() ?? '' : '', mode !== 'manual' ? '📰 כותרות RSS בגלילה' : ''].filter(Boolean)
   return <span className="min-w-0 flex-1 truncate text-center" style={{fontSize:25}}>{parts.join('  ✦  ')}</span>
+}
+
+// The TV footer component with the birthday list the public screen would receive (editor preview).
+function V6PreviewFooter({ layout, school, screenName, screenId }: { layout: ScreenLayout; school: School; screenName: string; screenId: string }) {
+  const config = layout.footerShowBirthdays ? footerBirthdayConfig(layout) : null
+  const { list } = useBirthdayPreview(config ? screenId : null, config, 150)
+  return <DisplayFooter layout={layout} school={school} screenName={screenName} birthdays={list} />
 }
