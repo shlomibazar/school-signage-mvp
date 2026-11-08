@@ -10,3 +10,11 @@ export function cloudinaryThumbnailUrl(url: string): string | null {
     return u.toString()
   } catch { return null }
 }
+
+/**
+ * Grid thumbnail for a media file (client side): the thumbnail route (Cloudinary transform or a
+ * cached 320px WebP). SVGs are not rasterized there and are shown as they are.
+ */
+export function mediaThumbnailSrc(img: { id: string; url: string; mimeType?: string | null }): string {
+  return img.mimeType === 'image/svg+xml' ? img.url : `/api/media/thumbnail/${encodeURIComponent(img.id)}`
+}

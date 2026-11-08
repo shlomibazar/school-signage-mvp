@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback, memo } from 'react'
 import toast from 'react-hot-toast'
 import { confirmDialog } from '@/components/ui/ConfirmHost'
 import { UPLOAD_BATCH_BYTES } from '@/lib/uploadValidation'
+import { mediaThumbnailSrc } from '@/lib/mediaThumbnail'
 import { Upload, Trash2, Loader2, ImageIcon, Edit2, Check, X, Plus, FolderOpen, Folder } from 'lucide-react'
 import type { MediaLibraryImage, Gallery } from '@/types'
 
@@ -38,7 +39,7 @@ const MediaCard=memo(function MediaCard({img,canEdit,isSelected,isEditing,editCa
   const isVideo=img.mimeType?.startsWith('video/')
   // SVGs are not rasterized by the thumbnail route; show the original through <img>, where
   // browsers never run scripts or load external resources from SVG.
-  const src=img.mimeType==='image/svg+xml'?img.url:`/api/media/thumbnail/${encodeURIComponent(img.id)}`
+  const src=mediaThumbnailSrc(img)
   return <div data-media-id={img.id} onClick={e=>{if(!isControl(e.target))onSelect(img.id,e)}}
     style={{contentVisibility:'auto',containIntrinsicSize:'auto 180px'}}
     className={`group relative bg-white border-2 rounded-xl overflow-hidden cursor-pointer transition-colors ${isSelected?"border-blue-500 ring-2 ring-blue-200":"border-gray-100 hover:border-gray-300"}`}>

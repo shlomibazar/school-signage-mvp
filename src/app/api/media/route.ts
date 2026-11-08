@@ -19,16 +19,23 @@ export async function GET(req: NextRequest) {
   try {
     const user = await requireRole('VIEWER')
 
-    const galleryId = req.nextUrl.searchParams.get('galleryId')
+    const q = req.nextUrl.searchParams
+    const galleryId = q.get('galleryId')
+    // Optional, for pickers: galleryId=none (files outside any folder), type=image, and paging with
+    // take (1–100) + cursor (the last id of the previous page). Without take the full list is
+    // returned as before (the Media Library page).
+    const take = q.has('take') ? Math.min(100, Math.max(1, Number(q.get('take')) || 60)) : null
+    const cursor = q.get('cursor')
 
     const files = await db.mediaFile.findMany({
       where: {
         ...schoolWhere(user),
-        mediaType: { in: ['IMAGE', 'VIDEO'] },
+        mediaType: q.get('type') === 'image' ? 'IMAGE' : { in: ['IMAGE', 'VIDEO'] },
         hidden: false,
-        ...(galleryId ? { galleryId } : {}),
+        ...(galleryId === 'none' ? { galleryId: null } : galleryId ? { galleryId } : {}),
       },
-      orderBy: { uploadedAt: 'desc' },
+      orderBy: take ? [{ uploadedAt: 'desc' }, { id: 'desc' }] : { uploadedAt: 'desc' },
+      ...(take ? { take: take + 1, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}) } : {}),
       select: {
         id: true,
         filename: true,
@@ -42,11 +49,14 @@ export async function GET(req: NextRequest) {
       },
     })
 
+    const more = take !== null && files.length > take
+    const page = more ? files.slice(0, take!) : files
     return NextResponse.json({
-      data: files.map(f => ({
+      data: page.map(f => ({
         ...f,
         uploadedAt: f.uploadedAt.toISOString(),
       })),
+      ...(take !== null ? { nextCursor: more ? page[page.length - 1].id : null } : {}),
     })
   } catch (e) {
     return errorResponse(e, 'Media list')

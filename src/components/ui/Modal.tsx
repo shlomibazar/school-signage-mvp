@@ -5,7 +5,7 @@ import { X } from 'lucide-react'
 // Accessible modal (role="dialog"): Escape and the backdrop close it, focus moves into it when it
 // opens, Tab stays inside it, and focus returns to the trigger when it closes.
 export function Modal({ open, title, description, onClose, children, size = 'md' }: {
-  open: boolean; title: string; description?: React.ReactNode; onClose: () => void; children: React.ReactNode; size?: 'md' | 'lg'
+  open: boolean; title: string; description?: React.ReactNode; onClose: () => void; children: React.ReactNode; size?: 'md' | 'lg' | 'xl'
 }) {
   const titleId = useId()
   const panel = useRef<HTMLDivElement>(null)
@@ -32,7 +32,7 @@ export function Modal({ open, title, description, onClose, children, size = 'md'
     <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4" dir="rtl">
       <div className="absolute inset-0 bg-slate-900/40" onClick={onClose} aria-hidden="true" />
       <div ref={panel} role="dialog" aria-modal="true" aria-labelledby={titleId}
-        className={`relative flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-ui-lg bg-ui-surface shadow-ui-lg sm:rounded-ui-lg ${size === 'lg' ? 'sm:max-w-xl' : 'sm:max-w-md'}`}>
+        className={`relative flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-ui-lg bg-ui-surface shadow-ui-lg sm:rounded-ui-lg ${size === 'xl' ? 'sm:max-w-3xl' : size === 'lg' ? 'sm:max-w-xl' : 'sm:max-w-md'}`}>
         <div className="flex items-start justify-between gap-3 border-b border-ui-border px-5 py-4">
           <div className="min-w-0">
             <h2 id={titleId} className="text-[17px] font-bold text-ui-ink">{title}</h2>
