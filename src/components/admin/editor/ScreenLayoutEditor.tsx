@@ -123,8 +123,11 @@ export default function ScreenLayoutEditor({ screen, layout: initLayout, section
     updateLayout({ bgColor: withDisplayTemplate(layout.bgColor, next), mainSections: count })
   }
 
+  // The content editor owns only the region's content items. Merging them (instead of replacing the
+  // whole region with the editor's copy) keeps the region background, which RegionBackgroundEditor
+  // owns, from being overwritten by an older copy of the region.
   const handleSectionUpdate = useCallback((updated: ScreenSection) => {
-    setSections(prev => prev.map(s => s.id === updated.id ? updated : s))
+    setSections(prev => prev.map(s => s.id === updated.id ? { ...s, contentItems: updated.contentItems } : s))
   }, [])
 
   const handleSave = async () => {
@@ -146,8 +149,11 @@ export default function ScreenLayoutEditor({ screen, layout: initLayout, section
       }
       const data = await res.json()
       if (data.sections) {
+        // The saved regions replace the editor's, so every field the editor shows must be carried
+        // over, the region background included (it was dropped here, which blanked the backgrounds
+        // after saving and erased them on the next save).
         setSections(data.sections.map((s: any): ScreenSection => ({
-          id: s.id, screenId: s.screenId, position: s.position, widthPct: s.widthPct,
+          id: s.id, screenId: s.screenId, position: s.position, widthPct: s.widthPct, background: s.background ?? null,
           contentItems: (s.contentItems ?? []).map((ci: any): ContentItem => ({
             id: ci.id, sectionId: ci.sectionId, contentType: ci.contentType,
             priority: ci.priority, active: ci.active,
