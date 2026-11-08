@@ -895,3 +895,30 @@ html, body {
 
 /* A region with its own background (RegionFrame): the panel itself stays transparent, any theme. */
 html body .tv-screen-stage .tv-content-panel.tv-content-panel[data-region-bg][data-region-bg] { background:transparent !important; box-shadow:none !important }
+
+/* Footer colours (all themes, both surfaces, TV and editor preview): the footer is painted with the
+   one resolved pair from footerColors() (--tv-footer-surface / --tv-footer-text) and every text
+   element in it inherits that ink. Earlier rules coloured the ticker and clock with the stage ink
+   (unified surface) while the curated themes painted the footer with their own colour, which left
+   dark text on a dark footer. The v6 name chip keeps its accent colours. */
+.tv-screen-stage.tv-display-premium .tv-premium-footer.tv-chrome-footer.tv-footer-v2[dir] {
+  background:var(--tv-footer-surface,var(--tv-header,#183452)) !important;
+  color:var(--tv-footer-text,var(--tv-footer-ink,#fff)) !important;
+}
+.tv-screen-stage.tv-display-premium .tv-footer-v2[dir] :is(.tv-v2-ticker,.tv-v5-ticker-message,.tv-v2-footer-clock,.tv-v2-footer-school-name) { color:inherit !important; }
+.tv-screen-stage.tv-display-premium:not([data-design="v6"]) .tv-footer-v2[dir] .tv-v2-footer-brand { color:inherit !important; }
+
+/* Footer ticker motion: transform only (GPU, no layout per frame); enters from the left edge and
+   leaves at the right, as before. Travel = measured viewport width, duration = distance / speed. */
+@keyframes tv-footer-ticker-x {
+  from { transform:translate3d(-100%,-50%,0); }
+  to { transform:translate3d(var(--footer-ticker-travel,100vw),-50%,0); }
+}
+.tv-screen-stage.tv-display-premium .tv-footer-v2 .tv-rss-footer-slow .tv-v5-ticker-message {
+  left:0 !important; right:auto !important;
+  animation:tv-footer-ticker-x var(--footer-ticker-duration,60s) linear infinite !important;
+  will-change:transform;
+}
+@media (prefers-reduced-motion:reduce) {
+  .tv-screen-stage.tv-display-premium .tv-footer-v2 .tv-rss-footer-slow .tv-v5-ticker-message { animation:none !important; left:auto !important; right:0 !important; transform:translateY(-50%) !important; }
+}

@@ -1,4 +1,5 @@
 import { getDisplayThemeValue } from './displayTemplates'
+import { unifiedPalette } from './unifiedPalette'
 
 // Screen themes.
 //
@@ -80,6 +81,17 @@ export function resolveScreenTheme(value:string|null|undefined) {
   return {...base,bg:color,header:color,panel:color,footer:color,headerText:contrastText(color),panelText:contrastText(color),footerText:contrastText(color),accentText:contrastText(color)}
 }
 export type ResolvedTheme = ReturnType<typeof resolveScreenTheme>
+
+/**
+ * The footer's background and text colour as the screen paints them: one pair for every theme and
+ * surface, shared by the public screen and the editor preview. Every footer text element inherits
+ * the ink, so it is always the contrast colour of the background actually painted. Curated themes
+ * keep their own footer colour; legacy themes on the unified surface paint the footer with the base.
+ */
+export function footerColors(t: ResolvedTheme, unified: boolean): { bg: string; ink: string } {
+  if (t.design !== 'v6' && unified) return { bg: t.bg, ink: unifiedPalette(t.bg).ink }
+  return { bg: t.footer, ink: contrastText(t.footer) }
+}
 
 const DISPLAY_FONTS: Record<ThemeTokens['display'], string> = {
   heebo: 'var(--font-heebo), Heebo, Arial, sans-serif',

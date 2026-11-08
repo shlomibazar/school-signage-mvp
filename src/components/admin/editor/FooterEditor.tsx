@@ -54,10 +54,6 @@ export default function FooterEditor({ layout, onChange }: Props) {
             </label>
             <p className="text-xs text-gray-500">כל כותרות הפיד הזמינות יופיעו בגלילה, ללא הגבלת כמות ידנית.</p>
           </>}
-          <label className="block text-xs text-gray-600">מהירות גלילה</label>
-          <select className="w-full rounded-lg border border-gray-200 bg-white p-2 text-sm" value={layout.footerTickerSpeed ?? 'normal'} onChange={e=>onChange({footerTickerSpeed:e.target.value as 'slow'|'normal'|'fast'})}>
-            <option value="slow">איטית</option><option value="normal">רגילה</option><option value="fast">מהירה</option>
-          </select>
         </div>
         {/* Ticker text */}
         <div>
@@ -68,6 +64,18 @@ export default function FooterEditor({ layout, onChange }: Props) {
             placeholder="הודעה שתגלול בחלק התחתון של המסך..."
             className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-blue-400 bg-gray-50"
           />
+        </div>
+
+        {/* Ticker speed: the whole footer ticker (birthdays, messages, RSS) on the TV and in the preview */}
+        <div>
+          <label className="block text-xs text-gray-500 mb-1.5">מהירות גלילת הפס</label>
+          <div className="grid grid-cols-3 gap-1.5" role="radiogroup" aria-label="מהירות גלילת הפס">
+            {([['slow','איטית'],['normal','רגילה'],['fast','מהירה']] as const).map(([v,label]) => {
+              const on = (layout.footerTickerSpeed ?? 'normal') === v
+              return <button key={v} type="button" role="radio" aria-checked={on} onClick={() => onChange({ footerTickerSpeed: v })}
+                className={`rounded-lg border px-2 py-1.5 text-xs font-medium ${on ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}`}>{label}</button>
+            })}
+          </div>
         </div>
 
         {/* Toggles */}

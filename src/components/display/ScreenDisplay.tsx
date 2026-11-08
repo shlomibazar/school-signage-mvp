@@ -9,7 +9,7 @@ import DisplayHeader from './DisplayHeader'
 import DisplayFooter from './DisplayFooter'
 import EmergencyOverlay from './EmergencyOverlay'
 import ContentRenderer from './ContentRenderer'
-import { resolveScreenTheme, screenStageBackground, themeDesignVars } from '@/lib/screenThemes'
+import { footerColors, resolveScreenTheme, screenStageBackground, themeDesignVars } from '@/lib/screenThemes'
 import RegionFrame from './RegionFrame'
 import { unifiedPalette } from '@/lib/unifiedPalette'
 import { getDisplayTemplate, getTemplateWidths, getDisplaySurface, isStackedLayout, regionGrid } from '@/lib/displayTemplates'
@@ -90,6 +90,7 @@ export default function ScreenDisplay({ data, refreshSecs, schedule }: Props) {
   const stacked = isStackedLayout(screen.orientation)
   const theme = resolveScreenTheme(layout?.bgColor)
   const palette = unifiedPalette(theme.bg)
+  const footer = footerColors(theme, getDisplaySurface(layout?.bgColor) === 'unified')
   const themeStyle = {
     fontFamily:screenFont(layout?.fontFamily),
     background: screenStageBackground(layout?.bgImageUrl, theme.bg),
@@ -98,6 +99,7 @@ export default function ScreenDisplay({ data, refreshSecs, schedule }: Props) {
     '--tv-radius':theme.radius,
     '--tv-unified-ink':palette.ink, '--tv-unified-muted':palette.muted,
     '--tv-unified-card':palette.card, '--tv-unified-stroke':palette.stroke,
+    '--tv-footer-surface':footer.bg, '--tv-footer-text':footer.ink,
     ...themeDesignVars(theme),
     '--u': stacked ? 'calc(100vw / 1080)' : 'calc(100vw / 1920)',
   } as React.CSSProperties

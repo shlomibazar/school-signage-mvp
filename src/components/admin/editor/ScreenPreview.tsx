@@ -7,7 +7,7 @@ import { formatGregorianDate } from '@/lib/utils'
 import { formatHebrewDateLetters } from '@/lib/hebrew-date-display'
 import HeaderWeather from '@/components/display/HeaderWeather'
 import WeeklyParasha from '@/components/display/WeeklyParasha'
-import { resolveScreenTheme, screenStageBackground, themeDesignVars } from '@/lib/screenThemes'
+import { footerColors, resolveScreenTheme, screenStageBackground, themeDesignVars } from '@/lib/screenThemes'
 import RegionFrame from '@/components/display/RegionFrame'
 import DisplayHeader from '@/components/display/DisplayHeader'
 import DisplayFooter from '@/components/display/DisplayFooter'
@@ -90,8 +90,7 @@ export default function ScreenPreview({ screen, layout, sections, zoom = 'fit', 
   const unified = getDisplaySurface(layout.bgColor) === 'unified'
   const headerBg = unified ? selectedTheme.bg : selectedTheme.header
   const headerInk = unified ? palette.ink : selectedTheme.headerText
-  const footerBg = unified ? selectedTheme.bg : selectedTheme.footer
-  const footerInk = unified ? palette.ink : selectedTheme.footerText
+  const { bg: footerBg, ink: footerInk } = footerColors(selectedTheme, unified)
   // 1vw / 1vh of the reference canvas (1920×1080 or 1080×1920).
   const vw = baseWidth / 100, vh = baseHeight / 100
   const classicGap = clampPx(6, .7 * vw, 16)
@@ -108,6 +107,7 @@ export default function ScreenPreview({ screen, layout, sections, zoom = 'fit', 
     '--tv-radius': selectedTheme.radius,
     '--tv-unified-ink':palette.ink, '--tv-unified-muted':palette.muted,
     '--tv-unified-card':palette.card, '--tv-unified-stroke':palette.stroke,
+    '--tv-footer-surface': footerBg, '--tv-footer-text': footerInk,
   } as React.CSSProperties
 
   return (
