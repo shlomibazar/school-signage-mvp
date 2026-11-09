@@ -7,6 +7,8 @@ import { db } from '@/lib/db'
 import { homeSchoolWhere } from '@/lib/schoolScope'
 import { ButtonLink } from '@/components/ui/Button'
 import { PageHeader, EmptyState } from '@/components/ui/Display'
+import ConnectionRefresh from '@/components/admin/screens/ConnectionRefresh'
+import { connectionStatus, relativeTimeHe } from '@/lib/screenConnection'
 
 export default async function ScreensPage() {
   const user     = await getCurrentUser()
@@ -30,12 +32,29 @@ export default async function ScreensPage() {
   const media = schoolId && needSchematic ? await db.mediaFile.findMany({where:{schoolId,mediaType:'IMAGE',mimeType:{startsWith:'image/'},hidden:false},select:{id:true,url:true,galleryId:true},orderBy:{uploadedAt:'desc'}}) : []
   const announcements = schoolId && needSchematic ? await db.announcement.findMany({where:{schoolId,active:true},select:{id:true,title:true,body:true,priority:true,bgColor:true},orderBy:{createdAt:'desc'}}) : []
   const activeCount = screens.filter(s => s.active).length
+  // Connection status ("מצב חיבור"), computed now from the last heartbeat (Screen.lastSeenAt,
+  // server time), already loaded with the screens above (same school scope).
+  const now = new Date()
+  const lastSeen = new Map(screens.map(s => [s.id, s.lastSeenAt]))
+  const fmt = new Intl.DateTimeFormat('he-IL', { timeZone: 'Asia/Jerusalem', dateStyle: 'short', timeStyle: 'short' })
+  const connection = (id: string) => {
+    const seen = lastSeen.get(id) ?? null
+    return { status: connectionStatus(seen, now), relative: seen ? relativeTimeHe(seen, now) : null, exact: seen ? fmt.format(seen) : null }
+  }
+  // Counted among active screens only (an inactive screen is not expected to report).
+  const activeStatuses = screens.filter(s => s.active).map(s => connection(s.id).status)
+  const connectedCount = activeStatuses.filter(s => s === 'connected').length
+  const disconnectedCount = activeStatuses.filter(s => s === 'disconnected').length
+  const checkedAt = new Intl.DateTimeFormat('he-IL', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hour12: false }).format(now)
 
   return (
     <div className="mx-auto w-full max-w-6xl">
       <PageHeader title="מסכים"
-        description={screens.length ? `${screens.length} מסכים · ${activeCount} פעילים` : undefined}
-        actions={canEditContent && <ButtonLink href="/admin/screens/new" variant="primary" icon={<Plus className="h-4 w-4" aria-hidden="true" />}>מסך חדש</ButtonLink>} />
+        description={screens.length ? `${screens.length} מסכים · ${activeCount} פעילים · ${connectedCount} מחוברים · ${disconnectedCount} לא מחוברים` : undefined}
+        actions={<>
+          {screens.length > 0 && <ConnectionRefresh checkedAt={checkedAt} />}
+          {canEditContent && <ButtonLink href="/admin/screens/new" variant="primary" icon={<Plus className="h-4 w-4" aria-hidden="true" />}>מסך חדש</ButtonLink>}
+        </>} />
 
       {screens.length === 0 ? (
         <div className="rounded-ui-lg border border-dashed border-ui-border bg-ui-surface">
@@ -47,6 +66,7 @@ export default async function ScreensPage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {screens.map(screen => (
             <ScreenCard key={screen.id} canEditContent={canEditContent} canAdmin={canAdmin}
+              connection={connection(screen.id)}
               screen={{
                 id: screen.id, name: screen.name, slug: screen.slug, orientation: screen.orientation,
                 width: screen.width, height: screen.height, active: screen.active, shortCode: screen.shortCode,

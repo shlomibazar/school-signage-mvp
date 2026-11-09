@@ -9,6 +9,10 @@ import { ButtonLink, Button, buttonClass } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Display'
 import { ActionMenu, type MenuItem } from '@/components/ui/ActionMenu'
 import { cn } from '@/lib/utils'
+import { CONNECTION_LABELS, type ConnectionStatus } from '@/lib/screenConnection'
+
+const CONNECTION_DOT: Record<ConnectionStatus, string> = { connected: 'bg-emerald-500', disconnected: 'bg-red-500', never: 'bg-slate-400' }
+const CONNECTION_TEXT: Record<ConnectionStatus, string> = { connected: 'text-emerald-700', disconnected: 'text-red-700', never: 'text-ui-muted' }
 
 export type ScreenCardData = {
   id: string; name: string; slug: string; orientation: string; width: number; height: number
@@ -17,8 +21,12 @@ export type ScreenCardData = {
 
 // One screen in the screens list: its picture, name and status, the two everyday actions (edit,
 // view), "חיבור טלוויזיה", and a "⋮" menu for the rarely used management actions.
-export default function ScreenCard({ screen, fallback, canEditContent, canAdmin }: {
+export type ScreenConnection = { status: ConnectionStatus; relative: string | null; exact: string | null }
+
+export default function ScreenCard({ screen, connection, fallback, canEditContent, canAdmin }: {
   screen: ScreenCardData
+  /** "מצב חיבור" from the last heartbeat, computed by the server when the list was loaded. */
+  connection: ScreenConnection
   /** Schematic preview (server-rendered) for a screen without a snapshot. */
   fallback: React.ReactNode
   canEditContent: boolean
@@ -62,8 +70,18 @@ export default function ScreenCard({ screen, fallback, canEditContent, canAdmin 
             <h3 className="truncate text-[15px] font-semibold text-ui-ink" title={screen.name}>{screen.name}</h3>
             <p className="mt-0.5 text-xs text-ui-muted">{portrait ? 'אנכי' : 'אופקי'} · <span dir="ltr">{screen.width}×{screen.height}</span></p>
           </div>
-          <Badge tone={active ? 'success' : 'neutral'} dot>{active ? 'פעיל' : 'מושבת'}</Badge>
+          {/* Administrative status (set by an administrator), unchanged. */}
+          <span title="מצב במערכת" className="shrink-0"><Badge tone={active ? 'success' : 'neutral'} dot>{active ? 'פעיל' : 'לא פעיל'}</Badge></span>
         </div>
+        {/* Connection status (from the screen's own reports): one compact line, separate from the badge. */}
+        <p className="-mt-1 flex min-w-0 items-center gap-1.5 text-xs" title={connection.exact ? `דיווח אחרון: ${connection.exact}` : 'המסך עוד לא דיווח'}>
+          <span className="text-ui-muted">מצב חיבור:</span>
+          {active ? <>
+            <span className={cn('h-2 w-2 shrink-0 rounded-full', CONNECTION_DOT[connection.status])} aria-hidden="true" />
+            <span className={cn('font-medium', CONNECTION_TEXT[connection.status])}>{CONNECTION_LABELS[connection.status]}</span>
+          </> : <span className="text-ui-muted">— (המסך לא פעיל)</span>}
+          {connection.relative && <span className="truncate text-ui-muted">· דיווח אחרון {connection.relative}</span>}
+        </p>
 
         <div className="mt-auto grid grid-cols-2 gap-2">
           {canEditContent && <ButtonLink href={`/admin/editor?screen=${screen.id}`} variant="primary" icon={<Pencil className="h-4 w-4" aria-hidden="true" />}>עריכת מסך</ButtonLink>}

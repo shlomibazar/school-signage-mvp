@@ -131,6 +131,9 @@ model Screen {
   // was taken. Both empty until the first capture; the screens list falls back to the schematic.
   snapshotUrl       String?
   snapshotAt        DateTime?
+  // Last heartbeat from the public display page (server time); null = never connected. One value
+  // per screen, no history (see src/lib/screenConnection.ts).
+  lastSeenAt        DateTime?
   createdAt         DateTime                 @default(now())
   updatedAt         DateTime                 @updatedAt
   operatingSchedule ScreenOperatingSchedule?

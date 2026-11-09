@@ -15,6 +15,7 @@ import { unifiedPalette } from '@/lib/unifiedPalette'
 import { getDisplayTemplate, getTemplateWidths, getDisplaySurface, isStackedLayout, regionGrid } from '@/lib/displayTemplates'
 import PanelBoundary from './PanelBoundary'
 import { resolveActiveContent } from '@/lib/scheduling'
+import { HEARTBEAT_FIRST_DELAY_MS, HEARTBEAT_INTERVAL_MS } from '@/lib/screenConnection'
 
 const PROBE_MS = 30_000
 const RETRY_PROBE_MS = 10_000
@@ -68,6 +69,26 @@ export default function ScreenDisplay({ data, refreshSecs, schedule }: Props) {
     window.addEventListener('offline', onNetworkChange)
     return () => { mounted = false; window.clearTimeout(next); window.removeEventListener('online', onNetworkChange); window.removeEventListener('offline', onNetworkChange) }
   }, [])
+  // Heartbeat for the screens list ("מצב חיבור"): once shortly after the page loads, then hourly.
+  // Its own effect keyed only on the screen id, so content rotation and the periodic refresh never
+  // restart it; no React state (nothing re-renders); one request at a time, no retries; a failure
+  // is ignored and never touches what is on screen. Only this public display sends it.
+  const screenId = screen.id
+  useEffect(() => {
+    let inFlight = false
+    const beat = () => {
+      if (inFlight) return
+      inFlight = true
+      const controller = typeof AbortController === 'function' ? new AbortController() : null
+      const timeout = window.setTimeout(() => controller?.abort(), PROBE_TIMEOUT_MS)
+      fetch('/api/public/heartbeat/' + encodeURIComponent(screenId), { method: 'POST', cache: 'no-store', signal: controller?.signal })
+        .catch(() => {})
+        .then(() => { window.clearTimeout(timeout); inFlight = false })
+    }
+    const first = window.setTimeout(beat, HEARTBEAT_FIRST_DELAY_MS)
+    const hourly = window.setInterval(beat, HEARTBEAT_INTERVAL_MS)
+    return () => { window.clearTimeout(first); window.clearInterval(hourly) }
+  }, [screenId])
   const layout = screen.layout
   const refresh = useCallback(() => router.refresh(), [router])
 
