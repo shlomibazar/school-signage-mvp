@@ -555,8 +555,20 @@ function RssContent({item}:{item:ContentItem}){
     </div>
   </div>
 }
+const VIDEO_RETRY_MS=60_000
 function VideoContent({item}:{item:ContentItem}){
   const [error,setError]=useState(false)
+  // A failed video (network blip, server restart) is tried again after VIDEO_RETRY_MS: one timer,
+  // only while in error, a fresh <video> element per attempt (attempt is part of its key). A new
+  // address starts clean. A longer outage is handled above: offline swaps this region for the
+  // waiting panel and remounts it when the connection is back.
+  const [attempt,setAttempt]=useState(0)
+  useEffect(()=>{setError(false)},[item.videoUrl])
+  useEffect(()=>{
+    if(!error)return
+    const t=window.setTimeout(()=>{setError(false);setAttempt(a=>a+1)},VIDEO_RETRY_MS)
+    return()=>window.clearTimeout(t)
+  },[error])
   // Autoplay: muted always starts. With sound the browser usually refuses to start without a tap;
   // then the video plays muted rather than standing still (the TV has no one to tap it).
   const videoRef=useRef<HTMLVideoElement>(null)
@@ -564,13 +576,16 @@ function VideoContent({item}:{item:ContentItem}){
   useEffect(()=>{
     const v=videoRef.current
     if(!v)return
+    // A source that failed before this effect ran (e.g. while the page was hydrating) fired its
+    // error event before React listened: read the element's own state instead.
+    if(v.error||v.networkState===3){setError(true);return}
     v.muted=!wantsSound
     const started=v.play()
-    if(started)started.catch(()=>{if(!v.muted){v.muted=true;v.play().catch(()=>{})}})
-  },[item.videoUrl,wantsSound])
+    if(started)started.catch(()=>{if(v.error){setError(true);return}if(!v.muted){v.muted=true;v.play().catch(()=>{if(v.error)setError(true)})}})
+  },[item.videoUrl,wantsSound,attempt])
   if(!item.videoUrl)return <div className="w-full h-full flex items-center justify-center text-white/20 flex-col gap-2"><span style={{fontSize:40}}>🎬</span><span className="text-sm">כתובת וידאו לא הוגדרה</span></div>
   if(error)return <div className="w-full h-full flex items-center justify-center text-white/30 flex-col gap-2"><span style={{fontSize:40}}>⚠️</span><span className="text-sm">שגיאה בטעינת הוידאו</span></div>
   const yt=youtubeId(item.videoUrl)
   if(yt)return <iframe key={yt} src={`https://www.youtube-nocookie.com/embed/${yt}?autoplay=1&mute=${item.videoMuted===false?0:1}&loop=${item.videoLoop===false?0:1}&playlist=${yt}&controls=0&playsinline=1`} title='YouTube video' allow='autoplay; encrypted-media; picture-in-picture' referrerPolicy='strict-origin-when-cross-origin' className='w-full h-full border-0 bg-black' allowFullScreen />
-  return <video ref={videoRef} key={item.videoUrl} src={item.videoUrl} autoPlay loop={item.videoLoop??true} muted={!wantsSound} playsInline controls={false} className="w-full h-full object-contain bg-black" onError={()=>setError(true)}/>
+  return <video ref={videoRef} key={`${item.videoUrl}#${attempt}`} src={item.videoUrl} autoPlay loop={item.videoLoop??true} muted={!wantsSound} playsInline controls={false} className="w-full h-full object-contain bg-black" onError={()=>setError(true)}/>
 }

@@ -16,6 +16,7 @@ import { getDisplayTemplate, getTemplateWidths, getDisplaySurface, isStackedLayo
 import PanelBoundary from './PanelBoundary'
 import { resolveActiveContent } from '@/lib/scheduling'
 import { HEARTBEAT_FIRST_DELAY_MS, HEARTBEAT_INTERVAL_MS } from '@/lib/screenConnection'
+import { HEALTH_FRESH_MS } from '@/lib/serverHealth'
 
 const PROBE_MS = 30_000
 const RETRY_PROBE_MS = 10_000
@@ -38,6 +39,8 @@ export default function ScreenDisplay({ data, refreshSecs, schedule }: Props) {
   }, [])
   const operating = !now || isScreenInOperatingHours(schedule, school.timezone, now)
   const [offline, setOffline] = useState(false)
+  // Time of the last successful probe (a ref: updating it never re-renders the screen).
+  const lastHealthyAt = useRef(0)
   useEffect(() => {
     let mounted = true
     let running = false
@@ -60,6 +63,7 @@ export default function ScreenDisplay({ data, refreshSecs, schedule }: Props) {
       finally { window.clearTimeout(timeout); running = false }
       if (!mounted) return
       failures = ok ? 0 : failures + 1
+      if (ok) lastHealthyAt.current = Date.now()
       setOffline(failures >= OFFLINE_AFTER)
       plan(failures > 0 && failures < OFFLINE_AFTER ? RETRY_PROBE_MS : PROBE_MS)
     }
@@ -92,9 +96,15 @@ export default function ScreenDisplay({ data, refreshSecs, schedule }: Props) {
   const layout = screen.layout
   const refresh = useCallback(() => router.refresh(), [router])
 
+  // Periodic content refresh, only while the server is known to be answering: the last probe
+  // succeeded within HEALTH_FRESH_MS. A refresh that meets a proxy error page (server restarting)
+  // would make Next.js load that page in place of the screen, with no way back. A skipped cycle
+  // simply waits for the next one; the content on screen stays as it is.
   useEffect(() => {
     if (offline) return
-    const t = setInterval(refresh, (refreshSecs || 600) * 1000)
+    const t = setInterval(() => {
+      if (Date.now() - lastHealthyAt.current <= HEALTH_FRESH_MS) refresh()
+    }, (refreshSecs || 600) * 1000)
     return () => clearInterval(t)
   }, [refresh, refreshSecs, offline])
 

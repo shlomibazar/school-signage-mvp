@@ -1,6 +1,7 @@
 'use client'
 import { Component, type ReactNode } from 'react'
 import { isChunkLoadError } from '@/lib/chunkError'
+import { probeServer } from '@/lib/serverHealth'
 
 // Keeps one failing part of the TV (unexpected settings or data) from taking down the whole
 // screen. The fallback is quiet (an empty panel, no error details). The part is rendered again
@@ -42,7 +43,10 @@ export default class PanelBoundary extends Component<Props, State> {
     }
   }
 
+  private unmounted = false
+
   componentWillUnmount() {
+    this.unmounted = true
     window.clearTimeout(this.timer)
   }
 
@@ -50,7 +54,8 @@ export default class PanelBoundary extends Component<Props, State> {
     if (!this.state.failed) return
     window.clearTimeout(this.timer)
     this.timer = window.setTimeout(() => {
-      if (this.chunkError) window.location.reload()
+      // A reload is made only when the server answers (see lib/serverHealth); else retry later.
+      if (this.chunkError) void probeServer().then(ok => { if (this.unmounted) return; if (ok) window.location.reload(); else this.scheduleRetry() })
       else this.setState({ failed: false })
     }, RETRY_MS)
   }
