@@ -9,6 +9,7 @@ import BirthdayBoard from './BirthdayBoard'
 import { isLegacyBirthdayCard } from '@/lib/birthdayDisplay'
 import { sanitizeHTML, formatHebrewDate, formatGregorianDate } from '@/lib/utils'
 import { displayImageUrl, backdropImageUrl, clientDpr, preloadImages } from '@/lib/imageDelivery'
+import { galleryChangeSeconds } from '@/lib/galleryTiming'
 import { zonedParts, zonedCalendarDate, DEFAULT_TIME_ZONE } from '@/lib/zonedTime'
 export default function ContentRenderer({item,offline=false,screenId}:{item:ContentItem;offline?:boolean;screenId?:string}){
   switch(item.contentType){
@@ -82,7 +83,7 @@ function GalleryContent({item}:{item:ContentItem}){
   const folders=JSON.stringify(s.folderIds??[])
   const ids=JSON.stringify(s.imageIds??[])
   const mode=s.displayMode??'slideshow'
-  const dur=(mode==='slideshow'?Math.max(2,item.slideDuration||8):Math.max(5,Math.min(60,s.groupDuration??15)))*1000
+  const dur=galleryChangeSeconds(s,item.slideDuration)*1000
   useEffect(()=>{
     let alive=true
     // The first load after a settings change starts fresh; later reloads keep the current position.
@@ -556,9 +557,20 @@ function RssContent({item}:{item:ContentItem}){
 }
 function VideoContent({item}:{item:ContentItem}){
   const [error,setError]=useState(false)
+  // Autoplay: muted always starts. With sound the browser usually refuses to start without a tap;
+  // then the video plays muted rather than standing still (the TV has no one to tap it).
+  const videoRef=useRef<HTMLVideoElement>(null)
+  const wantsSound=item.videoMuted===false
+  useEffect(()=>{
+    const v=videoRef.current
+    if(!v)return
+    v.muted=!wantsSound
+    const started=v.play()
+    if(started)started.catch(()=>{if(!v.muted){v.muted=true;v.play().catch(()=>{})}})
+  },[item.videoUrl,wantsSound])
   if(!item.videoUrl)return <div className="w-full h-full flex items-center justify-center text-white/20 flex-col gap-2"><span style={{fontSize:40}}>🎬</span><span className="text-sm">כתובת וידאו לא הוגדרה</span></div>
   if(error)return <div className="w-full h-full flex items-center justify-center text-white/30 flex-col gap-2"><span style={{fontSize:40}}>⚠️</span><span className="text-sm">שגיאה בטעינת הוידאו</span></div>
   const yt=youtubeId(item.videoUrl)
   if(yt)return <iframe key={yt} src={`https://www.youtube-nocookie.com/embed/${yt}?autoplay=1&mute=${item.videoMuted===false?0:1}&loop=${item.videoLoop===false?0:1}&playlist=${yt}&controls=0&playsinline=1`} title='YouTube video' allow='autoplay; encrypted-media; picture-in-picture' referrerPolicy='strict-origin-when-cross-origin' className='w-full h-full border-0 bg-black' allowFullScreen />
-  return <video key={item.videoUrl} src={item.videoUrl} autoPlay loop={item.videoLoop??true} muted={item.videoMuted??true} playsInline controls={false} className="w-full h-full object-contain bg-black" onError={()=>setError(true)}/>
+  return <video ref={videoRef} key={item.videoUrl} src={item.videoUrl} autoPlay loop={item.videoLoop??true} muted={!wantsSound} playsInline controls={false} className="w-full h-full object-contain bg-black" onError={()=>setError(true)}/>
 }

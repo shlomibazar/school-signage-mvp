@@ -8,8 +8,10 @@
 // Date ranges (always in the school's time zone; February 29 is celebrated on February 28 in
 // non-leap years — see lib/people/birthdays.ts):
 //   today  — today only
-//   next7  — today and the following 6 days (7 days, today included)
-//   week   — the current school week, Sunday to Saturday (days that already passed included)
+//   week   — the current calendar week, Sunday to Saturday (days that already passed included)
+//   next7  — retired. It was "today and the following 6 days"; stored configurations that still
+//            say next7 are read as week (normalizeBirthdayConfig), so every screen and the footer
+//            use the one weekly definition.
 //   month  — the current calendar month, from the 1st to its last day
 // Grades filter students only. Teachers are never filtered out by grade: when the audience includes
 // teachers, all teachers with a birthday in the range are shown, whatever grades are selected.
@@ -46,11 +48,11 @@ export const BIRTHDAY_AUDIENCES: { value: BirthdayAudience; label: string }[] = 
   { value: 'TEACHER', label: 'מורים' },
   { value: 'ALL', label: 'תלמידים ומורים' },
 ]
+/** The ranges offered in the editor (next7 is no longer offered; see above). */
 export const BIRTHDAY_RANGES: { value: BirthdayRange; label: string; hint: string }[] = [
-  { value: 'today', label: 'היום', hint: 'ימי הולדת של היום בלבד' },
-  { value: 'next7', label: '7 הימים הקרובים', hint: 'היום ו־6 הימים שאחריו' },
-  { value: 'week', label: 'השבוע', hint: 'מיום ראשון עד שבת של השבוע הנוכחי' },
-  { value: 'month', label: 'החודש', hint: 'מה־1 בחודש ועד סופו' },
+  { value: 'today', label: 'ימי הולדת היום', hint: 'ימי הולדת של היום בלבד' },
+  { value: 'week', label: 'ימי הולדת השבוע', hint: 'מיום ראשון עד שבת של השבוע הנוכחי, כולל ימים שכבר עברו' },
+  { value: 'month', label: 'ימי הולדת החודש', hint: 'מה־1 בחודש ועד סופו' },
 ]
 
 export const DEFAULT_BIRTHDAY_CONFIG: BirthdayDisplayConfig = { audience: 'ALL', period: 'today', grades: [], nameFormat: 'first' }
@@ -69,7 +71,7 @@ export function normalizeBirthdayConfig(raw: unknown): BirthdayDisplayConfig {
   const grades = Array.isArray(s.grades) ? [...new Set(s.grades.filter((g): g is string => typeof g === 'string' && g.length > 0 && g.length <= 10))].slice(0, 20) : []
   return {
     audience: AUDIENCES.has(s.audience as BirthdayAudience) ? s.audience as BirthdayAudience : DEFAULT_BIRTHDAY_CONFIG.audience,
-    period: RANGES.has(s.period as BirthdayRange) ? s.period as BirthdayRange : DEFAULT_BIRTHDAY_CONFIG.period,
+    period: s.period === 'next7' ? 'week' : RANGES.has(s.period as BirthdayRange) ? s.period as BirthdayRange : DEFAULT_BIRTHDAY_CONFIG.period,
     grades,
     nameFormat: s.nameFormat === 'full' ? 'full' : 'first',
   }

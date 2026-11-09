@@ -2,6 +2,7 @@
 // src/components/admin/editor/content-forms/RssContentForm.tsx
 
 import type { ContentItem, RssSettings } from '@/types'
+import { MoreOptions } from '../Collapsible'
 
 interface Props {
   item:     Partial<ContentItem>
@@ -14,7 +15,7 @@ export default function RssContentForm({ item, settings, onChange, onSettings }:
   return (
     <div className="space-y-3">
       <div>
-        <label className="block text-xs text-gray-500 mb-1.5">כתובת RSS Feed</label>
+        <label className="block text-xs font-medium text-ui-ink-2 mb-1.5">כתובת פיד RSS</label>
         <input
           type="url"
           value={item.rssUrl ?? ''}
@@ -23,9 +24,10 @@ export default function RssContentForm({ item, settings, onChange, onSettings }:
           className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-gray-50 font-mono"
           dir="ltr"
         />
+        <p className="mt-1 text-[11px] text-ui-muted">{item.rssUrl ? 'הכותרות האחרונות מהפיד יוצגו באזור.' : 'הדביקו כתובת של פיד חדשות (בדרך כלל מסתיימת ב־rss או xml).'}</p>
       </div>
 
-      <div>
+      <MoreOptions summary={`רענון כל ${settings.refreshInterval ?? 15} דקות`}>
         <div>
           <label className="block text-xs text-gray-500 mb-1.5">רענון (דקות)</label>
           <input
@@ -39,7 +41,7 @@ export default function RssContentForm({ item, settings, onChange, onSettings }:
             dir="ltr"
           />
         </div>
-      </div>
+      </MoreOptions>
 
       <div>
         <label className="block text-xs text-gray-500 mb-2">סגנון תצוגה</label>

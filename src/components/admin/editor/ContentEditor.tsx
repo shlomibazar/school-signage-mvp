@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Save, X, Loader2 } from 'lucide-react'
+import { Save, X, Loader2, Check } from 'lucide-react'
 import toast from 'react-hot-toast'
 import type {
   ContentItem, ContentType, ScreenSection,
@@ -33,7 +33,8 @@ const DEFAULT_CLOCK:        ClockSettings               = { hourFormat: '24', sh
 const DEFAULT_DATE:         DateSettings                = { dateFormat: 'full', locale: 'he' }
 const DEFAULT_RSS:          RssSettings                 = { refreshInterval: 15, displayStyle: 'list' }
 const DEFAULT_VIDEO:        VideoSettings               = { showControls: false }
-const DEFAULT_GALLERY:      GallerySettings             = { showCaptions: true, showDots: true, imageIds: [], folderIds: [], imageFit: "contain", displayMode: "slideshow", imageOrder: "random", showGallery: true, showSectionTitle: true, sectionTitle: "גלריית תמונות", sectionTitleSize: "normal" }
+// New galleries: no heading by default, no navigation dots (unattended TV), one change interval.
+const DEFAULT_GALLERY:      GallerySettings             = { showCaptions: true, showDots: false, imageIds: [], folderIds: [], imageFit: "contain", displayMode: "slideshow", imageOrder: "random", showSectionTitle: false, sectionTitle: "גלריית תמונות", sectionTitleSize: "normal", changeSeconds: 8 }
 const DEFAULT_ANNOUNCEMENT: AnnouncementContentSettings = { title: '', priority: 'info', style: 'banner', icon: '📢', items: [], rotationSecs: 10, showSectionTitle: true, sectionTitle: 'הודעות כלליות', sectionTitleSize: 'normal' }
 const DEFAULT_BIRTHDAY:     BirthdaySettings            = { ...DEFAULT_BIRTHDAY_REGION }
 const DEFAULT_EVENT:        EventSettings               = { eventTitle: '', eventDate: '', eventTime: '', location: '', description: '' }
@@ -89,6 +90,8 @@ export type SaveControl = { save: () => void; saving: boolean; canSave: boolean 
 export default function ContentEditor({ screenId, section, selectedType, onClose, onSaved, onDraftChange, onDirtyChange, onSaveControl }: Props) {
   const [loading,    setLoading]    = useState(true)
   const [saving,     setSaving]     = useState(false)
+  // Outcome of the last save attempt, for the save bar ("נשמר" only after the server confirmed it).
+  const [saveState,  setSaveState]  = useState<'idle' | 'saved' | 'error'>('idle')
   const [existingId, setExistingId] = useState<string | null>(null)
   // The type of the content stored in the region (null when the region is empty).
   const [storedType, setStoredType] = useState<ContentType | null>(null)
@@ -213,7 +216,7 @@ export default function ContentEditor({ screenId, section, selectedType, onClose
       if (!ok) return
     }
     savingRef.current = true
-    setSaving(true)
+    setSaving(true); setSaveState('idle')
     try {
       const body = {
         contentType: item.contentType, active: item.active ?? true,
@@ -239,15 +242,17 @@ export default function ContentEditor({ screenId, section, selectedType, onClose
       const next = saved.data.contentType === 'ANNOUNCEMENT' ? { ...item, settings: saved.data.settings as ContentSettings } : item
       baseAnnouncementIds.current = saved.data.contentType === 'ANNOUNCEMENT' ? announcementIdsOf(saved.data.settings) : undefined
       setItem(next)
-      setExistingId(saved.data.id); setStoredType(saved.data.contentType); setUnsavedType(false); setBaseline(JSON.stringify(next)); toast.success('התוכן נשמר'); onSaved(saved.data)
-    } catch (err: any) { toast.error(err.message ?? 'שגיאה') }
+      setExistingId(saved.data.id); setStoredType(saved.data.contentType); setUnsavedType(false); setBaseline(JSON.stringify(next)); setSaveState('saved'); toast.success('התוכן נשמר'); onSaved(saved.data)
+    } catch (err: any) { setSaveState('error'); toast.error(err.message ?? 'שגיאה') }
     finally { savingRef.current = false; setSaving(false) }
   }
 
 
   return (
-    <div className="overflow-hidden rounded-ui border border-ui-primary-line bg-ui-surface">
-      <div className="flex items-center justify-between gap-2 border-b border-ui-primary-line bg-ui-primary-soft px-3 py-2">
+    // No overflow clipping here: it would make the save bar below stick to this box instead of the
+    // settings panel's scroll area, and it would scroll away with the form.
+    <div className="rounded-ui border border-ui-primary-line bg-ui-surface">
+      <div className="flex items-center justify-between gap-2 rounded-t-ui border-b border-ui-primary-line bg-ui-primary-soft px-3 py-2">
         <span data-content-editor-title tabIndex={-1} className="rounded text-[13px] font-semibold text-ui-primary-ink outline-none focus-visible:ring-2 focus-visible:ring-ui-primary">עריכת תוכן · {contentTypeLabel(selectedType)}</span>
         <button type="button" onClick={requestClose} aria-label="סגירת עריכת התוכן"
           className="ui-focus grid h-8 w-8 place-items-center rounded-ui-sm text-ui-primary-ink hover:bg-white/60">
@@ -278,10 +283,13 @@ export default function ContentEditor({ screenId, section, selectedType, onClose
         )}
       </div>
       {!loading && (
-        // The region's own save: content is stored separately from the layout ("שמירת פריסה").
-        <div className="sticky bottom-0 flex flex-wrap items-center gap-2 border-t border-ui-border bg-ui-subtle px-3 py-2.5">
+        // The region's own save: content is stored separately from the layout ("שמירת פריסה"). It stays
+        // at the bottom of the settings panel while the form is scrolled, below the fields it saves.
+        <div className="sticky bottom-0 z-10 flex flex-wrap items-center gap-2 rounded-b-ui border-t border-ui-border bg-ui-subtle/95 px-3 py-2.5 shadow-[0_-4px_12px_rgba(15,23,42,0.06)] backdrop-blur-sm">
           <span className="min-w-0 flex-1 text-xs" aria-live="polite">
-            {dirty ? <span className="inline-flex items-center gap-1.5 font-medium text-amber-700"><span className="h-2 w-2 rounded-full bg-amber-500" aria-hidden="true"/>שינויים בתוכן לא נשמרו</span>
+            {saving ? <span className="inline-flex items-center gap-1.5 text-ui-muted"><Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true"/>שומר את התוכן…</span>
+              : dirty ? <span className="inline-flex items-center gap-1.5 font-medium text-amber-700"><span className="h-2 w-2 rounded-full bg-amber-500" aria-hidden="true"/>{saveState === 'error' ? 'השמירה נכשלה — השינויים לא נשמרו' : 'שינויים בתוכן לא נשמרו'}</span>
+              : saveState === 'saved' ? <span className="inline-flex items-center gap-1 font-medium text-ui-success"><Check className="h-3.5 w-3.5" aria-hidden="true"/>התוכן נשמר</span>
               : existingId ? <span className="text-ui-muted">התוכן שמור</span> : null}
           </span>
           <button type="button" onClick={requestClose} className="ui-focus h-9 rounded-ui-sm border border-ui-border-strong bg-ui-surface px-3 text-[13px] text-ui-ink-2 hover:bg-ui-subtle">ביטול</button>
@@ -289,6 +297,7 @@ export default function ContentEditor({ screenId, section, selectedType, onClose
             className="ui-focus inline-flex h-9 items-center gap-1.5 rounded-ui-sm bg-ui-primary px-3 text-[13px] font-medium text-white hover:bg-ui-primary-hover disabled:opacity-50">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true"/> : <Save className="h-4 w-4" aria-hidden="true"/>}{saving ? 'שומר...' : 'שמירת תוכן'}
           </button>
+          <span className="sr-only">שמירת תוכן שומרת רק את האזור הזה. שינויים בכותרות ובעיצוב נשמרים ב״שמירת פריסה״.</span>
         </div>
       )}
     </div>

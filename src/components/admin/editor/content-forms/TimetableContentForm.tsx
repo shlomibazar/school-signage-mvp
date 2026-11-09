@@ -4,6 +4,7 @@
 import { useState } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import type { TimetableSettings } from '@/types'
+import { MoreOptions } from '../Collapsible'
 
 interface Props {
   settings:   TimetableSettings
@@ -15,6 +16,8 @@ export default function TimetableContentForm({ settings, onSettings }: Props) {
   const [expanded, setExpanded] = useState(false)
 
   const items = settings.items ?? []
+  // Webtop modes read the live data; the manual title, text and items apply to the manual modes only.
+  const webtop = settings.displayMode === 'webtop-list' || settings.displayMode === 'webtop-grid'
 
   function addItem() {
     const trimmed = newItem.trim()
@@ -57,6 +60,7 @@ export default function TimetableContentForm({ settings, onSettings }: Props) {
           <div className="font-semibold text-xs">סוגי נתונים להצגה (בשתי התצוגות)</div>
           <div className="grid grid-cols-2 gap-2">{([['showChanges','שינויי מערכת'],['showExams','מבחנים'],['showEvents','אירועים'],['showMessages','הודעות כלליות']] as const).map(([key,label])=><label key={key} className="text-xs flex gap-2 items-center"><input type="checkbox" checked={settings[key]!==false} onChange={e=>onSettings({...settings,[key]:e.target.checked})}/>{label}</label>)}</div>
         </div>
+        <MoreOptions title="אפשרויות מתקדמות" summary="תאריך, שעות, קצב עמודים ותצוגת הטבלה">
         <div className="rounded-lg border border-cyan-200 bg-white p-3 space-y-2">
           <div className="font-semibold text-xs">תאריך ושעות</div>
           <select className="w-full border rounded-lg p-2 text-xs" value={settings.dateMode??'today'} onChange={e=>onSettings({...settings,dateMode:e.target.value as TimetableSettings['dateMode']})}><option value="today">היום</option><option value="tomorrow">מחר</option><option value="specific">תאריך מסוים</option></select>
@@ -76,8 +80,10 @@ export default function TimetableContentForm({ settings, onSettings }: Props) {
           <label className="block text-xs">השהיה לפני גלילה (שניות)<input className="w-full border rounded-lg p-2 mt-1" type="number" min={0} max={30} value={settings.scrollDelaySeconds??2} onChange={e=>onSettings({...settings,scrollDelaySeconds:Math.max(0,Math.min(30,Number(e.target.value)||0))})}/></label>
           <p className="text-xs text-cyan-800">כאשר התוכן ארוך, הטבלה גוללת עד סוף השעות ורק אז עוברת לכיתות הבאות.</p>
         </div>}
+        </MoreOptions>
         <p className="text-xs text-cyan-800">הטבלה מתאימה את מספר הכיתות לרוחב האזור ומחליפה עמודים עד להצגת כל הכיתות שנבחרו.</p>
       </div>}
+      {!webtop && <>
       <div>
         <label className="block text-xs text-gray-500 mb-1.5">כותרת</label>
         <input
@@ -182,6 +188,7 @@ export default function TimetableContentForm({ settings, onSettings }: Props) {
           <div className="text-white/30 text-xs">הוסף פריטים לתצוגה מקדימה</div>
         )}
       </div>
+      </>}
     </div>
   )
 }

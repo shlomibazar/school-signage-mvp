@@ -3,6 +3,9 @@ import assert from 'node:assert/strict'
 import { getDisplayTemplate, getDisplayThemeValue, withDisplayTemplate, withDisplayTheme, getTemplateWidths, regionGrid, TEMPLATE_SECTION_COUNT } from '@/lib/displayTemplates'
 import { CURATED_THEMES, SCREEN_THEMES, resolveScreenTheme, themeDesignVars } from '@/lib/screenThemes'
 import { normalizeRegionBackground, regionBackgroundStyles, safeImageUrl } from '@/lib/regionBackground'
+import { regionRects } from '@/lib/displayTemplates'
+import { galleryChangeSeconds } from '@/lib/galleryTiming'
+import { normalizeBirthdayConfig, footerBirthdayConfig, BIRTHDAY_RANGES } from '@/lib/birthdayDisplay'
 
 test('split 70/30 template: encoded like the others, three regions, grid placement', () => {
   const v = withDisplayTemplate('surface:unified|theme:fresh-mint', 'split')
@@ -64,4 +67,33 @@ test('region backgrounds: validated, overlay only, safe URLs', () => {
   assert.equal(s.frame.color, '#ffffff', 'dark overlay → light text')
   const c = regionBackgroundStyles({ mode: 'color', color: '#fff4d6' })!
   assert.equal(c.overlay, null); assert.equal(c.frame.color, '#142033', 'light colour → dark text')
+})
+
+test('layout diagrams: physical positions match the RTL renderer (region 1 on the right)', () => {
+  const pos = (t: Parameters<typeof regionRects>[0], n: number, stacked = false) => regionRects(t, n, stacked).map(r => [r.n, Math.round(r.x), Math.round(r.y), Math.round(r.w), Math.round(r.h)])
+  // information (30/70): region 1 = 70% on the RIGHT, region 2 = 30% on the LEFT
+  assert.deepEqual(pos('information', 2), [[1, 30, 0, 70, 100], [2, 0, 0, 30, 100]])
+  // wide centre 20/60/20: 1 right, 2 centre, 3 left
+  assert.deepEqual(pos('visual', 3), [[1, 80, 0, 20, 100], [2, 20, 0, 60, 100], [3, 0, 0, 20, 100]])
+  // split 30/70: 1 = right 70% full height, 2 top-left, 3 bottom-left
+  assert.deepEqual(pos('split', 3), [[1, 30, 0, 70, 100], [2, 0, 0, 30, 50], [3, 0, 50, 30, 50]])
+  // classic: equal widths from the right
+  assert.deepEqual(pos('classic', 3).map(r => r[1]), [66, 33, 0])
+  // portrait: top to bottom
+  assert.deepEqual(pos('information', 2, true), [[1, 0, 0, 100, 70], [2, 0, 70, 100, 30]])
+})
+
+test('gallery timing: one setting for every mode, legacy timing kept when unset', () => {
+  assert.equal(galleryChangeSeconds({ changeSeconds: 12, displayMode: 'mosaic', groupDuration: 30 }, 5), 12)
+  assert.equal(galleryChangeSeconds({ changeSeconds: 12, displayMode: 'slideshow' }, 5), 12)
+  assert.equal(galleryChangeSeconds({ displayMode: 'slideshow' }, 6), 6, 'legacy slideshow: slideDuration')
+  assert.equal(galleryChangeSeconds({ displayMode: 'collage', groupDuration: 20 }, 6), 20, 'legacy sets: groupDuration')
+  assert.equal(galleryChangeSeconds({ displayMode: 'mosaic' }, 6), 15)
+  assert.equal(galleryChangeSeconds({ changeSeconds: 500 }, 6), 60)
+})
+
+test('birthdays: the retired rolling 7 days reads as the calendar week (regions and footer)', () => {
+  assert.equal(normalizeBirthdayConfig({ period: 'next7' }).period, 'week')
+  assert.equal(footerBirthdayConfig({ footerBirthdayPeriod: 'next7' }).period, 'week')
+  assert.ok(!BIRTHDAY_RANGES.some(r => r.value === 'next7'))
 })

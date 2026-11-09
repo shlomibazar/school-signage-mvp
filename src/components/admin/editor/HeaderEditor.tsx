@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Settings2 } from 'lucide-react'
 import { Switch } from '@/components/ui/Switch'
+import { EditorGroup } from './Collapsible'
 import { confirmLeaveEditor } from '@/lib/unsavedChanges'
 import { weatherCityName } from '@/lib/screenSettings'
 import type { ScreenLayout, DateType } from '@/types'
@@ -27,115 +28,104 @@ const DATE_TYPE_OPTIONS: { value: DateType; label: string; example: string }[] =
 
 export default function HeaderEditor({ layout, onChange, logoUrl, weatherCity }: Props) {
   const router = useRouter()
+  const maxTitle = Math.min(64, Math.floor((layout.headerHeight ?? 80) * 0.6))
+  const titleSize = Math.min(layout.headerTitleFontSize ?? 26, maxTitle)
+  const toggle = (key: keyof ScreenLayout, label: string, hint?: string) => (
+    <div className="flex items-center justify-between gap-3 py-1.5">
+      <span className="min-w-0"><span className="block text-[13px] text-ui-ink">{label}</span>{hint && <span className="block text-xs text-ui-muted">{hint}</span>}</span>
+      <Switch checked={!!layout[key]} onCheckedChange={v => onChange({ [key]: v })} aria-label={label} />
+    </div>
+  )
+  const card = 'rounded-ui-lg border border-ui-border bg-ui-surface px-4 py-3'
+  const pill = (on: boolean) => `ui-focus rounded-ui-sm border px-2 py-1.5 text-xs transition-colors ${on ? 'border-ui-primary bg-ui-primary-soft font-medium text-ui-primary-ink' : 'border-ui-border text-ui-ink-2 hover:bg-ui-subtle'}`
   return (
-    <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
-      <div className="px-3 py-2.5 bg-gray-50 text-xs font-medium text-gray-500 border-b border-gray-100">
-        הגדרות כותרת עליונה
-      </div>
-      <div className="p-3 space-y-3">
-        {/* Height */}
-        <div>
-          <label className="block text-xs text-gray-500 mb-2">גובה הכותרת</label>
-          <div className="grid grid-cols-2 gap-1.5">
-            {HEIGHT_OPTIONS.map(opt => (
-              <button key={opt.value} type="button"
-                onClick={() => onChange({ headerHeight: opt.value, headerTitleFontSize: Math.min(layout.headerTitleFontSize ?? 26, Math.min(64, Math.floor(opt.value * 0.6))) })}
-                className={`py-1.5 text-xs rounded-lg border transition-colors ${
-                  (layout.headerHeight ?? 80) === opt.value
-                    ? 'bg-blue-500 text-white border-blue-500'
-                    : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-gray-300'}`}>
-                {opt.label}
-              </button>
-            ))}
+    <div className="grid gap-3">
+      {/* The most visible text of the header: first. */}
+      <section className={card}>
+        <label htmlFor="header-screen-title" className="block text-sm font-semibold text-ui-ink">כותרת המסך</label>
+        <p id="header-screen-title-hint" className="mb-2 mt-0.5 text-xs text-ui-muted">טקסט בולט במרכז הכותרת העליונה, למשל ״ברוכים הבאים״ או הודעה קצרה. כשהשדה ריק לא מוצגת כותרת במרכז.</p>
+        <input id="header-screen-title" type="text" aria-describedby="header-screen-title-hint"
+          value={layout.headerScrollText ?? ''}
+          onChange={e => onChange({ headerScrollText: e.target.value || null })}
+          placeholder="לדוגמה: ברוכים הבאים לתיכון"
+          className="ui-focus h-10 w-full rounded-ui-sm border border-ui-border-strong bg-ui-surface px-3 text-sm" />
+      </section>
+
+      <section className={card}>
+        <h3 className="mb-1 text-sm font-semibold text-ui-ink">מה מוצג בכותרת</h3>
+        <div className="divide-y divide-ui-border">
+          <div className="pb-1">
+            <p className="pt-1 text-xs font-medium text-ui-muted">שם המסך ולוגו</p>
+            {toggle('headerShowTitle', 'שם המסך')}
+            {toggle('headerShowLogo', 'לוגו בית הספר')}
+          </div>
+          <div className="py-1">
+            <p className="pt-2 text-xs font-medium text-ui-muted">שעון ותאריכים</p>
+            {toggle('headerShowClock', 'שעון')}
+            {toggle('headerShowDate', 'תאריך')}
+            {layout.headerShowDate && (
+              <div className="grid grid-cols-3 gap-1.5 pb-1.5" role="group" aria-label="סוג תאריך">
+                {DATE_TYPE_OPTIONS.map(opt => (
+                  <button key={opt.value} type="button" title={opt.example} aria-pressed={(layout.headerDateType ?? 'BOTH') === opt.value}
+                    onClick={() => onChange({ headerDateType: opt.value })} className={pill((layout.headerDateType ?? 'BOTH') === opt.value)}>{opt.label}</button>
+                ))}
+              </div>
+            )}
+            {toggle('headerShowParasha', 'פרשת השבוע', 'ליד התאריך')}
+          </div>
+          <div className="pt-1">
+            <p className="pt-2 text-xs font-medium text-ui-muted">מידע נוסף</p>
+            {toggle('headerShowWeather', 'מזג אוויר')}
           </div>
         </div>
+      </section>
 
-        {/* Main heading typography */}
-        <div className="rounded-lg border border-gray-200 p-3 space-y-3">
-          <label className="block text-xs font-semibold text-gray-700">עיצוב הכותרת הראשית (במרכז)</label>
+      <EditorGroup title="גודל ועיצוב הכותרת" summary={`גובה ${layout.headerHeight ?? 80}px · כותרת ${titleSize}px`}>
+        <div className="space-y-3">
           <div>
-            <label className="block text-xs text-gray-500 mb-1">גודל גופן: {Math.min(layout.headerTitleFontSize ?? 26, Math.min(64, Math.floor((layout.headerHeight ?? 80) * 0.6)))}px</label>
-            <input type="range" min={14} max={Math.min(64, Math.floor((layout.headerHeight ?? 80) * 0.6))} step={1} value={Math.min(layout.headerTitleFontSize ?? 26, Math.min(64, Math.floor((layout.headerHeight ?? 80) * 0.6)))}
-              onChange={e=>onChange({headerTitleFontSize:Number(e.target.value)})} className="w-full" />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">עובי גופן</label>
-            <div className="grid grid-cols-3 gap-1.5">
-              {[{value:400,label:'רגיל'},{value:600,label:'בינוני'},{value:700,label:'מודגש'}].map(opt=><button
-                type="button" key={opt.value} onClick={()=>onChange({headerTitleFontWeight:opt.value})}
-                className={`rounded-lg border px-2 py-1.5 text-xs ${(layout.headerTitleFontWeight ?? 700)===opt.value?'bg-blue-500 text-white border-blue-500':'bg-gray-50 text-gray-600 border-gray-200'}`}>
-                {opt.label}</button>)}
-            </div>
-          </div>
-        </div>
-
-        {/* Date type */}
-        {layout.headerShowDate && (
-          <div>
-            <label className="block text-xs text-gray-500 mb-2">סוג תאריך</label>
-            <div className="space-y-1.5">
-              {DATE_TYPE_OPTIONS.map(opt => (
-                <button key={opt.value} type="button"
-                  onClick={() => onChange({ headerDateType: opt.value })}
-                  className={`w-full text-right px-3 py-2 text-xs rounded-lg border transition-colors ${
-                    (layout.headerDateType ?? 'BOTH') === opt.value
-                      ? 'bg-blue-50 border-blue-400 text-blue-700'
-                      : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-gray-300'}`}>
-                  <div className="font-medium">{opt.label}</div>
-                  <div className="text-[10px] opacity-60 mt-0.5">{opt.example}</div>
-                </button>
+            <p className="mb-1.5 text-xs text-ui-ink-2">גובה הכותרת</p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {HEIGHT_OPTIONS.map(opt => (
+                <button key={opt.value} type="button" aria-pressed={(layout.headerHeight ?? 80) === opt.value}
+                  onClick={() => onChange({ headerHeight: opt.value, headerTitleFontSize: Math.min(layout.headerTitleFontSize ?? 26, Math.min(64, Math.floor(opt.value * 0.6))) })}
+                  className={pill((layout.headerHeight ?? 80) === opt.value)}>{opt.label}</button>
               ))}
             </div>
           </div>
-        )}
-
-        {/* Toggles */}
-        <div className="space-y-2">
-          {[
-            { key: 'headerShowLogo',    label: 'הצג לוגו' },
-            { key: 'headerShowTitle',   label: 'הצג שם המסך' },
-            { key: 'headerShowClock',   label: 'הצג שעון' },
-            { key: 'headerShowDate',    label: 'הצג תאריך' },
-            { key: 'headerShowParasha', label: 'הצג פרשת השבוע ליד התאריך' },
-            { key: 'headerShowWeather', label: 'הצג מזג אוויר בכותרת' },
-          ].map(item => (
-            <div key={item.key} className="flex items-center justify-between">
-              <span className="text-xs text-gray-700">{item.label}</span>
-              <Switch
-                checked={!!layout[item.key as keyof ScreenLayout]}
-                onCheckedChange={v => onChange({ [item.key]: v })}
-              />
+          <label className="block">
+            <span className="mb-1 block text-xs text-ui-ink-2">גודל כותרת המסך: {titleSize}px</span>
+            <input type="range" min={14} max={maxTitle} step={1} value={titleSize} onChange={e => onChange({ headerTitleFontSize: Number(e.target.value) })} className="w-full" />
+          </label>
+          <div>
+            <p className="mb-1.5 text-xs text-ui-ink-2">עובי כותרת המסך</p>
+            <div className="grid grid-cols-3 gap-1.5">
+              {[{ value: 400, label: 'רגיל' }, { value: 600, label: 'בינוני' }, { value: 700, label: 'מודגש' }].map(opt => (
+                <button type="button" key={opt.value} aria-pressed={(layout.headerTitleFontWeight ?? 700) === opt.value}
+                  onClick={() => onChange({ headerTitleFontWeight: opt.value })} className={pill((layout.headerTitleFontWeight ?? 700) === opt.value)}>{opt.label}</button>
+              ))}
             </div>
-          ))}
-        </div>
-
-        <div className="rounded-lg border border-gray-200 p-3 space-y-2">
-          <div className="text-xs font-semibold text-gray-700">פרטי בית הספר (משותפים לכל המסכים)</div>
-          <div className="flex items-center justify-between gap-2 text-xs">
-            <span className="text-gray-500">לוגו</span>
-            {logoUrl ? <img src={logoUrl} alt="לוגו בית הספר" className="h-8 w-auto max-w-[96px] object-contain" /> : <span className="text-gray-400">לא הוגדר</span>}
           </div>
-          <div className="flex items-center justify-between gap-2 text-xs">
-            <span className="text-gray-500">עיר למזג האוויר</span>
-            <span className="truncate text-gray-700">{weatherCityName(weatherCity) || 'ברירת המחדל של המערכת'}</span>
+        </div>
+      </EditorGroup>
+
+      <EditorGroup title="פרטי בית הספר" summary="לוגו ועיר למזג האוויר · משותפים לכל המסכים">
+        <div className="space-y-2 text-xs">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-ui-muted">לוגו</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {logoUrl ? <img src={logoUrl} alt="לוגו בית הספר" className="h-8 w-auto max-w-[96px] object-contain" /> : <span className="text-ui-muted">לא הוגדר</span>}
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-ui-muted">עיר למזג האוויר</span>
+            <span className="truncate text-ui-ink-2">{weatherCityName(weatherCity) || 'ברירת המחדל של המערכת'}</span>
           </div>
           <Link href="/admin/settings#school"
             onClick={e => { e.preventDefault(); void confirmLeaveEditor('יש שינויים שלא נשמרו בעורך. לעבור להגדרות בית הספר ולבטל אותם?').then(ok => { if (ok) router.push('/admin/settings#school') }) }}
-            className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline">
+            className="inline-flex items-center gap-1 font-medium text-ui-primary hover:underline">
             <Settings2 className="h-3.5 w-3.5" aria-hidden="true" />ניהול בהגדרות בית הספר
           </Link>
         </div>
-        {/* Scroll text */}
-        <div>
-          <label className="block text-xs text-gray-500 mb-1.5">כותרת ראשית (אופציונלי)</label>
-          <input type="text"
-            value={layout.headerScrollText ?? ''}
-            onChange={e => onChange({ headerScrollText: e.target.value || null })}
-            placeholder="כותרת שתופיע במרכז הכותרת העליונה..."
-            className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-gray-50"
-          />
-        </div>
-      </div>
+      </EditorGroup>
     </div>
   )
 }

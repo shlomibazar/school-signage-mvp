@@ -1,14 +1,11 @@
-// Runs once when the Node.js server starts (Next.js instrumentation hook).
+// Runs once when the server starts (Next.js instrumentation hook).
 //
-// Expired people-import previews hold names and birth dates: they are cleared at start (the free
-// Render instance sleeps and wakes often) and every 10 minutes while the server runs, in addition to
-// the cleanup on every import request. Failures are logged by type only and never stop the server.
-const CLEANUP_EVERY_MS = 10 * 60_000
-
+// Next.js compiles this file for the Node.js and the Edge runtimes. The Node-only work lives in
+// instrumentation-node.ts and is imported inside a positive NEXT_RUNTIME check, the form the bundler
+// removes from the Edge build. (An early `return` for other runtimes is not removed: the Edge build
+// then followed the import to node:crypto and failed with UnhandledSchemeError.)
 export async function register() {
-  if (process.env.NEXT_RUNTIME !== 'nodejs') return
-  const { cleanupImports } = await import('./lib/people/import/service')
-  const run = () => cleanupImports().catch(e => console.error(`People import cleanup failed: ${e instanceof Error ? e.name : typeof e}`))
-  void run()
-  setInterval(run, CLEANUP_EVERY_MS).unref()
+  if (process.env.NEXT_RUNTIME === 'nodejs') {
+    await import('./instrumentation-node')
+  }
 }

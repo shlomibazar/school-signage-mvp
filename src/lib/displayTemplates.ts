@@ -15,10 +15,10 @@ export function withDisplaySurface(value:string|null|undefined,surface:DisplaySu
 }
 export type DisplayTemplate = 'classic' | 'information' | 'visual' | 'split'
 export const DISPLAY_TEMPLATES: {id:DisplayTemplate;name:string;description:string}[] = [
-  {id:'classic',name:'קלאסית',description:'הפריסה המקורית — ללא שינוי'},
-  {id:'information',name:'חלוקה לשניים · 70/30',description:'שני אזורי תוכן — רחב וצר'},
-  {id:'visual',name:'מרכז רחב · 20/60/20',description:'שלושה אזורים — מרכז גדול ושני צדדים'},
-  {id:'split',name:'פיצול 70/30',description:'אזור ראשי מימין ושני אזורים זה מעל זה משמאל'},
+  {id:'classic',name:'קלאסית',description:'1–3 אזורים ברוחב שווה, אזור 1 מימין'},
+  {id:'information',name:'חלוקה לשניים · 30/70',description:'אזור 1 רחב מימין, אזור 2 צר משמאל'},
+  {id:'visual',name:'מרכז רחב · 20/60/20',description:'אזור 2 רחב במרכז, אזור 1 מימין ואזור 3 משמאל'},
+  {id:'split',name:'פיצול 30/70',description:'אזור 1 רחב מימין, אזורים 2 ו־3 זה מעל זה משמאל'},
 ]
 /** Regions each template shows (classic: 1–3, chosen in the editor). */
 export const TEMPLATE_SECTION_COUNT: Record<Exclude<DisplayTemplate,'classic'>, 2|3> = { information:2, visual:3, split:3 }
@@ -62,4 +62,24 @@ export function regionGrid(template:DisplayTemplate,count:number,stacked:boolean
   return stacked
     ? { container:{ display:'grid', gridTemplateColumns:'1fr 1fr', gridTemplateRows:'70fr 30fr' }, cell:(i):Record<string,string> => i === 0 ? { gridColumn:'1 / span 2', minHeight:'0', minWidth:'0' } : { minHeight:'0', minWidth:'0' } }
     : { container:{ display:'grid', gridTemplateColumns:'70fr 30fr', gridTemplateRows:'1fr 1fr' }, cell:(i):Record<string,string> => i === 0 ? { gridRow:'1 / span 2', minHeight:'0', minWidth:'0' } : { minHeight:'0', minWidth:'0' } }
+}
+
+/**
+ * Where each region physically sits on the screen, for the editor's layout diagrams: rectangles in a
+ * left-to-right coordinate system (x from the physical left edge), in % of the content area. It
+ * mirrors the renderer: the page is RTL, so a row of regions starts at the physical RIGHT (region 1
+ * on the right); stacked (portrait) screens go top to bottom; split uses its grid (region 1 spans
+ * both rows of the right column, or the full top row on portrait).
+ */
+export function regionRects(template:DisplayTemplate,count:number,stacked:boolean):{n:number;x:number;y:number;w:number;h:number}[] {
+  if(template === 'split' && count === 3) return stacked
+    ? [{n:1,x:0,y:0,w:100,h:70},{n:2,x:50,y:70,w:50,h:30},{n:3,x:0,y:70,w:50,h:30}]
+    : [{n:1,x:30,y:0,w:70,h:100},{n:2,x:0,y:0,w:30,h:50},{n:3,x:0,y:50,w:30,h:50}]
+  const sizes = getTemplateWidths(template,count)
+  const total = sizes.reduce((a,b)=>a+b,0) || 1
+  let used = 0
+  return sizes.map((size,i)=>{
+    const part = size/total*100, start = used; used += part
+    return stacked ? {n:i+1,x:0,y:start,w:100,h:part} : {n:i+1,x:100-start-part,y:0,w:part,h:100}
+  })
 }

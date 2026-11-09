@@ -3,6 +3,7 @@
 
 import type { ContentItem } from '@/types'
 import { sanitizeHTML } from '@/lib/utils'
+import { MoreOptions } from '../Collapsible'
 
 interface Props {
   item:     Partial<ContentItem>
@@ -15,17 +16,16 @@ export default function TextContentForm({ item, onChange }: Props) {
   return (
     <div className="space-y-3">
       <div>
-        <label className="block text-xs text-gray-500 mb-1.5">טקסט</label>
+        <label htmlFor="text-content" className="mb-1.5 block text-xs font-medium text-ui-ink-2">הטקסט שיוצג במסך</label>
         <textarea
+          id="text-content"
           rows={5}
           value={item.textContent ?? ''}
           onChange={e => onChange({ textContent: e.target.value })}
           placeholder="הכנס את הטקסט שיוצג על המסך..."
-          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-blue-400 bg-gray-50 leading-relaxed"
+          className="ui-focus w-full resize-y rounded-ui-sm border border-ui-border-strong bg-ui-surface px-3 py-2 text-sm leading-relaxed"
         />
-        <p className="text-[10px] text-gray-400 mt-1">
-          ניתן להשתמש ב-HTML בסיסי: &lt;b&gt;, &lt;br&gt;, &lt;span style=&quot;...&quot;&gt;
-        </p>
+        {!(item.textContent ?? '').trim() && <p className="mt-1 text-[11px] text-ui-muted">כתבו את ההודעה. אזור ריק לא יציג דבר במסך.</p>}
       </div>
 
       <div>
@@ -48,6 +48,8 @@ export default function TextContentForm({ item, onChange }: Props) {
         </div>
       </div>
 
+      <MoreOptions title="צבעים ועיצוב מתקדם">
+      <p className="text-[11px] text-ui-muted">אפשר להשתמש ב־HTML בסיסי בטקסט: &lt;b&gt;, &lt;br&gt;, &lt;span style=&quot;...&quot;&gt;</p>
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs text-gray-500 mb-1.5">צבע טקסט</label>
@@ -74,6 +76,7 @@ export default function TextContentForm({ item, onChange }: Props) {
           </div>
         </div>
       </div>
+      </MoreOptions>
 
       {item.textContent && (
         <div>

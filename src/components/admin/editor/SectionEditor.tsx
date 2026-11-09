@@ -129,7 +129,10 @@ export default function SectionEditor({ screenId, section, index, widthPct, isTe
       {isTemp ? (
         <p className="px-4 py-6 text-center text-[13px] text-ui-muted">אזור חדש. שמרו את הפריסה כדי להוסיף לו תוכן.</p>
       ) : (
-        <div className="grid gap-3 p-4">
+        // grid-cols-1 = minmax(0, 1fr): the column keeps the region's width. With an "auto" column, a
+        // single-line (truncate) row inside a form — e.g. a long announcement in the list — widened
+        // the column to the full text length and pushed the type actions out of view.
+        <div className="grid grid-cols-1 gap-3 p-4">
           {selectedType !== 'EMPTY' && !pickerOpen && (
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex min-w-0 items-center gap-2.5">
@@ -139,10 +142,15 @@ export default function SectionEditor({ screenId, section, index, widthPct, isTe
                   <p className="truncate text-sm font-semibold text-ui-ink">{contentTypeLabel(selectedType)}</p>
                 </div>
               </div>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5">
                 {!editorOpen && <Button size="sm" variant="primary" icon={<Pencil className="h-3.5 w-3.5" aria-hidden="true" />} onClick={() => setEditorOpen(true)}>עריכת תוכן</Button>}
-                <Button size="sm" data-change-type icon={<Repeat2 className="h-3.5 w-3.5" aria-hidden="true" />} onClick={() => setPickerOpen(true)}>החלפת סוג</Button>
-                {saved && <Button size="sm" variant="ghost" className="text-ui-danger hover:bg-ui-danger-soft" icon={<Eraser className="h-3.5 w-3.5" aria-hidden="true" />} onClick={clearRegion}>ריקון האזור</Button>}
+                <Button size="sm" data-change-type className="border-ui-primary-line text-ui-primary-ink" icon={<Repeat2 className="h-3.5 w-3.5" aria-hidden="true" />} onClick={() => setPickerOpen(true)}
+                  aria-label={`שינוי סוג התוכן של ${regionName}`}>שינוי סוג התוכן</Button>
+                {/* Destructive: kept apart from the editing actions. */}
+                {saved && <>
+                  <span className="mx-1 h-5 w-px bg-ui-border" aria-hidden="true" />
+                  <Button size="sm" variant="ghost" className="text-ui-danger hover:bg-ui-danger-soft" icon={<Eraser className="h-3.5 w-3.5" aria-hidden="true" />} onClick={clearRegion}>ריקון האזור</Button>
+                </>}
               </div>
             </div>
           )}
@@ -150,7 +158,7 @@ export default function SectionEditor({ screenId, section, index, widthPct, isTe
           {(pickerOpen || selectedType === 'EMPTY') && (
             <div className="grid gap-2">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-[13px] font-semibold text-ui-ink-2">{saved ? 'בחירת סוג תוכן אחר' : 'מה יוצג באזור?'}</p>
+                <p className="text-[13px] font-semibold text-ui-ink-2">{saved ? `שינוי סוג התוכן ב${regionName}` : `מה יוצג ב${regionName}?`}</p>
                 {selectedType !== 'EMPTY' && <button type="button" onClick={() => { setPickerOpen(false); setFocusTarget('change') }} aria-label="סגירת בחירת סוג התוכן"
                   className="ui-focus grid h-8 w-8 place-items-center rounded-ui-sm text-ui-muted hover:bg-ui-subtle"><X className="h-4 w-4" aria-hidden="true" /></button>}
               </div>
