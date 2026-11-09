@@ -1,5 +1,6 @@
 // src/app/admin/screens/page.tsx
-import { Plus, Monitor } from 'lucide-react'
+import Link from 'next/link'
+import { Plus, Monitor, Rocket } from 'lucide-react'
 import ScreenSnapshot from '@/components/admin/ScreenSnapshot'
 import ScreenCard from '@/components/admin/screens/ScreenCard'
 import { getCurrentUser } from '@/lib/auth'
@@ -8,6 +9,7 @@ import { homeSchoolWhere } from '@/lib/schoolScope'
 import { ButtonLink } from '@/components/ui/Button'
 import { PageHeader, EmptyState } from '@/components/ui/Display'
 import ConnectionRefresh from '@/components/admin/screens/ConnectionRefresh'
+import HelpButton from '@/components/admin/help/HelpButton'
 import { connectionStatus, relativeTimeHe } from '@/lib/screenConnection'
 
 export default async function ScreensPage() {
@@ -52,9 +54,16 @@ export default async function ScreensPage() {
       <PageHeader title="מסכים"
         description={screens.length ? `${screens.length} מסכים · ${activeCount} פעילים · ${connectedCount} מחוברים · ${disconnectedCount} לא מחוברים` : undefined}
         actions={<>
+          <HelpButton topic="screens" />
           {screens.length > 0 && <ConnectionRefresh checkedAt={checkedAt} />}
           {canEditContent && <ButtonLink href="/admin/screens/new" variant="primary" icon={<Plus className="h-4 w-4" aria-hidden="true" />}>מסך חדש</ButtonLink>}
         </>} />
+      {/* A quiet pointer to the quick-start guide (no popup, nothing forced). */}
+      <p className="-mt-3 mb-4 text-[13px]">
+        <Link href="/admin/help/quick-start" className="ui-focus inline-flex items-center gap-1 rounded text-ui-primary hover:underline">
+          <Rocket className="h-3.5 w-3.5" aria-hidden="true" />חדש במערכת? כך מקימים את המסך הראשון
+        </Link>
+      </p>
 
       {screens.length === 0 ? (
         <div className="rounded-ui-lg border border-dashed border-ui-border bg-ui-surface">

@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 import { getCurrentUser } from '@/lib/auth'
 import { PageHeader } from '@/components/ui/Display'
+import HelpButton from '@/components/admin/help/HelpButton'
 import { Card } from '@/components/ui/Card'
 import ImportWizard from '@/components/admin/birthdays/ImportWizard'
 
@@ -18,7 +19,7 @@ export default async function BirthdaysImportPage() {
         <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
         <span aria-current="page">ייבוא מאקסל</span>
       </nav>
-      <PageHeader title="ייבוא מאקסל" description="הוספה ועדכון של תלמידים או מורים מקובץ xlsx. שום שינוי לא נשמר לפני אישור." />
+      <PageHeader title="ייבוא מאקסל" description="הוספה ועדכון של תלמידים או מורים מקובץ xlsx. שום שינוי לא נשמר לפני אישור." actions={<HelpButton topic="birthdays" />} />
       {!allowed
         ? <Card className="p-6 text-sm text-ui-muted">ייבוא רשימות מותר למנהלי בית הספר בלבד.</Card>
         : !user.schoolId

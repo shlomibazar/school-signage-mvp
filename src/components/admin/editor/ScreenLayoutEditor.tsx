@@ -16,6 +16,7 @@ import { Switch } from '@/components/ui/Switch'
 import { getDisplayTemplate, withDisplayTemplate, getTemplateWidths, isStackedLayout, TEMPLATE_SECTION_COUNT, type DisplayTemplate } from '@/lib/displayTemplates'
 import { contentTypeLabel } from '@/lib/contentTypes'
 import { confirmDiscardDraft } from '@/lib/unsavedChanges'
+import HelpButton from '@/components/admin/help/HelpButton'
 import { cn } from '@/lib/utils'
 
 interface Props { screen: Screen; layout: ScreenLayout; sections: ScreenSection[]; screenSelector?: React.ReactNode; initialLogoUrl?: string | null; initialWeatherCity?: string | null }
@@ -204,6 +205,7 @@ export default function ScreenLayoutEditor({ screen, layout: initLayout, section
             {settingsVisible ? <PanelLeftClose className="h-4 w-4" aria-hidden="true" /> : <PanelLeftOpen className="h-4 w-4" aria-hidden="true" />}
             {settingsVisible ? 'הסתרת הגדרות' : 'הצגת הגדרות'}
           </button>
+          <HelpButton topic={tab === 'content' ? 'content' : 'design'} />
           <a href={`/screen/${screen.slug}`} target="_blank" rel="noopener noreferrer" aria-label="תצוגה ציבורית (בלשונית חדשה)"
             className="ui-focus inline-flex h-9 items-center gap-1.5 rounded-ui-sm border border-ui-border-strong px-3 text-[13px] text-ui-ink-2 hover:bg-ui-subtle">
             <ExternalLink className="h-4 w-4" aria-hidden="true" />תצוגה ציבורית

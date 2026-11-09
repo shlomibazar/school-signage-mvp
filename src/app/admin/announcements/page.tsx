@@ -11,6 +11,7 @@ import { listScreenRegions, displayedIn } from '@/lib/announcementRegions'
 import { announcementStatus, isOpenEnded, STATUS_LABEL, type AnnouncementStatus } from '@/lib/announcementStatus'
 import { ButtonLink, buttonClass } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
+import HelpButton from '@/components/admin/help/HelpButton'
 import { PageHeader, Badge, EmptyState, Table, Th, Td, type BadgeTone } from '@/components/ui/Display'
 
 const PRIORITY: Record<string, { label: string; dot: string }> = {
@@ -59,7 +60,7 @@ export default async function AnnouncementsPage({ searchParams }: Props) {
   return (
     <div className="mx-auto w-full max-w-6xl">
       <PageHeader title="הודעות" description="כאן יוצרים הודעה, בוחרים מתי ואיפה היא מוצגת ומפרסמים."
-        actions={canEdit && <ButtonLink href="/admin/announcements/new" variant="primary" icon={<Plus className="h-4 w-4" />}>הודעה חדשה</ButtonLink>} />
+        actions={<><HelpButton topic="announcements" />{canEdit && <ButtonLink href="/admin/announcements/new" variant="primary" icon={<Plus className="h-4 w-4" />}>הודעה חדשה</ButtonLink>}</>} />
 
       <Card className="overflow-hidden">
         {announcements.length > 0 && (

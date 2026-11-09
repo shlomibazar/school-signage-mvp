@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import { KeyRound, Link2, Globe, Loader2, RefreshCw, AlertCircle, Clock } from 'lucide-react'
+import { KeyRound, Link2, Globe, Loader2, RefreshCw, AlertCircle, Clock, HelpCircle } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { CopyButton, CopyField, copyText, useCopied } from '@/components/ui/CopyField'
@@ -64,6 +64,10 @@ export default function ScreenConnectDialog({ open, onClose, screen, canPair, ca
         {tab === 'short' && <ShortLinkPanel screenId={screen.id} code={shortCode} setCode={setShortCode} canCreate={canCreateLink} origin={origin} />}
         {tab === 'url' && <UrlPanel url={origin ? `${origin}/screen/${screen.slug}` : ''} />}
       </div>
+      {/* Full guide in a new tab (the dialog stays open). */}
+      <a href="/admin/help/tv-connection" target="_blank" rel="noopener" className="ui-focus mt-4 inline-flex items-center gap-1.5 rounded text-[13px] text-ui-primary hover:underline">
+        <HelpCircle className="h-4 w-4" aria-hidden="true" />איך מחברים טלוויזיה? מדריך מלא
+      </a>
     </Modal>
   )
 }

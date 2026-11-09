@@ -14,6 +14,7 @@ import { Button, ButtonLink } from '@/components/ui/Button'
 import { Card, CardHeader, CardBody } from '@/components/ui/Card'
 import { Field, Input, Select, Checkbox } from '@/components/ui/Field'
 import { PageHeader } from '@/components/ui/Display'
+import HelpButton from '@/components/admin/help/HelpButton'
 import { cn } from '@/lib/utils'
 
 const PRESETS: { id: SchedulePreset; label: string }[] = [
@@ -175,7 +176,7 @@ export default function AnnouncementForm({initial}:{initial?:Announcement}){
 
   return <form onSubmit={save} className="mx-auto w-full max-w-6xl min-w-0 [overflow-anchor:none]" dir="rtl">
     <PageHeader title={initial?'עריכת הודעה':'הודעה חדשה'} description={initial?undefined:'כתבו את ההודעה, בחרו מתי ואיפה להציג אותה ופרסמו. אין צורך להיכנס לעורך המסך.'}
-      actions={<ButtonLink href="/admin/announcements" variant="ghost" size="sm" icon={<ArrowRight className="h-4 w-4" />}>לכל ההודעות</ButtonLink>} />
+      actions={<><HelpButton topic="announcements" /><ButtonLink href="/admin/announcements" variant="ghost" size="sm" icon={<ArrowRight className="h-4 w-4" />}>לכל ההודעות</ButtonLink></>} />
     {initial&&sharedScreens>1&&<div role="note" className="mb-4 flex items-start gap-2 rounded-ui border border-ui-primary-line bg-ui-primary-soft px-4 py-3 text-sm text-ui-primary-ink"><Info className="mt-0.5 h-4 w-4 shrink-0" />ההודעה מוצגת ב-{sharedScreens} מסכים. שינויים בתוכן יופיעו בכולם.</div>}
     <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_400px]">
       <div className="grid min-w-0 gap-4">

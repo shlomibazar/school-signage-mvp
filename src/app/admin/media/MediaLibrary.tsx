@@ -5,6 +5,7 @@ import { confirmDialog } from '@/components/ui/ConfirmHost'
 import { UPLOAD_BATCH_BYTES } from '@/lib/uploadValidation'
 import { mediaThumbnailSrc } from '@/lib/mediaThumbnail'
 import { Upload, Trash2, Loader2, ImageIcon, Edit2, Check, X, Plus, FolderOpen, Folder } from 'lucide-react'
+import HelpButton from '@/components/admin/help/HelpButton'
 import type { MediaLibraryImage, Gallery } from '@/types'
 
 function fmtBytes(b:number){if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)+' KB';return(b/1048576).toFixed(1)+' MB'}
@@ -295,10 +296,13 @@ export default function MediaLibrary({ canEdit }: { canEdit: boolean }) {
           <h1 className="text-xl font-semibold text-gray-900">ספריית מדיה</h1>
           <p className="text-sm text-gray-500 mt-0.5">{images.length} תמונות</p>
         </div>
+        <div className="flex items-center gap-2">
+        <HelpButton topic="media" />
         {canEdit && <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors">
           {uploading ? <><Loader2 className="w-4 h-4 animate-spin"/>מעלה...</> : <><Upload className="w-4 h-4"/>העלאת תמונות וסרטונים</>}
         </button>}
+        </div>
         <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml,video/mp4,video/webm" multiple className="hidden" onChange={handleUpload}/>
       </div>
 

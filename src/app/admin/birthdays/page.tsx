@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/auth'
 import { PageHeader } from '@/components/ui/Display'
+import HelpButton from '@/components/admin/help/HelpButton'
 import { Card } from '@/components/ui/Card'
 import BirthdaysManager from '@/components/admin/birthdays/BirthdaysManager'
 import { identityConfigured } from '@/lib/people/identity'
@@ -13,7 +14,7 @@ export default async function BirthdaysPage() {
   const allowed = user.role === 'SCHOOL_ADMIN' || user.role === 'SUPER_ADMIN'
   return (
     <div className="mx-auto w-full max-w-5xl">
-      <PageHeader title="ימי הולדת" description="תלמידים ומורים שימי ההולדת שלהם יוכלו להופיע במסכים" />
+      <PageHeader title="ימי הולדת" description="תלמידים ומורים שימי ההולדת שלהם יוכלו להופיע במסכים" actions={<HelpButton topic="birthdays" />} />
       {!allowed
         ? <Card className="p-6 text-sm text-ui-muted">ניהול רשימת ימי ההולדת מותר למנהלי בית הספר בלבד.</Card>
         : !user.schoolId

@@ -20,8 +20,6 @@ interface NavItem {
   roles?:   string[]
 }
 
-const HELP_AVAILABLE = false
-
 const NAV: NavItem[] = [
   { href: '/admin/dashboard',     label: 'לוח בקרה',     icon: LayoutDashboard },
   { href: '/admin/screens',       label: 'מסכים',          icon: Monitor },
@@ -37,6 +35,8 @@ const NAV: NavItem[] = [
   { href: '/admin/birthdays',     label: 'ימי הולדת',      icon: Cake,         section: 'ניהול', roles: ['SCHOOL_ADMIN', 'SUPER_ADMIN'] },
   { href: '/admin/settings',      label: 'הגדרות',         icon: Settings,     section: 'ניהול', roles: ['EDITOR', 'SCHOOL_ADMIN', 'SUPER_ADMIN'] },
   { href: '/admin/change-password', label: 'שינוי סיסמה', icon: LockKeyhole },
+  // Help Center: static guides for every role (src/lib/help/topics.ts).
+  { href: '/admin/help',            label: 'עזרה והדרכה', icon: HelpCircle },
 ]
 
 // Title for the top bar: the menu item that owns the current path.
@@ -124,18 +124,6 @@ export default function AdminSidebar({ user }: { user: AuthUser }) {
 
         {renderNav(collapsed)}
 
-        {/* Help: hidden until the /admin/help page exists (the link returned 404). */}
-        {HELP_AVAILABLE && <div className="px-2 pb-3 shrink-0">
-          <Link
-            href="/admin/help"
-            // The Help page is not implemented yet; don't prefetch a route that returns 404.
-            prefetch={false}
-            className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] text-gray-500 hover:bg-gray-50"
-          >
-            <HelpCircle className="w-4 h-4" />
-            {!collapsed && "עזרה"}
-          </Link>
-        </div>}
       </aside>
 
       {/* Mobile: hamburger button */}
