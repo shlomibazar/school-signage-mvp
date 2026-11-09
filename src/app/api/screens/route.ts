@@ -1,14 +1,14 @@
 // src/app/api/screens/route.ts
-import { randomBytes } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { errorResponse } from '@/lib/apiErrors'
+import { screenNameSchema, generateSlug, isSlugConflict } from '@/lib/screenIdentity'
 
 const CreateScreenSchema = z.object({
   // Trimmed first, so a name of spaces only is rejected (the admin form applies the same rule).
-  name:        z.string().trim().min(2, 'שם המסך חייב להכיל לפחות 2 תווים').max(100),
+  name:        screenNameSchema,
   // Optional: the admin form no longer sends it, and a unique one is generated instead.
   slug:        z.string().min(2).max(50).regex(/^[a-z0-9-]+$/, 'Slug חייב להכיל רק אותיות לועזיות קטנות, מספרים ומקף').optional(),
   orientation: z.enum(['LANDSCAPE', 'PORTRAIT']).default('LANDSCAPE'),
@@ -22,14 +22,6 @@ function apiError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status })
 }
 
-// Matches /^[a-z0-9-]+$/ and 2–50 chars. Latin names keep a readable prefix (Hebrew names
-// fall back to "screen"); the random suffix keeps public URLs unique and hard to guess.
-function generateSlug(name: string): string {
-  const base = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-    .replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 30).replace(/-$/, '')
-  return `${base.length >= 2 ? base : 'screen'}-${randomBytes(4).toString('hex')}`
-}
-
 // Landscape 1920×1080, portrait 1080×1920 by default. Explicit sizes from API clients are
 // kept, but oriented to match: the longer side is the width on landscape, the height on portrait.
 function screenDimensions(orientation: 'LANDSCAPE' | 'PORTRAIT', width?: number, height?: number) {
@@ -37,9 +29,6 @@ function screenDimensions(orientation: 'LANDSCAPE' | 'PORTRAIT', width?: number,
   const short = Math.min(width ?? 1920, height ?? 1080)
   return orientation === 'PORTRAIT' ? { width: short, height: long } : { width: long, height: short }
 }
-
-const isSlugConflict = (err: any) =>
-  err?.code === 'P2002' && [err?.meta?.target].flat().some((t: unknown) => String(t).includes('slug'))
 
 export async function GET() {
   try {

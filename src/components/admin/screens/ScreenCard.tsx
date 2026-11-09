@@ -1,9 +1,12 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Pencil, ExternalLink, Tv, Settings, Power, Trash2, Camera } from 'lucide-react'
+import Link from 'next/link'
+import toast from 'react-hot-toast'
+import { Pencil, ExternalLink, Tv, Settings, Power, Trash2, Camera, Copy, PenLine } from 'lucide-react'
 import ScreenSnapshotImage from '@/components/admin/ScreenSnapshotImage'
 import ScreenConnectDialog from './ScreenConnectDialog'
+import ScreenNameDialog from './ScreenNameDialog'
 import { setScreenActive, deleteScreen } from './screenActions'
 import { ButtonLink, Button, buttonClass } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Display'
@@ -36,22 +39,48 @@ export default function ScreenCard({ screen, connection, fallback, canEditConten
   const [active, setActive] = useState(screen.active)
   useEffect(() => { setActive(screen.active) }, [screen.active])
   const [connectOpen, setConnectOpen] = useState(false)
+  // The name shown on the card follows a rename right away (the list refresh then confirms it).
+  const [name, setName] = useState(screen.name)
+  useEffect(() => { setName(screen.name) }, [screen.name])
+  const [dialog, setDialog] = useState<'rename' | 'duplicate' | null>(null)
   const portrait = screen.orientation === 'PORTRAIT'
 
+  async function rename(next: string) {
+    const r = await fetch(`/api/screens/${encodeURIComponent(screen.id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: next }) })
+    const d = await r.json().catch(() => ({}))
+    if (!r.ok) throw new Error(r.status === 403 ? 'אין לך הרשאה לשנות את שם המסך' : d.error || 'שינוי השם נכשל. נסו שוב.')
+    setName(d.data?.name ?? next); setDialog(null); toast.success('שם המסך עודכן'); router.refresh()
+  }
+  async function duplicate(next: string) {
+    const r = await fetch(`/api/screens/${encodeURIComponent(screen.id)}/duplicate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: next }) })
+    const d = await r.json().catch(() => ({}))
+    if (!r.ok) throw new Error(r.status === 403 ? 'אין לך הרשאה ליצור מסכים' : d.error || 'שכפול המסך נכשל. נסו שוב.')
+    setDialog(null); router.refresh()
+    toast.success(t => <span>המסך ״{d.data.name}״ נוצר (לא פעיל). <Link href={`/admin/editor?screen=${d.data.id}`} onClick={() => toast.dismiss(t.id)} className="font-semibold underline">פתיחה בעורך</Link></span>, { duration: 8000 })
+  }
+
+  // Rename and duplicate: EDITOR and up (as creating a screen). The rest: SCHOOL_ADMIN and up.
   const menu: MenuItem[] = [
+    ...(canEditContent ? [
+      { label: 'שינוי שם', icon: <PenLine className="h-4 w-4" aria-hidden="true" />, onSelect: () => setDialog('rename') },
+      { label: 'שכפול מסך', icon: <Copy className="h-4 w-4" aria-hidden="true" />, onSelect: () => setDialog('duplicate') },
+    ] : []),
+    ...(canAdmin ? adminItems() : []),
+  ]
+  function adminItems(): MenuItem[] { return [
     { label: 'הגדרות מסך', icon: <Settings className="h-4 w-4" aria-hidden="true" />, href: `/admin/screens/${screen.id}/settings` },
     {
       label: active ? 'השבתת המסך' : 'הפעלת המסך', icon: <Power className="h-4 w-4" aria-hidden="true" />,
-      onSelect: async () => { const next = await setScreenActive(screen, !active); if (next !== null) { setActive(next); router.refresh() } },
+      onSelect: async () => { const next = await setScreenActive({ ...screen, name }, !active); if (next !== null) { setActive(next); router.refresh() } },
     },
     {
       label: 'מחיקת המסך', icon: <Trash2 className="h-4 w-4" aria-hidden="true" />, tone: 'danger',
-      onSelect: async () => { if (await deleteScreen(screen)) router.refresh() },
+      onSelect: async () => { if (await deleteScreen({ ...screen, name })) router.refresh() },
     },
-  ]
+  ] }
 
   return (
-    <article aria-label={screen.name} className="flex min-w-0 flex-col overflow-hidden rounded-ui-lg border border-ui-border bg-ui-surface shadow-ui">
+    <article aria-label={name} className="flex min-w-0 flex-col overflow-hidden rounded-ui-lg border border-ui-border bg-ui-surface shadow-ui">
       <div className={cn('relative', !active && 'opacity-60 grayscale-[35%]')}>
         {screen.snapshotUrl && screen.snapshotAt
           ? <ScreenSnapshotImage url={screen.snapshotUrl} takenAt={screen.snapshotAt} name={screen.name} slug={screen.slug} portrait={portrait} />
@@ -67,7 +96,7 @@ export default function ScreenCard({ screen, connection, fallback, canEditConten
       <div className="flex flex-1 flex-col gap-3 p-4">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <h3 className="truncate text-[15px] font-semibold text-ui-ink" title={screen.name}>{screen.name}</h3>
+            <h3 className="truncate text-[15px] font-semibold text-ui-ink" title={name}>{name}</h3>
             <p className="mt-0.5 text-xs text-ui-muted">{portrait ? 'אנכי' : 'אופקי'} · <span dir="ltr">{screen.width}×{screen.height}</span></p>
           </div>
           {/* Administrative status (set by an administrator), unchanged. */}
@@ -94,10 +123,15 @@ export default function ScreenCard({ screen, connection, fallback, canEditConten
           <Button variant="ghost" className="flex-1 border border-ui-border" icon={<Tv className="h-4 w-4" aria-hidden="true" />} onClick={() => setConnectOpen(true)}>
             חיבור טלוויזיה
           </Button>
-          {canAdmin && <ActionMenu label={`פעולות נוספות למסך ${screen.name}`} items={menu} />}
+          {menu.length > 0 && <ActionMenu label={`פעולות נוספות למסך ${name}`} items={menu} />}
         </div>
       </div>
 
+      <ScreenNameDialog open={dialog === 'rename'} title="שינוי שם המסך" initialName={name} confirmLabel="שמירה" requireChange
+        description="הכתובת של המסך, החיבור לטלוויזיה והתוכן לא משתנים." onClose={() => setDialog(null)} onSubmit={rename} />
+      <ScreenNameDialog open={dialog === 'duplicate'} title="שכפול מסך" initialName={`${name} (עותק)`.slice(0, 100)} confirmLabel="שכפול"
+        description="ייווצר מסך חדש עם אותה פריסה, עיצוב ותוכן. הוא ייווצר כלא פעיל, עם כתובת משלו, ובלי חיבור לטלוויזיה."
+        onClose={() => setDialog(null)} onSubmit={duplicate} />
       <ScreenConnectDialog open={connectOpen} onClose={() => setConnectOpen(false)} screen={screen}
         canPair={canAdmin} canCreateLink={canEditContent} />
     </article>
