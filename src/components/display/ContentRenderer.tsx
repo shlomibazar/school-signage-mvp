@@ -449,6 +449,8 @@ function TimetableContent({item,offline,screenId}:{item:ContentItem;offline:bool
   if(s.displayMode==='webtop-list'||s.displayMode==='webtop-grid')return <WebtopTimetable item={item} settings={s} offline={offline} screenId={screenId}/>
   return <ManualTimetableContent item={item}/>
 }
+/** Upper bound of manual changes on one page (the measured fit decides the actual count). */
+const MAX_MANUAL_PER_PAGE=40
 function ManualTimetableContent({item}:{item:ContentItem}){
   const s=(item.settings??{}) as Partial<TimetableSettings>
   const longMode=s.displayMode==='long'
@@ -468,13 +470,41 @@ function ManualTimetableContent({item}:{item:ContentItem}){
     return()=>observer.disconnect()
   },[longMode])
   const small=dimensions.width<430
-  // Five messages per page, in their original order.
-  // Keep pagination deterministic across screen sizes.
+  // Changes per page: as many as the region shows without clipping, in their original order. The
+  // text keeps its size; only the count adapts. Each time the region size or the list changes, the
+  // count is searched again before the screen is painted: it starts from "all of them", jumps down
+  // by area on a big overflow, then steps by one between the largest count known to fit and the
+  // smallest known to overflow. A list fits when it is no taller and no wider than the region (the TV
+  // design flows it into as many columns as fit: two in a wide region, one in a narrow one; an
+  // overflow shows up as an extra column). A later page whose texts wrap more can lower the count;
+  // it does not grow back until the size or the list changes.
+  const listRef=useRef<HTMLDivElement>(null)
+  const fitKey=`${Math.round(dimensions.width)}x${Math.round(dimensions.height)}|${lines.length}`
+  const total=Math.max(1,Math.min(MAX_MANUAL_PER_PAGE,lines.length))
+  const [fit,setFit]=useState({key:'',size:total,over:total+1,done:false})
+  const current=fit.key===fitKey?fit:{key:fitKey,size:total,over:total+1,done:false}
+  const pageSize=current.size
   const pages=useMemo(()=>{
     const result:string[][]=[]
-    for(let i=0;i<lines.length;i+=5) result.push(lines.slice(i,i+5))
+    for(let i=0;i<lines.length;i+=pageSize) result.push(lines.slice(i,i+pageSize))
     return result.length?result:[[]]
-  },[lines])
+  },[lines,pageSize])
+  useLayoutEffect(()=>{
+    if(!longMode)return
+    const el=listRef.current
+    if(!el)return
+    const overflow=el.scrollHeight-el.clientHeight>1||el.scrollWidth-el.clientWidth>1
+    if(overflow&&pageSize>1){
+      // Too many: a big overflow jumps close to the right count (by area), a small one steps by one.
+      const ratio=Math.min(el.clientHeight/Math.max(1,el.scrollHeight),el.clientWidth/Math.max(1,el.scrollWidth))
+      const next=ratio<0.8?Math.max(1,Math.floor(pageSize*ratio)):pageSize-1
+      setFit({key:fitKey,size:Math.min(pageSize-1,next),over:pageSize,done:false})
+    }else if(!current.done){
+      // Fits: try one more, unless one more is already known to overflow (then this is the count).
+      if(pageSize+1<current.over&&pageSize<total)setFit({key:fitKey,size:pageSize+1,over:current.over,done:false})
+      else setFit({key:fitKey,size:pageSize,over:current.over,done:true})
+    }
+  },[longMode,fitKey,pageSize,page,total,current.over,current.done])
   useEffect(()=>setPage(0),[lines,pages.length])
   useEffect(()=>{
     if(!longMode||pages.length<=1)return
@@ -482,7 +512,7 @@ function ManualTimetableContent({item}:{item:ContentItem}){
     return()=>clearInterval(timer)
   },[longMode,pages.length,s.pageSeconds])
 if(longMode)return <div ref={container} className="w-full h-full flex flex-col overflow-hidden" dir="rtl" style={{background:'var(--tv-panel, #172c48)',color:'var(--tv-ink, #edf5ff)'}}>    <SectionHeading aside={<>{page+1} / {pages.length}</>}>📋 {s.title||'שינויי מערכת שעות'}</SectionHeading>
-    <div className="flex-1 min-h-0 overflow-y-auto flex flex-col justify-start gap-1 p-2 tv-tt-list">
+    <div ref={listRef} className="flex-1 min-h-0 overflow-hidden flex flex-col justify-start gap-1 p-2 tv-tt-list">
       {pages[Math.min(page,pages.length-1)].map((line,i)=>{
         const c=parseChange(line)
         const structured=c.parts.length>=3
