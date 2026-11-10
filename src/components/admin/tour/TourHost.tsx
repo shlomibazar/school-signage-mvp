@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { X } from 'lucide-react'
 import { TOURS } from '@/lib/tour/tours'
 import { confirmLeaveEditor } from '@/lib/unsavedChanges'
@@ -22,6 +22,12 @@ function write(s: State) {
   window.dispatchEvent(new Event(EVENT))
 }
 
+// The step a page load was last started for: landing elsewhere (redirect, no permission) shows the
+// step in place instead of loading again.
+const NAV_KEY = 'admin-tour-nav'
+const navKey = () => { try { return sessionStorage.getItem(NAV_KEY) } catch { return null } }
+const setNavKey = (v: string | null) => { try { if (v) sessionStorage.setItem(NAV_KEY, v); else sessionStorage.removeItem(NAV_KEY) } catch {} }
+
 export function startTour(id: string, step = 0) { write({ id, step }) }
 
 // Tours finished to the last step, per browser (localStorage). Replay is always possible.
@@ -37,7 +43,6 @@ type Rect = { top: number; left: number; width: number; height: number }
 const PAD = 6, CARD_W = 340, GAP = 12
 
 export default function TourHost() {
-  const router = useRouter()
   const pathname = usePathname()
   const [state, setState] = useState<State>(null)
   const [rect, setRect] = useState<Rect | null>(null)
@@ -45,7 +50,6 @@ export default function TourHost() {
   const [cardH, setCardH] = useState(200)
   const cardRef = useRef<HTMLDivElement>(null)
   const targetRef = useRef<Element | null>(null)
-  const navigated = useRef<unknown>(null)
 
   useEffect(() => {
     const sync = () => setState(read())
@@ -56,6 +60,7 @@ export default function TourHost() {
 
   const tour = state ? TOURS[state.id] : null
   const step = tour?.steps[state!.step]
+  const tryKey = state ? state.id + ":" + state.step : ""
 
   // Go to the step's page (asking first if leaving the editor with unsaved changes), then find its element.
   useEffect(() => {
@@ -64,19 +69,19 @@ export default function TourHost() {
     let cancelled = false
     if (pathname !== step.path) {
       // Already navigated for this step and landed elsewhere (redirect, no permission): explain in place.
-      if (navigated.current === step) { setReady(true); return }
+      if (navKey() === tryKey) { setReady(true); return }
       (async () => {
         if (pathname?.startsWith('/admin/editor') && !(await confirmLeaveEditor())) {
           if (!cancelled) write(null) // stay in the editor with the changes; end the tour
           return
         }
-        if (!cancelled) { navigated.current = step; router.push(step.href ?? step.path) }
+        // A full page load: dependable across pages, and the tour position (sessionStorage) continues
+        // there. Leaving the editor with unsaved changes was confirmed above.
+        if (!cancelled) { setNavKey(tryKey); window.location.assign(step.href ?? step.path) }
       })()
-      // A navigation that never lands (slow or failed load): explain in place instead of waiting forever.
-      const giveUp = setTimeout(() => { if (!cancelled) setReady(true) }, 20000)
-      return () => { cancelled = true; clearTimeout(giveUp) }
+      return () => { cancelled = true }
     }
-    navigated.current = null
+    setNavKey(null)
     if (!step.target) { setReady(true); return }
     // Wait for the element to appear (the page may still be rendering), up to a limit.
     const targets = Array.isArray(step.target) ? step.target : [step.target]
@@ -94,7 +99,7 @@ export default function TourHost() {
       targetRef.current = el
       if (!el) return setReady(true) // not on the page (e.g. no screens yet): show the card centered
       el.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-      requestAnimationFrame(() => requestAnimationFrame(() => { if (!cancelled) setReady(true) }))
+      setTimeout(() => { if (!cancelled) setReady(true) }, 60) // after the scroll settles (no rAF: it pauses in hidden tabs)
     }
     const limit = setTimeout(() => show(lookup()), 6000)
     const now = lookup()
@@ -104,7 +109,7 @@ export default function TourHost() {
       observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'class'] })
     }
     return () => { cancelled = true; observer?.disconnect(); clearTimeout(limit) }
-  }, [step, pathname, router])
+  }, [step, pathname, tryKey])
 
   // Track the highlighted element's position.
   useEffect(() => {
