@@ -53,11 +53,11 @@ export default async function ScreensPage() {
     <div className="mx-auto w-full max-w-6xl">
       <PageHeader title="מסכים"
         description={screens.length ? `${screens.length} מסכים · ${activeCount} פעילים · ${connectedCount} מחוברים · ${disconnectedCount} לא מחוברים` : undefined}
-        actions={<>
+        actions={<div data-tour="screens-actions" className="flex flex-wrap items-center gap-2">
           <HelpButton topic="screens" />
           {screens.length > 0 && <ConnectionRefresh checkedAt={checkedAt} />}
           {canEditContent && <ButtonLink href="/admin/screens/new" variant="primary" icon={<Plus className="h-4 w-4" aria-hidden="true" />}>מסך חדש</ButtonLink>}
-        </>} />
+        </div>} />
       {/* A quiet pointer to the quick-start guide (no popup, nothing forced). */}
       <p className="-mt-3 mb-4 text-[13px]">
         <Link href="/admin/help/quick-start" className="ui-focus inline-flex items-center gap-1 rounded text-ui-primary hover:underline">

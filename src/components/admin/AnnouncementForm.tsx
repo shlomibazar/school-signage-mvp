@@ -180,7 +180,7 @@ export default function AnnouncementForm({initial}:{initial?:Announcement}){
     {initial&&sharedScreens>1&&<div role="note" className="mb-4 flex items-start gap-2 rounded-ui border border-ui-primary-line bg-ui-primary-soft px-4 py-3 text-sm text-ui-primary-ink"><Info className="mt-0.5 h-4 w-4 shrink-0" />ההודעה מוצגת ב-{sharedScreens} מסכים. שינויים בתוכן יופיעו בכולם.</div>}
     <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_400px]">
       <div className="grid min-w-0 gap-4">
-        <Card>
+        <Card data-tour="ann-content">
           <CardHeader title="תוכן ההודעה" actions={<Button type="submit" variant="primary" size="sm" loading={saving||preparing} disabled={saving||preparing}>{primaryLabel}</Button>} />
           <CardBody className="grid gap-4">
             <Field label="כותרת" htmlFor="ann-title"><Input id="ann-title" required value={title} onChange={e=>setTitle(e.target.value)} placeholder="למשל: ערב הורים ביום שלישי" /></Field>
@@ -202,7 +202,7 @@ export default function AnnouncementForm({initial}:{initial?:Announcement}){
           </CardBody>
         </Card>
 
-        <Card>
+        <Card data-tour="ann-schedule">
           <CardHeader title="מתי להציג" />
           <CardBody className="grid gap-3">
             <div role="radiogroup" aria-label="משך התצוגה" className="flex flex-wrap gap-2">

@@ -89,6 +89,7 @@ export default function AdminSidebar({ user }: { user: AuthUser }) {
               </div>
             )}
             <Link
+              data-tour={`nav${item.href.split("/").join("-")}`}
               href={item.href}
               onClick={e => guardLeave(e, () => router.push(item.href), () => setMobileOpen(false))}
               title={collapsed ? item.label : undefined}

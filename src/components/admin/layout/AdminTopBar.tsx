@@ -4,7 +4,9 @@
 import { useState } from 'react'
 import { confirmLeaveEditor } from '@/lib/unsavedChanges'
 import { useRouter, usePathname } from 'next/navigation'
-import { LogOut, ChevronDown, School } from 'lucide-react'
+import { LogOut, ChevronDown, School, Compass } from 'lucide-react'
+import { pageTour } from '@/lib/tour/tours'
+import { startTour } from '@/components/admin/tour/TourHost'
 import { cn } from '@/lib/utils'
 import type { AuthUser } from '@/types'
 import { adminPageLabel } from './AdminSidebar'
@@ -47,6 +49,13 @@ export default function AdminTopBar({ user }: { user: AuthUser }) {
         </span>
       </div>
 
+      <div className="flex items-center gap-1">
+      {/* Short guided tour of the current page (admin only; the TV display has no admin layout). */}
+      {(() => { const t = pageTour(pathname ?? ''); return t && (
+        <button type="button" onClick={() => startTour(t.id, t.step)}
+          className="ui-focus inline-flex items-center gap-1.5 rounded-ui-sm px-2.5 py-1.5 text-[13px] text-ui-muted hover:bg-ui-subtle hover:text-ui-primary">
+          <Compass className="h-4 w-4" aria-hidden="true" /><span className="hidden sm:inline">הדרכה לעמוד זה</span><span className="sr-only sm:hidden">הדרכה לעמוד זה</span>
+        </button>) })()}
       {/* Right: user menu */}
       <div className="relative">
         <button type="button"
@@ -84,6 +93,7 @@ export default function AdminTopBar({ user }: { user: AuthUser }) {
             </div>
           </>
         )}
+      </div>
       </div>
     </header>
   )

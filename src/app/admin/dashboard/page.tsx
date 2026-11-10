@@ -48,7 +48,7 @@ export default async function DashboardPage() {
       <h1 className="mb-1 text-[22px] font-bold text-ui-ink">לוח בקרה</h1>
       <p className="mb-6 text-[13.5px] text-ui-muted">ברוכים הבאים, {user?.name}</p>
 
-      <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div data-tour="dash-stats" className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard label="מסכים" value={screenCount} hint={`${activeScreenCount} פעילים`} icon={Monitor} href="/admin/screens" />
         <StatCard label="מוצגות עכשיו" value={liveCount} hint="הודעות על המסכים כרגע" icon={Megaphone} href="/admin/announcements" />
         <StatCard label="טיוטות" value={draftCount} hint="לא משויכות לאף מסך" icon={FileClock} href="/admin/announcements?status=draft" />
@@ -56,7 +56,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Quick actions: all of them create or change content (EDITOR or higher), so viewers don't get them. */}
-      {user?.role !== 'VIEWER' && <section className="mb-8">
+      {user?.role !== 'VIEWER' && <section data-tour="dash-actions" className="mb-8">
         <h2 className="mb-3 text-sm font-semibold text-ui-ink-2">פעולות מהירות</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <QuickAction href="/admin/announcements/new" icon={<Megaphone className="h-5 w-5" />} label="הודעה חדשה" />
@@ -68,7 +68,7 @@ export default async function DashboardPage() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Recent screens: status only. Enabling/disabling and other management stay on the Screens page. */}
-        <section>
+        <section data-tour="dash-recent">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-ui-ink-2">מסכים אחרונים</h2>
             <Link href="/admin/screens" className="ui-focus text-xs text-ui-primary hover:underline">כל המסכים</Link>

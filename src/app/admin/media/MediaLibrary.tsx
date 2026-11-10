@@ -296,7 +296,7 @@ export default function MediaLibrary({ canEdit }: { canEdit: boolean }) {
           <h1 className="text-xl font-semibold text-gray-900">ספריית מדיה</h1>
           <p className="text-sm text-gray-500 mt-0.5">{images.length} תמונות</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div data-tour="media-upload" className="flex items-center gap-2">
         <HelpButton topic="media" />
         {canEdit && <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors">
@@ -308,7 +308,7 @@ export default function MediaLibrary({ canEdit }: { canEdit: boolean }) {
 
       <div className="flex gap-6">
         {/* Sidebar: folders */}
-        <div className="w-52 shrink-0 space-y-1">
+        <div data-tour="media-folders" className="w-52 shrink-0 space-y-1">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">תיקיות</span>
             {canEdit && <button type="button" aria-label="תיקייה חדשה" onClick={() => setCreatingFolder(v => !v)} className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">

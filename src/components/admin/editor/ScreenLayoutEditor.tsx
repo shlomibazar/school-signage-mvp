@@ -215,7 +215,7 @@ export default function ScreenLayoutEditor({ screen, layout: initLayout, section
       <div className="flex flex-col lg:flex-row gap-3 min-w-0 min-h-0 lg:flex-1 items-stretch">
         {/* Hidden (not unmounted) when "הסתרת הגדרות" is on, so open content drafts are kept. */}
         <div className={cn('order-2 lg:order-none w-full lg:w-[44%] xl:w-[46%] lg:max-w-[760px] shrink-0 flex flex-col rounded-ui-lg border border-ui-border bg-ui-surface shadow-ui min-w-0 lg:h-full lg:overflow-hidden', !settingsVisible && 'lg:hidden')}>
-          <div role="tablist" aria-label="הגדרות המסך" onKeyDown={onTabKey} className="m-3 mb-0 grid shrink-0 grid-cols-4 gap-1 rounded-ui bg-ui-subtle p-1">
+          <div data-tour="editor-tabs" role="tablist" aria-label="הגדרות המסך" onKeyDown={onTabKey} className="m-3 mb-0 grid shrink-0 grid-cols-4 gap-1 rounded-ui bg-ui-subtle p-1">
             {TABS.map(t => {
               const Icon = t.icon
               const on = tab === t.id
@@ -234,7 +234,7 @@ export default function ScreenLayoutEditor({ screen, layout: initLayout, section
           {/* All panels stay mounted (hidden when inactive), so an open content draft survives switching tabs. */}
           <div className="p-3 lg:flex-1 lg:min-h-0 lg:overflow-y-auto overscroll-contain">
             <div role="tabpanel" id="editor-panel-content" aria-labelledby="editor-tab-content" hidden={tab !== 'content'} className="space-y-3">
-              <div className="rounded-ui-lg border border-ui-border bg-ui-surface p-3">
+              <div data-tour="editor-regions" className="rounded-ui-lg border border-ui-border bg-ui-surface p-3">
                 <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                   <p className="text-[13px] font-semibold text-ui-ink-2">אזורי תוכן</p>
                   <button type="button" onClick={() => setTab('design')} className="ui-focus rounded text-xs text-ui-primary hover:underline">
@@ -298,7 +298,7 @@ export default function ScreenLayoutEditor({ screen, layout: initLayout, section
             </div>
           </div>
           {/* Layout save: header, footer, design and the region structure. Region content is saved in its own form. */}
-          <div className="sticky bottom-0 z-10 shrink-0 rounded-b-ui-lg border-t border-ui-border bg-ui-surface px-4 py-3 shadow-[0_-6px_18px_rgba(15,23,42,0.05)]">
+          <div data-tour="editor-save" className="sticky bottom-0 z-10 shrink-0 rounded-b-ui-lg border-t border-ui-border bg-ui-surface px-4 py-3 shadow-[0_-6px_18px_rgba(15,23,42,0.05)]">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0 text-xs" aria-live="polite">
                 <p className={isDirty ? 'font-medium text-amber-700' : 'text-ui-muted'}>{isDirty ? 'יש שינויים בפריסה שלא נשמרו' : 'הפריסה שמורה'}</p>
@@ -338,7 +338,7 @@ export default function ScreenLayoutEditor({ screen, layout: initLayout, section
               </button>
             </div>
           </div>
-          <div ref={previewBoxRef} className={cn('relative overflow-hidden rounded-ui-lg border border-slate-200 bg-slate-100',
+          <div data-tour="editor-preview" ref={previewBoxRef} className={cn('relative overflow-hidden rounded-ui-lg border border-slate-200 bg-slate-100',
             previewEnlarged ? 'flex-1 min-h-0' : screen.orientation === 'LANDSCAPE' ? 'h-[clamp(200px,32vh,320px)] lg:h-auto lg:min-h-0 lg:flex-1' : 'h-[50vh] min-h-[300px] lg:h-auto lg:min-h-0 lg:flex-1')}>
             <ScreenPreview layout={layout} sections={sections} screen={screen} logoUrl={logoUrl} weatherCity={weatherCity} zoom={previewZoom} onScaleChange={setPreviewScale}
               highlightIndex={capturing || tab !== 'content' ? null : region} onSelectSection={capturing ? undefined : selectRegion}/>

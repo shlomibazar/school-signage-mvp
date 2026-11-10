@@ -91,7 +91,7 @@ export default function BirthdaysManager() {
   return (
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div role="tablist" aria-label="סוג רשומות" className="inline-flex rounded-ui bg-ui-subtle p-1"
+        <div data-tour="bday-tabs" role="tablist" aria-label="סוג רשומות" className="inline-flex rounded-ui bg-ui-subtle p-1"
           onKeyDown={e => { if (['ArrowLeft', 'ArrowRight'].includes(e.key)) { e.preventDefault(); const next = role === 'STUDENT' ? 'TEACHER' : 'STUDENT'; switchRole(next); document.getElementById(`people-tab-${next}`)?.focus() } }}>
           {(['STUDENT', 'TEACHER'] as const).map(r => {
             const Icon = r === 'STUDENT' ? GraduationCap : Users
@@ -104,7 +104,7 @@ export default function BirthdaysManager() {
             )
           })}
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div data-tour="bday-actions" className="flex flex-wrap gap-2">
           <ButtonLink href="/admin/birthdays/import" icon={<FileSpreadsheet className="h-4 w-4" aria-hidden="true" />}>ייבוא מאקסל</ButtonLink>
           <Button variant="primary" icon={<Plus className="h-4 w-4" aria-hidden="true" />} onClick={() => setDialog({ mode: 'add' })}>
             הוספת {students ? 'תלמיד' : 'מורה'}

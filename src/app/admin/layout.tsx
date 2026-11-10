@@ -5,6 +5,7 @@ import AdminSidebar from '@/components/admin/layout/AdminSidebar'
 import AdminTopBar from '@/components/admin/layout/AdminTopBar'
 import AdminPageScrollLock from '@/components/admin/layout/AdminPageScrollLock'
 import { ConfirmHost } from '@/components/ui/ConfirmHost'
+import TourHost from '@/components/admin/tour/TourHost'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser()
@@ -24,6 +25,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       </div>
       {/* In-app confirmations (confirmDialog), inside admin-ui so they use the admin design tokens. */}
       <ConfirmHost />
+      <TourHost />
     </div>
     </>
   )

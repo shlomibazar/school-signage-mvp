@@ -36,7 +36,7 @@ export default async function SettingsPage() {
           ? <SchoolProfileForm school={school} canEdit={canEditSchool} />
           : <Card className="p-5 text-sm text-ui-muted">המשתמש אינו משויך לבית ספר, ולכן אין פרטי בית ספר לעריכה.</Card>}
 
-        <Card id="screens" className="scroll-mt-20">
+        <Card id="screens" data-tour="settings-screens" className="scroll-mt-20">
           <CardHeader title="הגדרות מסכים" description="שעות פעילות, רענון וחיבור טלוויזיה — לכל מסך בנפרד" />
           {screens.length === 0
             ? <EmptyState icon={<Monitor className="h-6 w-6" />} title="עדיין אין מסכים" />
@@ -44,7 +44,7 @@ export default async function SettingsPage() {
               {screens.map(s => {
                 const schedule = schedules.get(s.id)!
                 return (
-                  <li key={s.id}>
+                  <li key={s.id} data-tour="settings-screen-row">
                     <Link href={`/admin/screens/${s.id}/settings`} aria-label={`הגדרות המסך ${s.name}`}
                       className="ui-focus group flex min-h-16 items-center gap-3 px-5 py-3 hover:bg-ui-subtle">
                       <div className="min-w-0 flex-1">

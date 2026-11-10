@@ -80,7 +80,7 @@ export default function ScreenCard({ screen, connection, fallback, canEditConten
   ] }
 
   return (
-    <article aria-label={name} className="flex min-w-0 flex-col overflow-hidden rounded-ui-lg border border-ui-border bg-ui-surface shadow-ui">
+    <article data-tour="screen-card" aria-label={name} className="flex min-w-0 flex-col overflow-hidden rounded-ui-lg border border-ui-border bg-ui-surface shadow-ui">
       <div className={cn('relative', !active && 'opacity-60 grayscale-[35%]')}>
         {screen.snapshotUrl && screen.snapshotAt
           ? <ScreenSnapshotImage url={screen.snapshotUrl} takenAt={screen.snapshotAt} name={screen.name} slug={screen.slug} portrait={portrait} />
@@ -112,14 +112,14 @@ export default function ScreenCard({ screen, connection, fallback, canEditConten
           {connection.relative && <span className="truncate text-ui-muted">· דיווח אחרון {connection.relative}</span>}
         </p>
 
-        <div className="mt-auto grid grid-cols-2 gap-2">
+        <div data-tour="screen-card-edit" className="mt-auto grid grid-cols-2 gap-2">
           {canEditContent && <ButtonLink href={`/admin/editor?screen=${screen.id}`} variant="primary" icon={<Pencil className="h-4 w-4" aria-hidden="true" />}>עריכת מסך</ButtonLink>}
           <a href={`/screen/${screen.slug}`} target="_blank" rel="noopener" aria-label={`צפייה במסך ${screen.name} (בלשונית חדשה)`}
             className={buttonClass('secondary', 'md', canEditContent ? '' : 'col-span-2')}>
             <ExternalLink className="h-4 w-4" aria-hidden="true" />צפייה במסך
           </a>
         </div>
-        <div className="flex gap-2">
+        <div data-tour="screen-card-connect" className="flex gap-2">
           <Button variant="ghost" className="flex-1 border border-ui-border" icon={<Tv className="h-4 w-4" aria-hidden="true" />} onClick={() => setConnectOpen(true)}>
             חיבור טלוויזיה
           </Button>

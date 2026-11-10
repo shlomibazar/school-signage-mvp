@@ -62,9 +62,9 @@ export default async function AnnouncementsPage({ searchParams }: Props) {
       <PageHeader title="הודעות" description="כאן יוצרים הודעה, בוחרים מתי ואיפה היא מוצגת ומפרסמים."
         actions={<><HelpButton topic="announcements" />{canEdit && <ButtonLink href="/admin/announcements/new" variant="primary" icon={<Plus className="h-4 w-4" />}>הודעה חדשה</ButtonLink>}</>} />
 
-      <Card className="overflow-hidden">
+      <Card data-tour="ann-list" className="overflow-hidden">
         {announcements.length > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ui-border px-4 py-3">
+          <div data-tour="ann-filters" className="flex flex-wrap items-center justify-between gap-2 border-b border-ui-border px-4 py-3">
             <Suspense><AnnouncementFilters
               screens={screens.filter(s => s.regions.length > 0).map(s => ({ id: s.id, name: s.name }))}
               statuses={STATUS_ORDER.filter(s => counts.get(s)).map(s => ({ id: s, label: STATUS_LABEL[s], count: counts.get(s) ?? 0 }))} /></Suspense>

@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { Rocket, ArrowLeft, Monitor, Palette, LayoutGrid, Images, Megaphone, CalendarClock, Cake, Tv, Wifi, LifeBuoy, BookOpen } from 'lucide-react'
 import { PageHeader } from '@/components/ui/Display'
 import { HELP_TOPICS } from '@/lib/help/topics'
+import TourLaunchButton from '@/components/admin/tour/TourLaunchButton'
 
 // Help Center index: static content (no database, no API).
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -22,6 +23,8 @@ export default function HelpPage() {
         </span>
         <ArrowLeft className="h-5 w-5 shrink-0 text-ui-primary transition-transform group-hover:-translate-x-1" aria-hidden="true" />
       </Link>
+
+      <TourLaunchButton />
 
       <h2 className="mb-3 text-sm font-semibold text-ui-ink-2">כל הנושאים</h2>
       <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
