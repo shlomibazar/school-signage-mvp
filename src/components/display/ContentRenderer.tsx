@@ -2,7 +2,9 @@
 import WebtopTimetable from './WebtopTimetable'
 import IframeContent from './IframeContent'
 import { youtubeId } from '@/lib/youtubeVideo'
-import { cleanAnnouncementHtml } from '@/lib/announcementRichText'
+import { cleanAnnouncementHtml, announcementTextLength } from '@/lib/announcementRichText'
+import { splitTableIntoColumnGroups, restoreColumnGroups } from '@/lib/tableColumnGroups'
+import { applyReadableColors, normalizePastedContent } from '@/lib/announcementContrast'
 import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from 'react'
 import type { ContentItem,ClockSettings,DateSettings,AnnouncementContentSettings,SingleAnnouncement,BirthdaySettings,EventSettings,TimetableSettings,RssSettings,GallerySettings,RssFeedItem } from '@/types'
 import BirthdayBoard from './BirthdayBoard'
@@ -277,8 +279,14 @@ function AnnouncementContent({item,offline,screenId}:{item:ContentItem;offline:b
   // Calculate capacity from the actual announcement panel (not window width).
   // Reserve room for the heading, title and text before selecting image count.
   // In a one-third-width panel, show one legible image at a time.
-  const hasLongBody=body.length>180
-  const imageSpaceHeight=box.height*(hasLongBody?0.38:body.length>80?0.48:0.65)
+  const bodyHtml=useMemo(()=>cleanAnnouncementHtml(body),[body])
+  // Pasted (Word/Excel) content: it has tables or paragraph directions, which the toolbar editor never
+  // adds. It gets a document layout (readable width, start-aligned); other text stays as before.
+  const richLayout=useMemo(()=>/<table\b|\sdir="/i.test(bodyHtml),[bodyHtml])
+  // Visible text length (formatting markup does not count; plain text is measured as before).
+  const bodyLength=useMemo(()=>announcementTextLength(body),[body])
+  const hasLongBody=bodyLength>180
+  const imageSpaceHeight=box.height*(hasLongBody?0.38:bodyLength>80?0.48:0.65)
   const imagesPerPage=displayMode==='together'
     ? (box.width<680 || imageSpaceHeight<170 ? 1
       : box.width<1120 || imageSpaceHeight<280 ? 2 : 3)
@@ -337,16 +345,108 @@ function AnnouncementContent({item,offline,screenId}:{item:ContentItem;offline:b
   // Legacy themes keep the original 9% proportion (measuredHeading stays 0).
   const headingRef=useRef<HTMLDivElement>(null)
   const [measuredHeading,setMeasuredHeading]=useState(0)
+  const [headingActual,setHeadingActual]=useState(0)
   useLayoutEffect(()=>{
     const el=headingRef.current
     const v6=!!el&&getComputedStyle(el).getPropertyValue('--v6-accent').trim()!==''
     const h=v6&&el?el.offsetHeight:0
     if(h!==measuredHeading)setMeasuredHeading(h)
-  },[box.width,box.height,sectionTitle,measuredHeading])
-  const headingHeight=showSectionTitle && sectionTitle.trim()?Math.max(box.height*0.09,measuredHeading):0
+    const actual=el?el.offsetHeight:0
+    if(actual!==headingActual)setHeadingActual(actual)
+  },[box.width,box.height,sectionTitle,measuredHeading,headingActual])
+  const hasHeading=showSectionTitle && !!sectionTitle.trim()
   const padding=Math.max(12,Math.min(32,Math.round(26*unit)))
+  // Pasted (rich) content without attachments uses the full height of the region: the heading reserves
+  // only its measured height (it sits at the top edge, above the padding) plus a small gap, and the text
+  // area is not capped by an estimate (flexbox gives it everything below the title). Other
+  // announcements keep the proportional reserve and the estimated text height.
+  const fullHeight=richLayout&&!attachments.length
+  const headingHeight=!hasHeading?0:fullHeight?Math.max(0,headingActual+Math.round(8*unit)-padding):Math.max(box.height*0.09,measuredHeading)
   const dotsHeight=items.length>1?22:0
-  const bodyHeight=attachments.length?Math.max(70,Math.min(box.height*0.48,box.height*(body.length>220?0.43:body.length>100?0.31:0.19))):Math.max(40,box.height-headingHeight-2*padding-(visibleTitle?titleSize*2.5+12:0)-dotsHeight)
+  const bodyHeight=attachments.length?Math.max(70,Math.min(box.height*0.48,box.height*(bodyLength>220?0.43:bodyLength>100?0.31:0.19))):Math.max(40,box.height-headingHeight-2*padding-(visibleTitle?titleSize*2.5+12:0)-dotsHeight)
+  // Pasted tables (Word/Excel) wider than the region. Normal tables are left as they are. A table that
+  // fits with its text at 75% or more of the body size gets that size. A wider one is split into column
+  // groups stacked vertically (header row and first column repeated; see tableColumnGroups), which the
+  // existing scroll then shows. A table that cannot be split safely (complex merged cells) shrinks to
+  // 60% and then wraps inside equal columns ("tv-ann-squeeze"; the editor preview warns about it).
+  // Nothing is removed. Runs before the overflow measurement below.
+  useLayoutEffect(()=>{
+    const text=textRef.current
+    if(!text)return
+    const fit=()=>{
+    if(text.classList.contains('tv-ann-rich'))normalizePastedContent(text) // pasted sizes and alignment
+    applyReadableColors(text) // pasted colors readable on their background (no-op once applied)
+    const room=text.clientWidth
+    // Each fitted table is marked with the width it was fitted for; skip when all are current.
+    if(![...text.querySelectorAll('table')].some(t=>t.dataset.fit!==String(room)))return
+    restoreColumnGroups(text)
+    const reset=(t:HTMLTableElement)=>{t.style.fontSize='';t.style.tableLayout='';t.style.width='';t.style.maxWidth='';t.classList.remove('tv-ann-squeeze')}
+    const widthOf=(t:HTMLTableElement)=>Math.max(t.scrollWidth,t.offsetWidth)
+    const shrink=(t:HTMLTableElement,floor:number)=>{
+      const wide=widthOf(t)
+      if(wide>room)t.style.fontSize=`${Math.max(floor,room/wide).toFixed(3)}em`
+      if(widthOf(t)>room){t.style.tableLayout='fixed';t.style.width='100%';t.classList.add('tv-ann-squeeze')}
+    }
+    if(room<=0)return
+    for(const table of [...text.querySelectorAll('table')]){
+      reset(table)
+      const wide=widthOf(table)
+      if(wide<=room)continue
+      if(room/wide>=0.75){shrink(table,0.75);if(!table.classList.contains('tv-ann-squeeze'))continue;reset(table)}
+      // Measure the narrowest natural column widths (no forced width), then split.
+      table.style.width='min-content';table.style.maxWidth='none'
+      const groups=splitTableIntoColumnGroups(table,room*0.95)
+      table.style.width='';table.style.maxWidth=''
+      if(groups){
+        const parts=[...groups.querySelectorAll('table')]
+        parts.forEach(t=>shrink(t,0.75))
+        // A part that still does not fit (merged cells kept columns together): use the whole table instead.
+        if(parts.some(t=>t.classList.contains('tv-ann-squeeze'))){groups.replaceWith(table);shrink(table,0.6)}
+      }else shrink(table,0.6)
+    }
+    for(const t of text.querySelectorAll('table'))t.dataset.fit=String(room)
+    }
+    fit()
+    // Auto Fit (pasted content without attachments): when the content leaves much of the region
+    // empty, enlarge it as a whole (text, cell padding and spacing are all in em; the reading column
+    // is 38em wide, so it widens with it, up to the region width). The largest scale up to 1.5 whose
+    // height stays within 92% of the available height is kept; tables are fitted (and grouped) again
+    // at each trial size. Long content keeps scale 1 and scrolls as before. The scale is a CSS
+    // variable on the text, so React re-renders do not reset it.
+    const viewport=viewportRef.current
+    let scale=1
+    if(richLayout&&!attachments.length&&viewport){
+      const avail=viewport.clientHeight
+      const heightAt=(s:number,col=38)=>{
+        text.style.setProperty('--fit',String(s))
+        text.style.setProperty('--ann-col',`${col}em`)
+        for(const t of text.querySelectorAll('table'))delete t.dataset.fit
+        fit()
+        return text.scrollHeight
+      }
+      const base=heightAt(1)
+      if(avail>0&&base<avail*0.8){
+        let lo=1,hi=1.5
+        if(heightAt(hi)<=avail*0.92)lo=hi
+        else for(let i=0;i<6;i++){const mid=(lo+hi)/2;if(heightAt(mid)<=avail*0.92)lo=mid;else hi=mid}
+        scale=Math.floor(lo*100)/100
+      }
+      // Long content: a moderately wider column (46em, ~1380px on a full screen) when it saves at
+      // least a tenth of the height, so there is less to scroll; otherwise the 38em column stays.
+      let col=38
+      if(avail>0&&base>avail&&heightAt(1,46)<=base*0.9)col=46
+      const finalHeight=heightAt(scale,col)
+      // Measurements for checking (no effect on the layout).
+      text.dataset.fitScale=String(scale);text.dataset.column=`${col}em`;text.dataset.contentHeight=String(Math.round(base));text.dataset.fittedHeight=String(Math.round(finalHeight));text.dataset.availHeight=String(Math.round(avail))
+    }else{text.style.setProperty('--fit','1');text.style.removeProperty('--ann-col')}
+    // Fit again when the text width changes (padding follows the region height) or the content is
+    // replaced; the marks above make these calls no-ops otherwise.
+    const ro=new ResizeObserver(fit)
+    ro.observe(text)
+    const mo=new MutationObserver(fit)
+    mo.observe(text,{childList:true})
+    return()=>{ro.disconnect();mo.disconnect()}
+  },[idx,body,bodySize,box.width,box.height,richLayout,attachments.length,headingHeight])
   // Measure the actual visible body area. Avoid scrolling for subpixel/rounding overflow.
   // Keep the measurement independent of the animation so it cannot restart mid-scroll.
   const [overflow,setOverflow]=useState(0)
@@ -388,7 +488,7 @@ function AnnouncementContent({item,offline,screenId}:{item:ContentItem;offline:b
   },[idx,body,overflow,items.length,rot,cycle,attachmentPages,slideSeconds])
   if(offline && !visibleTitle.trim() && !body.trim())return <OfflineMedia />
   return <div ref={host} className="tv-announcement relative w-full h-full min-h-0 overflow-hidden flex flex-col items-center justify-center text-center" dir="rtl" style={{background:bg,color:ink,padding:isPdfPage?4:padding}}>
-    {headingHeight>0&&<div ref={headingRef} className="absolute top-0 inset-x-0 z-10"><SectionHeading>{sectionTitle}</SectionHeading></div>}
+    {hasHeading&&<div ref={headingRef} className="absolute top-0 inset-x-0 z-10"><SectionHeading>{sectionTitle}</SectionHeading></div>}
     <div className="w-full min-h-0 flex flex-col items-center overflow-hidden" style={{height:'100%',paddingTop:headingHeight,paddingBottom:dotsHeight}}>
       {visibleTitle&&<div className="shrink-0 font-bold" style={{fontSize:titleSize,lineHeight:1.2,marginBottom:12*unit,overflowWrap:'anywhere'}}>{visibleTitle}</div>}
       {attachments.length>0&&<div className={`w-full flex-1 min-h-0 overflow-hidden flex items-center justify-center ${isPdfPage?'':'mb-2'}`}>
@@ -398,8 +498,8 @@ function AnnouncementContent({item,offline,screenId}:{item:ContentItem;offline:b
             </div>
           : visibleAttachments[0]&&<FailSafeImage src={attachmentSrc(visibleAttachments[0].url,1)} alt={title} className="w-full h-full object-contain" />}
       </div>}
-      {body&&<div ref={viewportRef} className={`w-full min-h-0 overflow-hidden ${attachments.length?'shrink-0':'flex-1'}`} style={{height:attachments.length?bodyHeight:undefined,maxHeight:bodyHeight}}>
-        <div ref={textRef} style={{fontSize:bodySize,lineHeight:1.45,whiteSpace:'pre-wrap',overflowWrap:'anywhere',opacity:.9,transform:`translateY(-${scroll.started?scroll.distance:0}px)`,transition:scroll.started&&scroll.distance>0?`transform ${scroll.duration}s linear`:'none'}} dangerouslySetInnerHTML={{__html:cleanAnnouncementHtml(body)}} />
+      {body&&<div ref={viewportRef} className={`w-full min-h-0 overflow-hidden ${attachments.length?'shrink-0':'flex-1'}`} style={{height:attachments.length?bodyHeight:undefined,maxHeight:fullHeight?undefined:bodyHeight}}>
+        <div ref={textRef} className={`tv-ann-body${richLayout?' tv-ann-rich':''}`} style={{fontSize:richLayout?`calc(${bodySize}px * var(--fit, 1))`:bodySize,lineHeight:1.45,whiteSpace:'pre-wrap',overflowWrap:'anywhere',opacity:.9,transform:`translateY(-${scroll.started?scroll.distance:0}px)`,transition:scroll.started&&scroll.distance>0?`transform ${scroll.duration}s linear`:'none'}} dangerouslySetInnerHTML={{__html:bodyHtml}} />
       </div>}
     </div>
     {items.length>1&&<div className="absolute inset-x-0 bottom-3 flex justify-center items-center gap-1.5" aria-label={`הודעה ${idx+1} מתוך ${items.length}`}>

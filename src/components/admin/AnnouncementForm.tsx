@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { ArrowRight, Info, CheckCircle2, AlertCircle } from 'lucide-react'
 import type { Announcement } from '@/types'
 import { cleanAnnouncementHtml } from '@/lib/announcementRichText'
+import { convertPaste, PASTE_MODES, type PasteMode } from '@/lib/officePaste'
+import AnnouncementPreview from './announcements/AnnouncementPreview'
 import { presetEnd, presetFor, toLocalInput, type SchedulePreset } from '@/lib/announcementStatus'
 import AnnouncementAttachments from './AnnouncementAttachments'
 import PendingAnnouncementAttachments, { type PreparedItem, preparedBusy, preparedPayload, preparedTokens, discardPrepared, markExpired, UPLOAD_MAX_AGE_MS } from './PendingAnnouncementAttachments'
@@ -34,6 +36,21 @@ export default function AnnouncementForm({initial}:{initial?:Announcement}){
   // Fill the editor once per announcement; re-running on body changes would overwrite what the user types.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(()=>{if(editorRef.current)editorRef.current.innerHTML=cleanAnnouncementHtml(initial?.body??'')},[initial?.id])
+  // Paste (Ctrl+V): Word/Excel/web formatting is converted and cleaned by the chosen mode. The
+  // mode stays for the next paste; it never changes text that is already in the editor.
+  const [pasteMode,setPasteMode]=useState<PasteMode>('adapt')
+  const [pasteWarnings,setPasteWarnings]=useState<string[]>([])
+  const [showPreview,setShowPreview]=useState(false)
+  const onPaste=(e:React.ClipboardEvent<HTMLDivElement>)=>{
+    const html=e.clipboardData.getData('text/html'), text=e.clipboardData.getData('text/plain')
+    if(!html&&!text)return // files and images: leave to the browser (nothing is inserted)
+    e.preventDefault()
+    const result=convertPaste(html,text,pasteMode)
+    document.execCommand('insertHTML',false,result.html)
+    setBody(editorRef.current?.innerHTML||'')
+    setPasteWarnings(result.warnings)
+    if(result.warnings.length)setShowPreview(true)
+  }
   const format=(cmd:string)=>{editorRef.current?.focus();document.execCommand(cmd,false);setBody(editorRef.current?.innerHTML||'')}
   const size=(delta:number)=>{
     const editor=editorRef.current
@@ -192,9 +209,19 @@ export default function AnnouncementForm({initial}:{initial?:Announcement}){
                   <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>size(-2)} className="ui-focus rounded-ui-sm px-2.5 py-1 text-sm text-ui-ink-2 hover:bg-ui-subtle" title="טקסט קטן">א−</button>
                   <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>size(2)} className="ui-focus rounded-ui-sm px-2.5 py-1 text-sm text-ui-ink-2 hover:bg-ui-subtle" title="טקסט גדול">א+</button>
                 </div>
-                <div ref={editorRef} role="textbox" aria-label="תוכן ההודעה" aria-multiline="true" contentEditable suppressContentEditableWarning dir="rtl" onInput={e=>setBody(e.currentTarget.innerHTML)} className="min-h-[140px] w-full p-3 text-sm leading-relaxed focus:outline-none [&_ul]:list-disc [&_ul]:pr-6"/>
+                <div ref={editorRef} role="textbox" aria-label="תוכן ההודעה" aria-multiline="true" contentEditable suppressContentEditableWarning dir="rtl" onInput={e=>setBody(e.currentTarget.innerHTML)} onPaste={onPaste} className="ann-editor min-h-[140px] max-h-[60vh] w-full overflow-auto p-3 text-sm leading-relaxed focus:outline-none [&_ul]:list-disc [&_ul]:pr-6"/>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-ui-border px-2 py-1.5 text-xs">
+                  <span className="text-ui-muted">הדבקה מ-Word או Excel:</span>
+                  <div role="radiogroup" aria-label="אופן ההדבקה" className="inline-flex rounded-ui-sm bg-ui-subtle p-0.5">
+                    {PASTE_MODES.map(m=><button key={m.id} type="button" role="radio" aria-checked={pasteMode===m.id} title={m.hint} onMouseDown={e=>e.preventDefault()} onClick={()=>setPasteMode(m.id)}
+                      className={cn('ui-focus rounded-ui-sm px-2 py-0.5',pasteMode===m.id?'bg-ui-surface font-semibold text-ui-ink shadow-ui':'text-ui-muted hover:text-ui-ink')}>{m.label}</button>)}
+                  </div>
+                  <button type="button" onClick={()=>setShowPreview(v=>!v)} aria-expanded={showPreview} className="ui-focus ms-auto rounded-ui-sm px-2 py-0.5 font-medium text-ui-primary hover:bg-ui-primary-soft">{showPreview?'הסתרת התצוגה המקדימה':'תצוגה מקדימה'}</button>
+                </div>
               </div>
-              <p className="text-xs text-ui-muted">אפשר לסמן חלק מהטקסט ולעצב רק אותו.</p>
+              <p className="text-xs text-ui-muted">אפשר לסמן חלק מהטקסט ולעצב רק אותו, או להעתיק טקסט וטבלאות מ-Word ומ-Excel ולהדביק (Ctrl+V). האופן שנבחר חל על ההדבקה הבאה.</p>
+              {pasteWarnings.map(w=><p key={w} role="status" className="flex items-start gap-1.5 rounded-ui-sm bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800"><AlertCircle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true"/>{w}</p>)}
+              {showPreview&&<AnnouncementPreview title={title} showTitle={showTitle} body={body} priority={priority}/>}
             </div>
             {savedId&&<AnnouncementAttachments key={savedId} announcementId={savedId} disabled={busy} onBusyChange={setAttachmentsBusy}/>}
             {/* Pending files stay visible until each one is confirmed saved (also after a failed upload). */}

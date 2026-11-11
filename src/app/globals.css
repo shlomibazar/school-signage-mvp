@@ -922,3 +922,30 @@ html body .tv-screen-stage .tv-content-panel.tv-content-panel[data-region-bg][da
 @media (prefers-reduced-motion:reduce) {
   .tv-screen-stage.tv-display-premium .tv-footer-v2 .tv-rss-footer-slow .tv-v5-ticker-message { animation:none !important; left:auto !important; right:0 !important; transform:translateY(-50%) !important; }
 }
+
+/* Announcement body on the TV and in the editor preview: lists and pasted Word/Excel tables. The
+   table stays inside the region (cells wrap; ContentRenderer shrinks a wide table's text first). */
+.tv-ann-body ul { list-style: disc; padding-inline-start: 1.2em; text-align: start; }
+.tv-ann-body ol { list-style: decimal; padding-inline-start: 1.4em; text-align: start; }
+.tv-ann-body table { border-collapse: collapse; margin: .3em auto; max-width: 100%; white-space: normal; line-height: 1.3; }
+.tv-ann-body td, .tv-ann-body th { border: 1px solid color-mix(in srgb, currentColor 35%, transparent); padding: .2em .45em; vertical-align: middle; overflow-wrap: break-word; min-width: 1.5em; }
+.tv-ann-body th { font-weight: 700; }
+.tv-ann-body .tv-ann-groups { display: flex; flex-direction: column; gap: .5em; margin: .3em 0; }
+.tv-ann-body .tv-ann-groups > table { margin: 0 auto; }
+.tv-ann-body table.tv-ann-squeeze td, .tv-ann-body table.tv-ann-squeeze th { overflow-wrap: anywhere; min-width: 0; padding: .15em .25em; }
+/* Pasted Word/Excel content: a readable document column (about 38 characters' width of the body text,
+   ~1150px on a full 1920 screen; the whole width in half and one-third regions), start-aligned so
+   Hebrew reads from the right and English from the left, with even spacing between blocks. */
+.tv-ann-body.tv-ann-rich { max-width: min(100%, var(--ann-col, 38em)); margin-inline: auto; text-align: start; white-space: normal; }
+.tv-ann-rich p, .tv-ann-rich div { margin: 0 0 .45em; }
+.tv-ann-rich ul, .tv-ann-rich ol { margin: .15em 0 .6em; }
+.tv-ann-rich li { margin-bottom: .2em; }
+.tv-ann-rich table { margin: .35em 0 .7em; min-width: min(100%, 60%); }
+.tv-ann-rich .tv-ann-groups { margin: .35em 0 .7em; }
+.tv-ann-rich .tv-ann-groups > table { margin: 0; }
+.tv-ann-rich [dir="ltr"] { text-align: left; }
+.tv-ann-rich [dir="rtl"] { text-align: right; }
+/* Announcement editor: show pasted tables as tables while editing. */
+.ann-editor table { border-collapse: collapse; margin: .25rem 0; }
+.ann-editor td, .ann-editor th { border: 1px solid #cbd5e1; padding: 2px 6px; }
+.ann-editor ol { list-style: decimal; padding-inline-start: 1.5rem; }
