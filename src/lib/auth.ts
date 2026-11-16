@@ -53,7 +53,7 @@ export const getSession = cache(async (): Promise<AuthUser | null> => {
     const { db } = await import('@/lib/db')
     const user = await db.user.findUnique({
       where: { id: payload.sub },
-      select: { id: true, email: true, name: true, role: true, schoolId: true, updatedAt: true },
+      select: { id: true, email: true, name: true, role: true, schoolId: true, dutyAccess: true, updatedAt: true },
     })
     if (!user) return null
     // Tokens from before this change carry only iat (seconds); they are compared at that precision.
@@ -61,7 +61,7 @@ export const getSession = cache(async (): Promise<AuthUser | null> => {
     if (typeof issuedAtMs === 'number') {
       if (issuedAtMs < user.updatedAt.getTime()) return null
     } else if (typeof payload.iat !== 'number' || payload.iat < Math.floor(user.updatedAt.getTime() / 1000)) return null
-    return { id: user.id, email: user.email, name: user.name, role: user.role, schoolId: user.schoolId }
+    return { id: user.id, email: user.email, name: user.name, role: user.role, schoolId: user.schoolId, dutyAccess: user.dutyAccess }
   } catch { return null }
 })
 

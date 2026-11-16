@@ -1,4 +1,5 @@
 'use client'
+import DutyRosterContent from './DutyRosterContent'
 import WebtopTimetable from './WebtopTimetable'
 import IframeContent from './IframeContent'
 import { youtubeId } from '@/lib/youtubeVideo'
@@ -29,6 +30,7 @@ export default function ContentRenderer({item,offline=false,screenId}:{item:Cont
     case 'RSS_FEED':      return <RssContent item={item}/>
     case 'VIDEO':         return offline ? <OfflineMedia /> : <VideoContent item={item}/>
     case 'IFRAME':        return offline ? <OfflineMedia /> : <IframeContent item={item}/>
+    case 'DUTY_ROSTER':   return <DutyRosterContent item={item} offline={offline} screenId={screenId}/>
     default: return <div className="w-full h-full flex items-center justify-center text-white/30 text-sm">{item.contentType}</div>
   }
 }

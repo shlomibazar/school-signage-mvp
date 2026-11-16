@@ -5,10 +5,10 @@ export type Role = 'SUPER_ADMIN'|'SCHOOL_ADMIN'|'EDITOR'|'VIEWER'
 export type Orientation = 'LANDSCAPE'|'PORTRAIT'
 export type Priority = 'LOW'|'MEDIUM'|'HIGH'|'EMERGENCY'
 export type MediaType = 'IMAGE'|'VIDEO'
-export type ContentType = 'TEXT'|'IMAGE_GALLERY'|'VIDEO'|'CLOCK'|'DATE'|'WEATHER'|'RSS_FEED'|'TIMETABLE'|'EVENTS'|'BIRTHDAYS'|'ANNOUNCEMENT'|'IFRAME'|'EMPTY'
+export type ContentType = 'TEXT'|'IMAGE_GALLERY'|'VIDEO'|'CLOCK'|'DATE'|'WEATHER'|'RSS_FEED'|'TIMETABLE'|'EVENTS'|'BIRTHDAYS'|'ANNOUNCEMENT'|'IFRAME'|'DUTY_ROSTER'|'EMPTY'
 export type DateType = 'HEBREW'|'GREGORIAN'|'BOTH'
 
-export interface AuthUser { id:string; email:string; name:string; role:Role; schoolId:string|null }
+export interface AuthUser { id:string; email:string; name:string; role:Role; schoolId:string|null; /** Duty roster access (separate from role); see src/lib/duty/rules.ts. */ dutyAccess?:'NONE'|'VIEW'|'EDIT'|'PUBLISH' }
 export interface JWTPayload { sub:string; email:string; name:string; role:Role; schoolId:string|null; iat:number; exp:number }
 
 export interface School { id:string; name:string; slug:string; logoUrl:string|null; weatherCity?:string|null; locale:string; timezone:string; active:boolean; theme?:SchoolTheme }

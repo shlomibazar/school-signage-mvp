@@ -19,6 +19,7 @@ export function publicContentSettings(contentType: string, settings: unknown): R
   switch (contentType) {
     case 'BIRTHDAYS': return isLegacyBirthdayCard(s) ? pick(s, ['personName', 'grade', 'greetingText']) : { ...normalizeBirthdayRegion(s) }
     case 'IFRAME': return pick(s, ['url'])
+    case 'DUTY_ROSTER': return pick(s, ['title', 'mode'])
     default: return s
   }
 }

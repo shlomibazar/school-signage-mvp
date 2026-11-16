@@ -1,4 +1,5 @@
 'use client'
+import DutyRosterContentForm, { DEFAULT_DUTY_ROSTER, type DutyRosterSettings } from './content-forms/DutyRosterContentForm'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Save, X, Loader2, Check } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -52,6 +53,7 @@ function defaultSettingsFor(type: ContentType): ContentSettings {
     case 'EVENTS':        return { ...DEFAULT_EVENT }
     case 'TIMETABLE':     return { ...DEFAULT_TIMETABLE }
     case 'IFRAME':        return { url: '' } as unknown as ContentSettings
+    case 'DUTY_ROSTER':   return { ...DEFAULT_DUTY_ROSTER } as unknown as ContentSettings
     default:              return {} as Record<string,never>
   }
 }
@@ -277,6 +279,7 @@ export default function ContentEditor({ screenId, section, selectedType, onClose
             {selectedType==='BIRTHDAYS'     && <BirthdayContentForm screenId={screenId} settings={asSettings<BirthdaySettings>(DEFAULT_BIRTHDAY)} onSettings={s => patchSettings(s as ContentSettings)}/>}
             {selectedType==='EVENTS'        && <EventsContentForm settings={asSettings<EventSettings>(DEFAULT_EVENT)} onSettings={patchSettings}/>}
             {selectedType==='TIMETABLE'     && <TimetableContentForm settings={asSettings<TimetableSettings>(DEFAULT_TIMETABLE)} onSettings={patchSettings}/>}
+            {selectedType==='DUTY_ROSTER'   && <DutyRosterContentForm settings={asSettings<DutyRosterSettings>(DEFAULT_DUTY_ROSTER)} onSettings={s => patchSettings(s as unknown as ContentSettings)}/>}
             {selectedType==='IFRAME'        && <IframeContentForm url={iframeUrl} onChange={url => patchSettings({ url } as unknown as ContentSettings)}/>}
             {selectedType!=='ANNOUNCEMENT' && <SchedulingPanel values={schedulingFrom(item)} onChange={patchSchedule}/>}
           </>

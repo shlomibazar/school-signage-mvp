@@ -41,7 +41,7 @@ const ContentSchema = z.object({
   contentType: z.enum([
     'TEXT', 'IMAGE_GALLERY', 'VIDEO', 'CLOCK', 'DATE',
     'WEATHER', 'RSS_FEED', 'TIMETABLE', 'EVENTS',
-    'BIRTHDAYS', 'ANNOUNCEMENT', 'IFRAME', 'EMPTY',
+    'BIRTHDAYS', 'ANNOUNCEMENT', 'IFRAME', 'DUTY_ROSTER', 'EMPTY',
   ]),
   active:          z.boolean().default(true),
   startDate:       dateField,

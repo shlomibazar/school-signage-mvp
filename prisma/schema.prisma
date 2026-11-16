@@ -46,6 +46,7 @@ enum ContentType {
   BIRTHDAYS
   ANNOUNCEMENT
   IFRAME
+  DUTY_ROSTER
   EMPTY
 }
 
@@ -55,6 +56,8 @@ model User {
   name         String
   passwordHash String
   role         Role      @default(VIEWER)
+  /// Duty roster access (see DutyAccess), separate from the screen role.
+  dutyAccess   DutyAccess @default(NONE)
   schoolId     String?
   school       School?   @relation(fields: [schoolId], references: [id], onDelete: SetNull)
   sessions     Session[]
@@ -97,6 +100,13 @@ model School {
   personSources PersonSource[]
   personAudit   PersonAuditEvent[]
   personImports PersonImport[]
+  dutyStaff     DutyStaff[]
+  dutyLocations DutyLocation[]
+  dutyPeriods   DutyPeriod[]
+  dutySettings  DutySettings?
+  dutyWeeks     DutyWeek[]
+  dutyTemplates DutyTemplate[]
+  dutyCalendar  DutyCalendarDay[]
 
   @@map("schools")
 }
@@ -550,4 +560,317 @@ model PersonImport {
   @@index([schoolId, createdAt])
   @@index([schoolId, fileSha256])
   @@map("person_imports")
+}
+
+// ── Duty roster (תורנויות) ─────────────────────────────────────────────────────
+// Staff supervision duties per school. The weekly roster is edited as a draft (DutyAssignment rows);
+// publishing stores a snapshot on DutyWeek, and only that snapshot is ever shown on screens.
+// Absences and approved substitutions are operational records applied over the published snapshot.
+
+/// Access to the duty roster, separate from the screen role. SCHOOL_ADMIN and SUPER_ADMIN always
+/// have PUBLISH; other users have only what is granted here (NONE by default).
+enum DutyAccess {
+  NONE
+  VIEW
+  EDIT
+  PUBLISH
+}
+
+enum DutyDataSource {
+  MANUAL
+  SMARTSCHOOL
+}
+
+/// REGULAR: the school's permanent staff (manual or synced). MANUAL: added by hand for the roster only
+/// (not in the school directory). TEMPORARY: a temporary or external person (substitute, instructor,
+/// guest), usually with validFrom/validUntil. MANUAL and TEMPORARY records are never sent to or
+/// replaced by an external directory sync.
+/// How a school plans its roster by default (the same engine for all three):
+/// WEEKLY – each week is planned on its own (copy last week / a template);
+/// RECURRING – a fixed weekly template applies automatically, with date-specific changes;
+/// HYBRID – the template is the baseline and weeks are adjusted freely (same data, other defaults).
+enum DutyScheduleMode {
+  WEEKLY
+  RECURRING
+  HYBRID
+}
+
+/// A calendar exception: no duties (holiday / no school) or an extra school day.
+enum DutyDayKind {
+  HOLIDAY
+  NO_SCHOOL
+  SPECIAL
+}
+
+enum DutyStaffKind {
+  REGULAR
+  MANUAL
+  TEMPORARY
+}
+
+/// A staff member who can be assigned duties. Optionally linked to the birthday directory (Person).
+model DutyStaff {
+  id          String         @id @default(cuid())
+  schoolId    String
+  school      School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  firstName   String
+  lastName    String
+  personId    String?
+  /// Identifier in an external system (future SmartSchool sync); unique per school when set.
+  externalRef String?
+  source      DutyDataSource @default(MANUAL)
+  kind        DutyStaffKind  @default(REGULAR)
+  /// Dates the person may be assigned (inclusive; null = open). Existing assignments are kept.
+  validFrom   DateTime?      @db.Date
+  validUntil  DateTime?      @db.Date
+  /// false = archived: hidden from new assignments, kept in history.
+  active      Boolean        @default(true)
+  /// Personal limits (null = the school default from DutySettings, or no limit).
+  maxPerDay   Int?
+  maxPerWeek  Int?
+  /// Times the person is not available: [{ "weekday": 0-6, "periodId": "..." | null }] (null = whole day).
+  unavailable Json?
+  notes       String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  assignments   DutyAssignment[]
+  absences      DutyAbsence[]
+  substitutions DutySubstitution[]
+
+  @@unique([schoolId, externalRef])
+  @@index([schoolId, active])
+  @@map("duty_staff")
+}
+
+model DutyLocation {
+  id          String   @id @default(cuid())
+  schoolId    String
+  school      School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  name        String
+  /// Whether the location must be covered in every period.
+  required    Boolean  @default(true)
+  /// How many staff members the location needs at once.
+  staffNeeded Int      @default(1)
+  sortOrder   Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  assignments DutyAssignment[]
+
+  @@index([schoolId, active])
+  @@map("duty_locations")
+}
+
+/// A duty period (e.g. a break): school-local times on the given weekdays (0 = Sunday).
+model DutyPeriod {
+  id        String   @id @default(cuid())
+  schoolId  String
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  name      String
+  startTime String
+  endTime   String
+  weekdays  Int[]
+  sortOrder Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignments DutyAssignment[]
+  absences    DutyAbsence[]
+
+  @@index([schoolId, active])
+  @@map("duty_periods")
+}
+
+/// School-level rules. Every limit is optional: nothing is enforced unless configured.
+model DutySettings {
+  id            String   @id @default(cuid())
+  schoolId      String   @unique
+  school        School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  /// School days (0 = Sunday … 6 = Saturday).
+  schoolDays    Int[]    @default([0, 1, 2, 3, 4, 5])
+  maxPerDay     Int?
+  maxPerWeek    Int?
+  /// Whether a rule violation may be saved with a written reason (by users who may edit).
+  allowOverride Boolean  @default(true)
+  scheduleMode  DutyScheduleMode @default(WEEKLY)
+  updatedAt     DateTime @updatedAt
+
+  @@map("duty_settings")
+}
+
+/// One school week (weekStart = its Sunday, a date). Holds the published snapshot.
+model DutyWeek {
+  id               String    @id @default(cuid())
+  schoolId         String
+  school           School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  weekStart        DateTime  @db.Date
+  /// The published roster (DutyPublishedEntry[], see src/lib/duty/types.ts). Null until published.
+  published        Json?
+  publishedAt      DateTime?
+  publishedById    String?
+  /// Bumped on every draft change; equal to publishedVersion when nothing is unpublished.
+  draftVersion     Int       @default(0)
+  publishedVersion Int       @default(0)
+  /// Whether the week follows the recurring template (null = the school's schedule mode decides).
+  useTemplate      Boolean?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  assignments DutyAssignment[]
+
+  @@unique([schoolId, weekStart])
+  @@map("duty_weeks")
+}
+
+/// A draft assignment: one staff member at one location in one period on one date.
+model DutyAssignment {
+  id             String       @id @default(cuid())
+  schoolId       String
+  weekId         String
+  week           DutyWeek     @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  date           DateTime     @db.Date
+  periodId       String
+  period         DutyPeriod   @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  locationId     String
+  location       DutyLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  staffId        String
+  staff          DutyStaff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  /// Set when saved despite a rule violation (with the user who confirmed it).
+  overrideReason String?
+  overrideById   String?
+  createdById    String?
+  createdAt      DateTime     @default(now())
+  /// Set when this row replaces one template occurrence on its date (a one-time change).
+  overrideOfEntryId String?
+  overrideOf        DutyTemplateEntry? @relation(fields: [overrideOfEntryId], references: [id], onDelete: SetNull)
+
+  substitutions DutySubstitution[]
+
+  @@unique([weekId, date, periodId, locationId, staffId])
+  @@index([schoolId, date])
+  @@map("duty_assignments")
+}
+
+model DutyAbsence {
+  id          String         @id @default(cuid())
+  schoolId    String
+  staffId     String
+  staff       DutyStaff      @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  date        DateTime       @db.Date
+  /// Null = the whole day.
+  periodId    String?
+  period      DutyPeriod?    @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  reason      String?
+  source      DutyDataSource @default(MANUAL)
+  createdById String?
+  createdAt   DateTime       @default(now())
+
+  @@index([schoolId, date])
+  @@map("duty_absences")
+}
+
+/// A substitute for one assignment on its date. The original assignment stays unchanged.
+model DutySubstitution {
+  id                String          @id @default(cuid())
+  schoolId          String
+  /// The week assignment replaced (null for a template occurrence, see occurrenceKey).
+  assignmentId      String?
+  assignment        DutyAssignment? @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  /// The occurrence replaced: the assignment id, or "t:<templateEntryId>:<YYYY-MM-DD>".
+  occurrenceKey     String?
+  substituteStaffId String
+  substitute        DutyStaff      @relation(fields: [substituteStaffId], references: [id], onDelete: Cascade)
+  approvedById      String?
+  approvedAt        DateTime       @default(now())
+  /// Cancelled substitutions are kept for history.
+  cancelledAt       DateTime?
+  cancelledById     String?
+
+  @@index([schoolId, assignmentId])
+  @@index([schoolId, occurrenceKey])
+  @@map("duty_substitutions")
+}
+
+model DutyAuditEvent {
+  id        String   @id @default(cuid())
+  schoolId  String
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  details   Json?
+  createdAt DateTime @default(now())
+
+  @@index([schoolId, createdAt])
+  @@map("duty_audit_events")
+}
+
+/// A recurring weekly roster, valid from effectiveFrom to effectiveUntil (inclusive; null = open).
+/// A change "from date X on" ends this version the day before X and starts a new version, so past
+/// weeks keep the template they had. Template occurrences are computed, never stored per date.
+model DutyTemplate {
+  id             String    @id @default(cuid())
+  schoolId       String
+  school         School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  name           String
+  effectiveFrom  DateTime  @db.Date
+  effectiveUntil DateTime? @db.Date
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  entries DutyTemplateEntry[]
+
+  @@index([schoolId, effectiveFrom])
+  @@map("duty_templates")
+}
+
+/// One recurring duty: a person at a location in a period on a weekday (0 = Sunday).
+model DutyTemplateEntry {
+  id         String       @id @default(cuid())
+  schoolId   String
+  templateId String
+  template   DutyTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  weekday    Int
+  periodId   String
+  locationId String
+  staffId    String
+  createdAt  DateTime     @default(now())
+
+  skips     DutyTemplateSkip[]
+  overrides DutyAssignment[]
+
+  @@unique([templateId, weekday, periodId, locationId, staffId])
+  @@index([schoolId])
+  @@map("duty_template_entries")
+}
+
+/// A template occurrence that does not apply on one date (cancelled or replaced by a week row).
+model DutyTemplateSkip {
+  id          String            @id @default(cuid())
+  schoolId    String
+  entryId     String
+  entry       DutyTemplateEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  date        DateTime          @db.Date
+  createdById String?
+  createdAt   DateTime          @default(now())
+
+  @@unique([entryId, date])
+  @@index([schoolId, date])
+  @@map("duty_template_skips")
+}
+
+model DutyCalendarDay {
+  id        String      @id @default(cuid())
+  schoolId  String
+  school    School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  date      DateTime    @db.Date
+  kind      DutyDayKind
+  name      String
+  createdAt DateTime    @default(now())
+
+  @@unique([schoolId, date])
+  @@map("duty_calendar_days")
 }

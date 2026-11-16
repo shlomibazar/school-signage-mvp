@@ -7,8 +7,9 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Monitor, PenSquare, Megaphone,
-  ImageIcon, Users, Settings, LockKeyhole, HelpCircle, Menu, X, PanelRightClose, PanelRightOpen, Cake,
+  ImageIcon, Users, Settings, LockKeyhole, HelpCircle, Menu, X, PanelRightClose, PanelRightOpen, Cake, ShieldCheck,
 } from 'lucide-react'
+import { dutyAccessOf } from '@/lib/duty/rules'
 import { cn } from '@/lib/utils'
 import type { AuthUser } from '@/types'
 
@@ -18,6 +19,8 @@ interface NavItem {
   icon:     React.ComponentType<{ className?: string }>
   section?: string
   roles?:   string[]
+  /** Shown only to users with duty roster access (school admins, or a granted roster permission). */
+  duty?:    boolean
 }
 
 const NAV: NavItem[] = [
@@ -32,6 +35,7 @@ const NAV: NavItem[] = [
   // Editors manage the school's logo and weather city here (as the API allows); screen settings are
   // read-only for them.
   // Personal data (students and teachers): school admins only, as in /api/people.
+  { href: '/admin/duty',          label: 'תורנויות',       icon: ShieldCheck,  section: 'ניהול', duty: true },
   { href: '/admin/birthdays',     label: 'ימי הולדת',      icon: Cake,         section: 'ניהול', roles: ['SCHOOL_ADMIN', 'SUPER_ADMIN'] },
   { href: '/admin/settings',      label: 'הגדרות',         icon: Settings,     section: 'ניהול', roles: ['EDITOR', 'SCHOOL_ADMIN', 'SUPER_ADMIN'] },
   { href: '/admin/change-password', label: 'שינוי סיסמה', icon: LockKeyhole },
@@ -74,6 +78,7 @@ export default function AdminSidebar({ user }: { user: AuthUser }) {
     <nav className="flex-1 px-2 py-3 flex flex-col gap-0.5 overflow-y-auto">
       {NAV.map(item => {
         if (item.roles && !item.roles.includes(user.role)) return null
+        if (item.duty && dutyAccessOf(user) === 'NONE') return null
 
         const showSection = item.section && item.section !== lastSection
         if (item.section) lastSection = item.section

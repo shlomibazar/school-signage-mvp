@@ -20,7 +20,7 @@ const num = (n: number) => String(Math.round(n * 100) / 100)
 
 function color(v: string): string | null {
   const c = v.trim().toLowerCase()
-  if (c === 'windowtext' || c === 'auto') return 'currentColor'
+  if (c === 'windowtext' || c === 'auto' || c === 'currentcolor') return 'currentColor'
   return COLOR.test(c) && !/^(?:inherit|initial|unset|expression)$/.test(c) ? c : null
 }
 

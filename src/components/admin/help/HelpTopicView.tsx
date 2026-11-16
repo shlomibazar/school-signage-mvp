@@ -26,8 +26,17 @@ export default function HelpTopicView({ topic, compact = false }: { topic: HelpT
         </figure>
       )}
 
+      {/* A long guide gets a short index of its sections. */}
+      {topic.sections.filter(x => x.title).length >= 6 && (
+        <nav aria-label="תוכן העניינים" className="flex flex-wrap gap-1.5 rounded-ui-sm bg-ui-subtle p-2">
+          {topic.sections.map((section, i) => section.title && (
+            <a key={i} href={`#help-${topic.id}-${i}`} className="ui-focus rounded-full bg-ui-surface px-2.5 py-1 text-xs text-ui-primary hover:underline">{section.title}</a>
+          ))}
+        </nav>
+      )}
+
       {topic.sections.map((section, i) => (
-        <section key={i} className="grid gap-2">
+        <section key={i} id={`help-${topic.id}-${i}`} className="grid scroll-mt-4 gap-2">
           {section.title && <h3 className={cn('font-semibold text-ui-ink', compact ? 'text-sm' : 'text-base')}>{section.title}</h3>}
           {section.text && <p className="text-sm leading-relaxed text-ui-ink-2">{section.text}</p>}
           {section.steps && (

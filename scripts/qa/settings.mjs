@@ -60,8 +60,10 @@ try {
   const list = await call(A, '/admin/screens')
   t('screens list: "הגדרות מסך" goes to this screen\'s settings', list.text.includes(`פעולות נוספות למסך ${TAG} Lobby`) && (await call(A, settingsUrl)).s === 200)
   const ed = await call(A, `/admin/editor?screen=${s.id}`)
-  t('editor: school values read-only with a link to school settings', ed.s === 200 && ed.text.includes('ניהול בהגדרות בית הספר') && !ed.text.includes('שמור עיר') && !ed.text.includes('school-weather-city'))
-  t('editor: per-screen logo / weather visibility toggles kept', ed.text.includes('הצג לוגו') && ed.text.includes('הצג מזג אוויר בכותרת'))
+  // Since the editor redesign (78b15ec) school values sit in a collapsed group ("פרטי בית הספר", its summary
+  // says they are shared; the link to school settings is inside it) and cannot be edited in the editor.
+  t('editor: school values shown as shared, not editable in the editor', ed.s === 200 && ed.text.includes('פרטי בית הספר') && ed.text.includes('משותפים לכל המסכים') && !ed.text.includes('שמור עיר') && !ed.text.includes('school-weather-city'))
+  t('editor: per-screen logo / weather visibility toggles kept', ed.text.includes('לוגו בית הספר') && ed.text.includes('מזג אוויר'))
 
   // ── Operating hours API (unchanged rules) ──────────────────────────────────────────────────
   const hours = { enabled: true, startTime: '07:30', endTime: '16:00', days: [0, 1, 2, 3, 4], standbyMode: 'message' }

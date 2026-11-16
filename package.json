@@ -23,7 +23,15 @@
     "test:qa:iframe": "node scripts/qa/iframe.mjs",
     "test:qa:people": "node scripts/qa/people.mjs",
     "test:qa:people-import": "node scripts/qa/people-import.mjs",
-    "test:qa:birthday-display": "node scripts/qa/birthday-display.mjs"
+    "test:qa:birthday-display": "node scripts/qa/birthday-display.mjs",
+    "test:qa:office-paste": "node scripts/qa/office-paste.mjs",
+    "test:qa:duty": "node scripts/qa/duty-roster.mjs",
+    "test:qa:duty-ui": "node scripts/qa/duty-ui.mjs",
+    "test:qa:duty-perf": "node scripts/qa/duty-perf.mjs",
+    "test:qa:duty-templates": "node scripts/qa/duty-templates.mjs",
+    "test:qa:duty-tv": "node scripts/qa/duty-tv.mjs",
+    "demo:seed": "tsx scripts/demo/duty-demo.ts seed",
+    "demo:cleanup": "tsx scripts/demo/duty-demo.ts cleanup"
   },
   "dependencies": {
     "@prisma/client": "^5.15.0",

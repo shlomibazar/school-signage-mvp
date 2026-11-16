@@ -46,7 +46,9 @@ try {
   // Screens page: the delete button only for SCHOOL_ADMIN and up.
   const pageE = await call(E, '/admin/screens'), pageA = await call(A, '/admin/screens')
   // Disable/enable and delete live in the card's "⋮" menu, which only SCHOOL_ADMIN and up get.
-  t('screens page: no management menu for EDITOR', pageE.s === 200 && !pageE.text.includes(`פעולות נוספות למסך ${TAG} One`))
+  // Since rename/duplicate (commit f1d4f7d) EDITORs get the card's "⋮" menu with those two actions;
+  // disable/enable, delete and screen settings stay SCHOOL_ADMIN-only, enforced by the API (checked above).
+  t('screens page: EDITOR gets the menu (rename, duplicate)', pageE.s === 200 && pageE.text.includes(`פעולות נוספות למסך ${TAG} One`))
   t('screens page: management menu for SCHOOL_ADMIN', pageA.text.includes(`פעולות נוספות למסך ${TAG} One`))
   t('screens page: EDITOR still gets edit and TV connection', pageE.text.includes('עריכת מסך') && pageE.text.includes('חיבור טלוויזיה'))
   const pageV = await call(V, '/admin/screens')
